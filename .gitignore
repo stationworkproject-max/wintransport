@@ -1,0 +1,29 @@
+# Node / Web
+node_modules/
+dist/
+.vite/
+
+# Android / Gradle
+android/.gradle/
+android/build/
+android/app/build/
+*.iml
+local.properties
+
+# IDE / OS
+.idea/
+.DS_Store
+Thumbs.db
+
+# Logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Codex temp patches
+scripts/patch_*.py
+# Sensitive local credentials/sessions
+scripts/*token*.txt
+scripts/*session*.json
+scripts/*session*.bin
+scripts/*api_keys*.json

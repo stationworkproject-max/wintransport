@@ -1,0 +1,14 @@
+{
+  "appId": "com.wintransport.tn",
+  "appName": "WinTransport TN",
+  "webDir": "dist",
+  "server": {
+    "androidScheme": "https",
+    "cleartext": true
+  },
+  "plugins": {
+    "CapacitorCookies": {
+      "enabled": true
+    }
+  }
+}

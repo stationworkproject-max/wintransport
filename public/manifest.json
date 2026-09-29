@@ -1,0 +1,18 @@
+{
+  "name": "WinTransport TN - Transport Public Tunisie",
+  "short_name": "WinTransport",
+  "description": "Suivi communautaire en temps réel des métros, bus Transtu, TGM, RFR et trains en Tunisie",
+  "start_url": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#0f172a",
+  "theme_color": "#0f172a",
+  "icons": [
+    {
+      "src": "/vite.svg",
+      "sizes": "192x192 512x512",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}

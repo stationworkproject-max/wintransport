@@ -1,0 +1,1605 @@
+[
+  {
+    "route_id": "19",
+    "type": "rfr",
+    "color": "A736A8",
+    "short_name": "A",
+    "long_name": "Tunis Ville-Erriadh"
+  },
+  {
+    "route_id": "46",
+    "type": "rfr",
+    "color": "489224",
+    "short_name": "D",
+    "long_name": "Tunis Ville - Gobaa"
+  },
+  {
+    "route_id": "47",
+    "type": "rfr",
+    "color": "D32F2F",
+    "short_name": "E",
+    "long_name": "Tunis Ville - Bougatfa-Sidi Hassine"
+  },
+  {
+    "route_id": "50",
+    "type": "metro",
+    "color": "84C8EB",
+    "short_name": "1",
+    "long_name": "Place de Barcelone - Ben Arous"
+  },
+  {
+    "route_id": "51",
+    "type": "metro",
+    "color": "489224",
+    "short_name": "2",
+    "long_name": "Place de la République - L&#039;Ariana"
+  },
+  {
+    "route_id": "52",
+    "type": "metro",
+    "color": "003399",
+    "short_name": "3",
+    "long_name": "Tunis Marine - Ibn Khaldoun"
+  },
+  {
+    "route_id": "53",
+    "type": "metro",
+    "color": "FFCF06",
+    "short_name": "4",
+    "long_name": "Place de Barcelone - Kheireddine"
+  },
+  {
+    "route_id": "54",
+    "type": "metro",
+    "color": "E5442E",
+    "short_name": "5",
+    "long_name": "Place de Barcelone - Intilaka"
+  },
+  {
+    "route_id": "55",
+    "type": "metro",
+    "color": "4F3E90",
+    "short_name": "6",
+    "long_name": "Tunis Marine - El Mourouj 4"
+  },
+  {
+    "route_id": "56",
+    "type": "metro",
+    "color": "0000FF",
+    "short_name": "TGM",
+    "long_name": "Tunis-Goulette-Marsa"
+  },
+  {
+    "route_id": "38",
+    "type": "train",
+    "color": "829EC0",
+    "short_name": "Train",
+    "long_name": "Sousse Bab Jdid-Sousse Sud"
+  },
+  {
+    "route_id": "14",
+    "type": "train",
+    "color": "FF0000",
+    "short_name": "Train",
+    "long_name": "Tunis Ville-Ghardimaou"
+  },
+  {
+    "route_id": "5",
+    "type": "train",
+    "color": "C756A6",
+    "short_name": "Train",
+    "long_name": "Tunis Ville-Dahmani"
+  },
+  {
+    "route_id": "8",
+    "type": "train",
+    "color": "005FFF",
+    "short_name": "Train",
+    "long_name": "Tunis Ville-Le Kef"
+  },
+  {
+    "route_id": "45",
+    "type": "train",
+    "color": "00AD9E",
+    "short_name": "Train",
+    "long_name": "Nabeul-Bir Bourekba"
+  },
+  {
+    "route_id": "43",
+    "type": "train",
+    "color": "00AD9E",
+    "short_name": "Train",
+    "long_name": "Redeyef-Tabeddit"
+  },
+  {
+    "route_id": "42",
+    "type": "train",
+    "color": "000B9E",
+    "short_name": "Train",
+    "long_name": "Om El Arais-Metlaoui"
+  },
+  {
+    "route_id": "41",
+    "type": "train",
+    "color": "280B3C",
+    "short_name": "Train",
+    "long_name": "Monastir-Sousse Sud"
+  },
+  {
+    "route_id": "4",
+    "type": "train",
+    "color": "000080",
+    "short_name": "Train",
+    "long_name": "Tunis Ville-Bizerte"
+  },
+  {
+    "route_id": "39",
+    "type": "train",
+    "color": "F49581",
+    "short_name": "Train",
+    "long_name": "Tebeddit-Om El Arais"
+  },
+  {
+    "route_id": "31",
+    "type": "train",
+    "color": "97793C",
+    "short_name": "Train",
+    "long_name": "Metlaoui-Redeyef"
+  },
+  {
+    "route_id": "22",
+    "type": "train",
+    "color": "E48881",
+    "short_name": "Train",
+    "long_name": "Tunis Ville-Monastir"
+  },
+  {
+    "route_id": "10",
+    "type": "train",
+    "color": "9A10FF",
+    "short_name": "Train",
+    "long_name": "Tunis Ville-Tebourba"
+  },
+  {
+    "route_id": "12",
+    "type": "train",
+    "color": "829ECE",
+    "short_name": "Train",
+    "long_name": "Tunis Ville-Beja Voy"
+  },
+  {
+    "route_id": "15",
+    "type": "train",
+    "color": "333300",
+    "short_name": "Train",
+    "long_name": "Tunis Ville-Jerissa"
+  },
+  {
+    "route_id": "16",
+    "type": "train",
+    "color": "FF6633",
+    "short_name": "Train",
+    "long_name": "Tunis Ville-Mahdia"
+  },
+  {
+    "route_id": "17",
+    "type": "train",
+    "color": "927935",
+    "short_name": "Train",
+    "long_name": "Tunis Ville-Nabeul Voyageurs"
+  },
+  {
+    "route_id": "18",
+    "type": "train",
+    "color": "97533A",
+    "short_name": "Train",
+    "long_name": "Tunis Ville-Sfax"
+  },
+  {
+    "route_id": "20",
+    "type": "train",
+    "color": "0000FF",
+    "short_name": "Train",
+    "long_name": "Tunis Ville-kalaa Khasba"
+  },
+  {
+    "route_id": "21",
+    "type": "train",
+    "color": "F40581",
+    "short_name": "Train",
+    "long_name": "Tunis Ville-Gabes"
+  },
+  {
+    "route_id": "36",
+    "type": "train",
+    "color": "E49981",
+    "short_name": "Train",
+    "long_name": "Sousse Bab Jdid-Moknine Voyageurs"
+  },
+  {
+    "route_id": "23",
+    "type": "train",
+    "color": "859EC6",
+    "short_name": "Train",
+    "long_name": "Tunis Ville-Sousse Voyageurs"
+  },
+  {
+    "route_id": "24",
+    "type": "train",
+    "color": "849EA9",
+    "short_name": "Train",
+    "long_name": "Tunis Ville-Tozeur"
+  },
+  {
+    "route_id": "28",
+    "type": "train",
+    "color": "FF0000",
+    "short_name": "Train",
+    "long_name": "Aguila-M&#039;Dhilla"
+  },
+  {
+    "route_id": "29",
+    "type": "train",
+    "color": "C736A6",
+    "short_name": "Train",
+    "long_name": "Gafsa-Aguila"
+  },
+  {
+    "route_id": "3",
+    "type": "train",
+    "color": "E49581",
+    "short_name": "Train",
+    "long_name": "Sousse Bab Jdid-Monastir"
+  },
+  {
+    "route_id": "30",
+    "type": "train",
+    "color": "0000FF",
+    "short_name": "Train",
+    "long_name": "Gafsa-Cheria"
+  },
+  {
+    "route_id": "1",
+    "type": "train",
+    "color": "407E15",
+    "short_name": "Train",
+    "long_name": "Sousse Bab Jdid-Mahdia"
+  },
+  {
+    "route_id": "25",
+    "type": "train",
+    "color": "C759A6",
+    "short_name": "A",
+    "long_name": "Tunis Ville-Haammam Lif"
+  },
+  {
+    "route_id": "889",
+    "type": "bus",
+    "color": "#FFCF06",
+    "short_name": "Bus Aéroport",
+    "long_name": "Aéroport de Tunis Carthage - Tunis Marine"
+  },
+  {
+    "route_id": "703",
+    "type": "bus",
+    "color": "#97253C",
+    "short_name": "10",
+    "long_name": "Avenue Carthage - Cité Ezitouna"
+  },
+  {
+    "route_id": "772",
+    "type": "bus",
+    "color": "#F49581",
+    "short_name": "104",
+    "long_name": "Tunis Marine - Khaireddine Mannouba"
+  },
+  {
+    "route_id": "780",
+    "type": "bus",
+    "color": "#C756A6",
+    "short_name": "10B",
+    "long_name": "Station Barcelone - Lycée Ibn Mandhour"
+  },
+  {
+    "route_id": "781",
+    "type": "bus",
+    "color": "#84C8EB",
+    "short_name": "10C",
+    "long_name": "Station Barcelone - Hopital Régional Yesminet"
+  },
+  {
+    "route_id": "704",
+    "type": "bus",
+    "color": "#829ECE",
+    "short_name": "11",
+    "long_name": "Tunis Marine - Jbel Lahmer"
+  },
+  {
+    "route_id": "773",
+    "type": "bus",
+    "color": "#000080",
+    "short_name": "116",
+    "long_name": "Bab Alioua - Tebourba"
+  },
+  {
+    "route_id": "705",
+    "type": "bus",
+    "color": "#829EC1",
+    "short_name": "12",
+    "long_name": "Jardin Thameur - Zayatine"
+  },
+  {
+    "route_id": "782",
+    "type": "bus",
+    "color": "#489224",
+    "short_name": "14A",
+    "long_name": "Ali Balahouan - Omrane Supérieur"
+  },
+  {
+    "route_id": "783",
+    "type": "bus",
+    "color": "#003399",
+    "short_name": "14C",
+    "long_name": "Ali Balahouan - Cité Elbasatine"
+  },
+  {
+    "route_id": "784",
+    "type": "bus",
+    "color": "#FFCF06",
+    "short_name": "14CG",
+    "long_name": "Kasbah - Intilaka"
+  },
+  {
+    "route_id": "706",
+    "type": "bus",
+    "color": "#FF0000",
+    "short_name": "15",
+    "long_name": "Jardin Thameur - Saidia"
+  },
+  {
+    "route_id": "785",
+    "type": "bus",
+    "color": "#E5442E",
+    "short_name": "15A",
+    "long_name": "Jardin Thameur - Cité Ezzouhour 4"
+  },
+  {
+    "route_id": "786",
+    "type": "bus",
+    "color": "#4F3E90",
+    "short_name": "15B",
+    "long_name": "Jardin Thameur - Cité Ezzouhour"
+  },
+  {
+    "route_id": "707",
+    "type": "bus",
+    "color": "#333300",
+    "short_name": "16",
+    "long_name": "Ali Balahouan - El Hbibia"
+  },
+  {
+    "route_id": "787",
+    "type": "bus",
+    "color": "#0000FF",
+    "short_name": "16/",
+    "long_name": "Ali Balahouan - Cité Ennassim"
+  },
+  {
+    "route_id": "788",
+    "type": "bus",
+    "color": "#000000",
+    "short_name": "16A",
+    "long_name": "Boudreya - Sanhaja"
+  },
+  {
+    "route_id": "789",
+    "type": "bus",
+    "color": "#FF00FF",
+    "short_name": "16B",
+    "long_name": "Khaireddine Mannouba - Tebourba"
+  },
+  {
+    "route_id": "790",
+    "type": "bus",
+    "color": "#407E15",
+    "short_name": "16C",
+    "long_name": "Ali Balahouan - Cité Elward"
+  },
+  {
+    "route_id": "791",
+    "type": "bus",
+    "color": "#005FFF",
+    "short_name": "16D",
+    "long_name": "Ali Balahouan - Sidi Othman"
+  },
+  {
+    "route_id": "708",
+    "type": "bus",
+    "color": "#FF6633",
+    "short_name": "17",
+    "long_name": "Station Barcelone - Rades Zi"
+  },
+  {
+    "route_id": "792",
+    "type": "bus",
+    "color": "#B736A6",
+    "short_name": "17A",
+    "long_name": "Médina Jedida - Port La Goulette"
+  },
+  {
+    "route_id": "793",
+    "type": "bus",
+    "color": "#407E15",
+    "short_name": "17B",
+    "long_name": "Station Barcelone - Port De Rades"
+  },
+  {
+    "route_id": "709",
+    "type": "bus",
+    "color": "#927935",
+    "short_name": "18",
+    "long_name": "10 Decembre - Mongi Slim"
+  },
+  {
+    "route_id": "794",
+    "type": "bus",
+    "color": "#9A10FF",
+    "short_name": "18B",
+    "long_name": "10 Decembre - Onas Sidi Salah"
+  },
+  {
+    "route_id": "795",
+    "type": "bus",
+    "color": "#97253C",
+    "short_name": "18C",
+    "long_name": "10 Decembre - Carthage Hannibal"
+  },
+  {
+    "route_id": "710",
+    "type": "bus",
+    "color": "#97533A",
+    "short_name": "19",
+    "long_name": "Station Barcelone - Megrine Coteaux"
+  },
+  {
+    "route_id": "796",
+    "type": "bus",
+    "color": "#829ECE",
+    "short_name": "19A",
+    "long_name": "Station Barcelone - Cité Chaker"
+  },
+  {
+    "route_id": "797",
+    "type": "bus",
+    "color": "#829EC1",
+    "short_name": "19C",
+    "long_name": "Station Barcelone - Lycée Ibn Mandhour"
+  },
+  {
+    "route_id": "798",
+    "type": "bus",
+    "color": "#FF0000",
+    "short_name": "19C/",
+    "long_name": "Station Barcelone - Médina Jedida"
+  },
+  {
+    "route_id": "799",
+    "type": "bus",
+    "color": "#333300",
+    "short_name": "19D",
+    "long_name": "Station Barcelone - Stade Municipale"
+  },
+  {
+    "route_id": "800",
+    "type": "bus",
+    "color": "#FF6633",
+    "short_name": "19E",
+    "long_name": "Station Barcelone - Cité Chaker"
+  },
+  {
+    "route_id": "801",
+    "type": "bus",
+    "color": "#927935",
+    "short_name": "19G",
+    "long_name": "Hopital Des Enfants - Lycée Ibn Mandhour"
+  },
+  {
+    "route_id": "711",
+    "type": "bus",
+    "color": "#A736A8",
+    "short_name": "20",
+    "long_name": "Jardin Thameur - Teminus Cité Riadh"
+  },
+  {
+    "route_id": "802",
+    "type": "bus",
+    "color": "#97533A",
+    "short_name": "20A",
+    "long_name": "Jardin Thameur - Bhar Lazreg"
+  },
+  {
+    "route_id": "803",
+    "type": "bus",
+    "color": "#A736A8",
+    "short_name": "20B",
+    "long_name": "Jardin Thameur - Gammarth"
+  },
+  {
+    "route_id": "804",
+    "type": "bus",
+    "color": "#0000FF",
+    "short_name": "20C",
+    "long_name": "Jardin Thameur - Carthage Hannibal"
+  },
+  {
+    "route_id": "805",
+    "type": "bus",
+    "color": "#F40581",
+    "short_name": "20G",
+    "long_name": "Kasbah - Sidi Abd Aziz"
+  },
+  {
+    "route_id": "712",
+    "type": "bus",
+    "color": "#0000FF",
+    "short_name": "21",
+    "long_name": "Mornag - Ferch Annabi"
+  },
+  {
+    "route_id": "806",
+    "type": "bus",
+    "color": "#E48881",
+    "short_name": "21A",
+    "long_name": "Mornag - Jebel Rassas"
+  },
+  {
+    "route_id": "807",
+    "type": "bus",
+    "color": "#859EC6",
+    "short_name": "21B",
+    "long_name": "Mornag - Tarhouna"
+  },
+  {
+    "route_id": "713",
+    "type": "bus",
+    "color": "#F40581",
+    "short_name": "22",
+    "long_name": "Station Barcelone - Centre De Traumatologie Et Des Grands Brulés"
+  },
+  {
+    "route_id": "808",
+    "type": "bus",
+    "color": "#849EA9",
+    "short_name": "22A",
+    "long_name": "Station Barcelone - Lycée Yassminet"
+  },
+  {
+    "route_id": "809",
+    "type": "bus",
+    "color": "#C759A6",
+    "short_name": "22G",
+    "long_name": "Hopital Des Enfants - Cite El Eskan Ben Arous"
+  },
+  {
+    "route_id": "700",
+    "type": "bus",
+    "color": "#407E15",
+    "short_name": "23",
+    "long_name": "SLIMEN KAHIA - CITE EL INTILAKA"
+  },
+  {
+    "route_id": "810",
+    "type": "bus",
+    "color": "#3355FF",
+    "short_name": "23/",
+    "long_name": "Cafe Medina - Ecole Fejja"
+  },
+  {
+    "route_id": "811",
+    "type": "bus",
+    "color": "#FF0000",
+    "short_name": "23B",
+    "long_name": "Slimen Kahia - Lycee 20 Mars"
+  },
+  {
+    "route_id": "812",
+    "type": "bus",
+    "color": "#C736A6",
+    "short_name": "23C",
+    "long_name": "Slimen Kahia - Sidi Hmida"
+  },
+  {
+    "route_id": "813",
+    "type": "bus",
+    "color": "#E49581",
+    "short_name": "23D",
+    "long_name": "Slimen Kahia - Drijet"
+  },
+  {
+    "route_id": "814",
+    "type": "bus",
+    "color": "#0000FF",
+    "short_name": "23E",
+    "long_name": "Slimen Kahia - Griaat"
+  },
+  {
+    "route_id": "815",
+    "type": "bus",
+    "color": "#97793C",
+    "short_name": "23F",
+    "long_name": "Slimen Kahia - Frinech"
+  },
+  {
+    "route_id": "816",
+    "type": "bus",
+    "color": "#E49981",
+    "short_name": "23H",
+    "long_name": "Slimen Kahia - Sidi Medien"
+  },
+  {
+    "route_id": "817",
+    "type": "bus",
+    "color": "#829EC0",
+    "short_name": "23T",
+    "long_name": "Slimen Kahia - Ksar Hdid"
+  },
+  {
+    "route_id": "714",
+    "type": "bus",
+    "color": "#E48881",
+    "short_name": "24",
+    "long_name": "Mourouj 2 - Cebalet Cheikh"
+  },
+  {
+    "route_id": "818",
+    "type": "bus",
+    "color": "#F49581",
+    "short_name": "24/",
+    "long_name": "Mourouj 2 - Cité El Elmi"
+  },
+  {
+    "route_id": "774",
+    "type": "bus",
+    "color": "#280B3C",
+    "short_name": "247",
+    "long_name": "Port La Goulette - Cité Riadh"
+  },
+  {
+    "route_id": "819",
+    "type": "bus",
+    "color": "#000080",
+    "short_name": "24A",
+    "long_name": "Mourouj 2 - Ouedhna"
+  },
+  {
+    "route_id": "820",
+    "type": "bus",
+    "color": "#280B3C",
+    "short_name": "24D",
+    "long_name": "Mourouj 2 - Douar Houch"
+  },
+  {
+    "route_id": "821",
+    "type": "bus",
+    "color": "#000B9E",
+    "short_name": "24E",
+    "long_name": "Mourouj 2 - Sidi Fredj"
+  },
+  {
+    "route_id": "823",
+    "type": "bus",
+    "color": "#00AD9E",
+    "short_name": "24F",
+    "long_name": "Mourouj 2 - Cité El Amal Fouchana"
+  },
+  {
+    "route_id": "822",
+    "type": "bus",
+    "color": "#00AD9E",
+    "short_name": "24H",
+    "long_name": "Mourouj 2 - Taieb Mhiri"
+  },
+  {
+    "route_id": "715",
+    "type": "bus",
+    "color": "#859EC6",
+    "short_name": "25",
+    "long_name": "Avenue Carthage - Ferch Annabi"
+  },
+  {
+    "route_id": "824",
+    "type": "bus",
+    "color": "#489224",
+    "short_name": "25A",
+    "long_name": "Avenue Carthage - Cité El Amal Fouchana"
+  },
+  {
+    "route_id": "825",
+    "type": "bus",
+    "color": "#D32F2F",
+    "short_name": "25B",
+    "long_name": "Avenue Carthage - Bir Jeddid"
+  },
+  {
+    "route_id": "827",
+    "type": "bus",
+    "color": "#84C8EB",
+    "short_name": "25C",
+    "long_name": "Avenue Carthage - Naassen"
+  },
+  {
+    "route_id": "826",
+    "type": "bus",
+    "color": "#C756A6",
+    "short_name": "25D",
+    "long_name": "Avenue Carthage - Cité Salem"
+  },
+  {
+    "route_id": "716",
+    "type": "bus",
+    "color": "#849EA9",
+    "short_name": "26",
+    "long_name": "Station Barcelone - Mornag"
+  },
+  {
+    "route_id": "828",
+    "type": "bus",
+    "color": "#489224",
+    "short_name": "26A",
+    "long_name": "Station Barcelone - Mornag"
+  },
+  {
+    "route_id": "829",
+    "type": "bus",
+    "color": "#003399",
+    "short_name": "26B",
+    "long_name": "Station Barcelone - Mornag"
+  },
+  {
+    "route_id": "830",
+    "type": "bus",
+    "color": "#FFCF06",
+    "short_name": "26C",
+    "long_name": "Cité Thameur - Mornag"
+  },
+  {
+    "route_id": "717",
+    "type": "bus",
+    "color": "#C759A6",
+    "short_name": "27",
+    "long_name": "10 Decembre - Raoued"
+  },
+  {
+    "route_id": "831",
+    "type": "bus",
+    "color": "#E5442E",
+    "short_name": "27A",
+    "long_name": "10 Decembre - Cité El Ghazela"
+  },
+  {
+    "route_id": "832",
+    "type": "bus",
+    "color": "#4F3E90",
+    "short_name": "27C",
+    "long_name": "10 Decembre - Cite El Bokri"
+  },
+  {
+    "route_id": "718",
+    "type": "bus",
+    "color": "#3355FF",
+    "short_name": "29",
+    "long_name": "Station Barcelone - Bellevue"
+  },
+  {
+    "route_id": "719",
+    "type": "bus",
+    "color": "#FF0000",
+    "short_name": "31",
+    "long_name": "Ali Balahouan - Protville"
+  },
+  {
+    "route_id": "833",
+    "type": "bus",
+    "color": "#0000FF",
+    "short_name": "31A",
+    "long_name": "Ali Balahouan - Bech Hamba"
+  },
+  {
+    "route_id": "836",
+    "type": "bus",
+    "color": "#407E15",
+    "short_name": "31B",
+    "long_name": "Ali Balahouan - Lycée Kalaate Al Andalouss"
+  },
+  {
+    "route_id": "834",
+    "type": "bus",
+    "color": "#000000",
+    "short_name": "31C",
+    "long_name": "Ali Balahouan - Chorfech"
+  },
+  {
+    "route_id": "835",
+    "type": "bus",
+    "color": "#FF00FF",
+    "short_name": "31C/",
+    "long_name": "Charguia - Chorfech"
+  },
+  {
+    "route_id": "720",
+    "type": "bus",
+    "color": "#C736A6",
+    "short_name": "32",
+    "long_name": "Jardin Thameur - Zahrouni"
+  },
+  {
+    "route_id": "837",
+    "type": "bus",
+    "color": "#005FFF",
+    "short_name": "32A",
+    "long_name": "Bab Alioua - Sidi Hassine"
+  },
+  {
+    "route_id": "840",
+    "type": "bus",
+    "color": "#00AD9E",
+    "short_name": "32B",
+    "long_name": "Jardin Thameur - Borj Chakir"
+  },
+  {
+    "route_id": "838",
+    "type": "bus",
+    "color": "#B736A6",
+    "short_name": "32C",
+    "long_name": "Jardin Thameur - Zahrouni"
+  },
+  {
+    "route_id": "839",
+    "type": "bus",
+    "color": "#000B9E",
+    "short_name": "32D",
+    "long_name": "Jardin Thameur - Sidi Hassine"
+  },
+  {
+    "route_id": "721",
+    "type": "bus",
+    "color": "#E49581",
+    "short_name": "33",
+    "long_name": "Jardin Thameur - Mghira"
+  },
+  {
+    "route_id": "841",
+    "type": "bus",
+    "color": "#407E15",
+    "short_name": "33A",
+    "long_name": "Jardin Thameur - Bouhamed"
+  },
+  {
+    "route_id": "842",
+    "type": "bus",
+    "color": "#407E15",
+    "short_name": "33A/",
+    "long_name": "Jardin Thameur - Taieb Mhiri"
+  },
+  {
+    "route_id": "843",
+    "type": "bus",
+    "color": "#9A10FF",
+    "short_name": "33B",
+    "long_name": "Jardin Thameur - Sidi Hassine"
+  },
+  {
+    "route_id": "844",
+    "type": "bus",
+    "color": "#97253C",
+    "short_name": "33C",
+    "long_name": "Jardin Thameur - Cite 25 Juillet"
+  },
+  {
+    "route_id": "722",
+    "type": "bus",
+    "color": "#0000FF",
+    "short_name": "34",
+    "long_name": "Jardin Thameur - Epicier Lagraa"
+  },
+  {
+    "route_id": "845",
+    "type": "bus",
+    "color": "#829ECE",
+    "short_name": "34A",
+    "long_name": "Jardin Thameur - Prison Civile Mornagiaa"
+  },
+  {
+    "route_id": "723",
+    "type": "bus",
+    "color": "#97793C",
+    "short_name": "35",
+    "long_name": "Tunis Marine - 10 Decembre"
+  },
+  {
+    "route_id": "724",
+    "type": "bus",
+    "color": "#E49981",
+    "short_name": "36",
+    "long_name": "La Fayette - Ministére Des Affaires Etrangeres"
+  },
+  {
+    "route_id": "846",
+    "type": "bus",
+    "color": "#829EC1",
+    "short_name": "36B",
+    "long_name": "Ministére Des Affaires Etrangeres - Bardo"
+  },
+  {
+    "route_id": "725",
+    "type": "bus",
+    "color": "#829EC0",
+    "short_name": "37",
+    "long_name": "Mornag - Borj Cedria"
+  },
+  {
+    "route_id": "779",
+    "type": "bus",
+    "color": "#D32F2F",
+    "short_name": "3710",
+    "long_name": "Marché De Gros - Borj Cedria"
+  },
+  {
+    "route_id": "847",
+    "type": "bus",
+    "color": "#FF0000",
+    "short_name": "38B",
+    "long_name": "Tunis Marine - Omrane Supérieur"
+  },
+  {
+    "route_id": "848",
+    "type": "bus",
+    "color": "#333300",
+    "short_name": "38C",
+    "long_name": "Tunis Marine - Cité Errafeha"
+  },
+  {
+    "route_id": "726",
+    "type": "bus",
+    "color": "#F49581",
+    "short_name": "39",
+    "long_name": "Lycée Ezzahra - Rades Foret"
+  },
+  {
+    "route_id": "849",
+    "type": "bus",
+    "color": "#FF6633",
+    "short_name": "3A",
+    "long_name": "Ali Balahouan - Ksar Said"
+  },
+  {
+    "route_id": "850",
+    "type": "bus",
+    "color": "#927935",
+    "short_name": "3AG",
+    "long_name": "Kasbah - Ksar Said"
+  },
+  {
+    "route_id": "851",
+    "type": "bus",
+    "color": "#97533A",
+    "short_name": "3D",
+    "long_name": "Ali Balahouan - Ettadhamen"
+  },
+  {
+    "route_id": "852",
+    "type": "bus",
+    "color": "#A736A8",
+    "short_name": "410B",
+    "long_name": "Marché De Gros - Boudria"
+  },
+  {
+    "route_id": "727",
+    "type": "bus",
+    "color": "#000080",
+    "short_name": "42",
+    "long_name": "Ali Balahouan - Tebourba"
+  },
+  {
+    "route_id": "853",
+    "type": "bus",
+    "color": "#0000FF",
+    "short_name": "42B",
+    "long_name": "Khaireddine Mannouba - Zouitina"
+  },
+  {
+    "route_id": "728",
+    "type": "bus",
+    "color": "#280B3C",
+    "short_name": "43",
+    "long_name": "Hopital Des Enfants - Institut De La Nutrition"
+  },
+  {
+    "route_id": "857",
+    "type": "bus",
+    "color": "#849EA9",
+    "short_name": "43B",
+    "long_name": "Tunis Marine - Rabta"
+  },
+  {
+    "route_id": "729",
+    "type": "bus",
+    "color": "#000B9E",
+    "short_name": "44",
+    "long_name": "Intilaka - Lycée Kalaate Al Andalouss"
+  },
+  {
+    "route_id": "884",
+    "type": "bus",
+    "color": "#FF00FF",
+    "short_name": "44A",
+    "long_name": "Les Abattoirs - Kalaate Al Andalouss"
+  },
+  {
+    "route_id": "870",
+    "type": "bus",
+    "color": "#000B9E",
+    "short_name": "44B",
+    "long_name": "Intilaka - Cité Monji Slim"
+  },
+  {
+    "route_id": "872",
+    "type": "bus",
+    "color": "#00AD9E",
+    "short_name": "44C",
+    "long_name": "Intilaka - Jabbes"
+  },
+  {
+    "route_id": "858",
+    "type": "bus",
+    "color": "#C759A6",
+    "short_name": "44D",
+    "long_name": "Charguia - Oued Ellil"
+  },
+  {
+    "route_id": "859",
+    "type": "bus",
+    "color": "#3355FF",
+    "short_name": "44D/",
+    "long_name": "Charguia - Cité Monji Slim"
+  },
+  {
+    "route_id": "730",
+    "type": "bus",
+    "color": "#00AD9E",
+    "short_name": "45",
+    "long_name": "Tebourba - Chouigui"
+  },
+  {
+    "route_id": "878",
+    "type": "bus",
+    "color": "#003399",
+    "short_name": "45B",
+    "long_name": "Tebourba - Maafrine"
+  },
+  {
+    "route_id": "731",
+    "type": "bus",
+    "color": "#00AD9E",
+    "short_name": "46",
+    "long_name": "Tebourba - El Hrachnia"
+  },
+  {
+    "route_id": "775",
+    "type": "bus",
+    "color": "#000B9E",
+    "short_name": "460",
+    "long_name": "Les Abattoirs - Boudria"
+  },
+  {
+    "route_id": "888",
+    "type": "bus",
+    "color": "#407E15",
+    "short_name": "46B",
+    "long_name": "Tebourba - Laajema"
+  },
+  {
+    "route_id": "732",
+    "type": "bus",
+    "color": "#489224",
+    "short_name": "47",
+    "long_name": "10 Decembre - Port La Goulette"
+  },
+  {
+    "route_id": "887",
+    "type": "bus",
+    "color": "#B736A6",
+    "short_name": "47A",
+    "long_name": "Menzeh 5 - El Anbaria"
+  },
+  {
+    "route_id": "733",
+    "type": "bus",
+    "color": "#D32F2F",
+    "short_name": "48",
+    "long_name": "Slimen Kahia - Cité Elbasatine"
+  },
+  {
+    "route_id": "856",
+    "type": "bus",
+    "color": "#859EC6",
+    "short_name": "4A",
+    "long_name": "Jardin Thameur - Cité El Amal Mannouba"
+  },
+  {
+    "route_id": "875",
+    "type": "bus",
+    "color": "#C756A6",
+    "short_name": "4G",
+    "long_name": "Kasbah - Boudria"
+  },
+  {
+    "route_id": "701",
+    "type": "bus",
+    "color": "#407E15",
+    "short_name": "5",
+    "long_name": "Tunis Marine - Charguia"
+  },
+  {
+    "route_id": "871",
+    "type": "bus",
+    "color": "#00AD9E",
+    "short_name": "514A",
+    "long_name": "Charguia - Cité Elbasatine"
+  },
+  {
+    "route_id": "886",
+    "type": "bus",
+    "color": "#005FFF",
+    "short_name": "51A",
+    "long_name": "Tunis Marine - Cité Nacer"
+  },
+  {
+    "route_id": "734",
+    "type": "bus",
+    "color": "#C756A6",
+    "short_name": "52",
+    "long_name": "Gammarth - Carthage Présidence"
+  },
+  {
+    "route_id": "776",
+    "type": "bus",
+    "color": "#00AD9E",
+    "short_name": "527",
+    "long_name": "Jeans Jaures - Cité El Ghazela"
+  },
+  {
+    "route_id": "735",
+    "type": "bus",
+    "color": "#84C8EB",
+    "short_name": "54",
+    "long_name": "Mourouj 5 - Cité Chaker"
+  },
+  {
+    "route_id": "860",
+    "type": "bus",
+    "color": "#FF0000",
+    "short_name": "54A",
+    "long_name": "Cebalet Cheikh - Cité Chaker"
+  },
+  {
+    "route_id": "861",
+    "type": "bus",
+    "color": "#C736A6",
+    "short_name": "54A/",
+    "long_name": "Cité El Elmi - Cité Chaker"
+  },
+  {
+    "route_id": "862",
+    "type": "bus",
+    "color": "#E49581",
+    "short_name": "54B",
+    "long_name": "Mourouj 5 - Brulés"
+  },
+  {
+    "route_id": "863",
+    "type": "bus",
+    "color": "#0000FF",
+    "short_name": "54C",
+    "long_name": "Hopital De Traumatologie Et Des Grands Brules - Cité Chaker"
+  },
+  {
+    "route_id": "864",
+    "type": "bus",
+    "color": "#97793C",
+    "short_name": "54D",
+    "long_name": "Mourouj 5 - Djebel Jelloud"
+  },
+  {
+    "route_id": "736",
+    "type": "bus",
+    "color": "#489224",
+    "short_name": "55",
+    "long_name": "Ali Balahouan - Hopital Daouar Hicher"
+  },
+  {
+    "route_id": "737",
+    "type": "bus",
+    "color": "#003399",
+    "short_name": "56",
+    "long_name": "Ali Balahouan - Daouar Hicher"
+  },
+  {
+    "route_id": "877",
+    "type": "bus",
+    "color": "#489224",
+    "short_name": "57A",
+    "long_name": "Intilaka - Bricorama"
+  },
+  {
+    "route_id": "738",
+    "type": "bus",
+    "color": "#FFCF06",
+    "short_name": "58",
+    "long_name": "Khaireddine Mannouba - Cité Elward"
+  },
+  {
+    "route_id": "865",
+    "type": "bus",
+    "color": "#E49981",
+    "short_name": "59A",
+    "long_name": "Station Barcelone - Mourouj 1"
+  },
+  {
+    "route_id": "873",
+    "type": "bus",
+    "color": "#489224",
+    "short_name": "5C",
+    "long_name": "Tunis Marine - Menzeh 6"
+  },
+  {
+    "route_id": "885",
+    "type": "bus",
+    "color": "#407E15",
+    "short_name": "5D",
+    "long_name": "Tunis Marine - Hedi Nouira"
+  },
+  {
+    "route_id": "702",
+    "type": "bus",
+    "color": "#9A10FF",
+    "short_name": "6",
+    "long_name": "10 Decembre - Sidi Soufiene"
+  },
+  {
+    "route_id": "739",
+    "type": "bus",
+    "color": "#E5442E",
+    "short_name": "60",
+    "long_name": "Station Barcelone - Ibn Sina"
+  },
+  {
+    "route_id": "866",
+    "type": "bus",
+    "color": "#829EC0",
+    "short_name": "60A",
+    "long_name": "Hopital Des Enfants - Ibn Sina"
+  },
+  {
+    "route_id": "867",
+    "type": "bus",
+    "color": "#F49581",
+    "short_name": "60G",
+    "long_name": "Hopital Des Enfants - Ibn Sina"
+  },
+  {
+    "route_id": "740",
+    "type": "bus",
+    "color": "#4F3E90",
+    "short_name": "61",
+    "long_name": "Slimen Kahia - Prison Civile Mornagiaa"
+  },
+  {
+    "route_id": "741",
+    "type": "bus",
+    "color": "#0000FF",
+    "short_name": "62",
+    "long_name": "Cité Ellil - Cite El Bokri"
+  },
+  {
+    "route_id": "883",
+    "type": "bus",
+    "color": "#000000",
+    "short_name": "62A",
+    "long_name": "10 Decembre - Raoued"
+  },
+  {
+    "route_id": "742",
+    "type": "bus",
+    "color": "#000000",
+    "short_name": "63",
+    "long_name": "Jardin Thameur - Enkhilette"
+  },
+  {
+    "route_id": "777",
+    "type": "bus",
+    "color": "#00AD9E",
+    "short_name": "635",
+    "long_name": "Tunis Marine - Place Sala Centre"
+  },
+  {
+    "route_id": "876",
+    "type": "bus",
+    "color": "#84C8EB",
+    "short_name": "635A",
+    "long_name": "Tunis Marine - Charguia"
+  },
+  {
+    "route_id": "743",
+    "type": "bus",
+    "color": "#FF00FF",
+    "short_name": "64",
+    "long_name": "Ali Balahouan - Cité Ettahrir"
+  },
+  {
+    "route_id": "744",
+    "type": "bus",
+    "color": "#407E15",
+    "short_name": "65",
+    "long_name": "Gare Routiére Sud - Zahrouni"
+  },
+  {
+    "route_id": "745",
+    "type": "bus",
+    "color": "#005FFF",
+    "short_name": "66",
+    "long_name": "Tebourba - Edkhila"
+  },
+  {
+    "route_id": "881",
+    "type": "bus",
+    "color": "#4F3E90",
+    "short_name": "66B",
+    "long_name": "Tebourba - Lansarine"
+  },
+  {
+    "route_id": "746",
+    "type": "bus",
+    "color": "#B736A6",
+    "short_name": "68",
+    "long_name": "Ali Balahouan - 18 Janvier"
+  },
+  {
+    "route_id": "747",
+    "type": "bus",
+    "color": "#407E15",
+    "short_name": "69",
+    "long_name": "Avenue Carthage - Cité Hellal"
+  },
+  {
+    "route_id": "882",
+    "type": "bus",
+    "color": "#0000FF",
+    "short_name": "6B",
+    "long_name": "10 Decembre - Cité El Mallaha"
+  },
+  {
+    "route_id": "874",
+    "type": "bus",
+    "color": "#D32F2F",
+    "short_name": "6P",
+    "long_name": "Jardin Thameur - Hopital Mahmoude El Matri"
+  },
+  {
+    "route_id": "748",
+    "type": "bus",
+    "color": "#9A10FF",
+    "short_name": "71",
+    "long_name": "Bab Alioua - Zahrouni"
+  },
+  {
+    "route_id": "778",
+    "type": "bus",
+    "color": "#489224",
+    "short_name": "714",
+    "long_name": "Station Barcelone - Cite Olympique Rades"
+  },
+  {
+    "route_id": "749",
+    "type": "bus",
+    "color": "#97253C",
+    "short_name": "72",
+    "long_name": "Gare Routiére Sud - Daouar Hicher"
+  },
+  {
+    "route_id": "750",
+    "type": "bus",
+    "color": "#829ECE",
+    "short_name": "74",
+    "long_name": "Tunis Marine - Mourouj 5"
+  },
+  {
+    "route_id": "868",
+    "type": "bus",
+    "color": "#000080",
+    "short_name": "74B",
+    "long_name": "Hopital Des Enfants - Mourouj 5"
+  },
+  {
+    "route_id": "869",
+    "type": "bus",
+    "color": "#280B3C",
+    "short_name": "74G",
+    "long_name": "Hopital Des Enfants - Mourouj 5"
+  },
+  {
+    "route_id": "751",
+    "type": "bus",
+    "color": "#829EC1",
+    "short_name": "75",
+    "long_name": "Station Barcelone - Boumhel El Bassatine"
+  },
+  {
+    "route_id": "752",
+    "type": "bus",
+    "color": "#FF0000",
+    "short_name": "77",
+    "long_name": "Tunis Marine - Kalaat Al Andalous"
+  },
+  {
+    "route_id": "753",
+    "type": "bus",
+    "color": "#333300",
+    "short_name": "78",
+    "long_name": "Gare Routiére Sud - Omrane Supérieur"
+  },
+  {
+    "route_id": "754",
+    "type": "bus",
+    "color": "#FF6633",
+    "short_name": "79",
+    "long_name": "Gare Routiére Sud - Cite El Mechtel"
+  },
+  {
+    "route_id": "755",
+    "type": "bus",
+    "color": "#927935",
+    "short_name": "80",
+    "long_name": "Jardin Thameur - Cite El Bokri"
+  },
+  {
+    "route_id": "879",
+    "type": "bus",
+    "color": "#FFCF06",
+    "short_name": "81A",
+    "long_name": "Av El Borhene - Lycée Mourouj6"
+  },
+  {
+    "route_id": "880",
+    "type": "bus",
+    "color": "#E5442E",
+    "short_name": "81B",
+    "long_name": "Centre Challakh El Mourouj 4 - Av El Borhene"
+  },
+  {
+    "route_id": "756",
+    "type": "bus",
+    "color": "#97533A",
+    "short_name": "82",
+    "long_name": "Station Barcelone - Boumhal"
+  },
+  {
+    "route_id": "757",
+    "type": "bus",
+    "color": "#A736A8",
+    "short_name": "84",
+    "long_name": "Aerolia 1 - Cité Trabelsi"
+  },
+  {
+    "route_id": "758",
+    "type": "bus",
+    "color": "#0000FF",
+    "short_name": "85",
+    "long_name": "Sealatelec - Boumhel El Bassatine"
+  },
+  {
+    "route_id": "759",
+    "type": "bus",
+    "color": "#F40581",
+    "short_name": "86",
+    "long_name": "Mourouj 2 - Aerolia"
+  },
+  {
+    "route_id": "760",
+    "type": "bus",
+    "color": "#E48881",
+    "short_name": "87",
+    "long_name": "Jardin Thameur - Omar Mokhtar"
+  },
+  {
+    "route_id": "761",
+    "type": "bus",
+    "color": "#859EC6",
+    "short_name": "88",
+    "long_name": "Jardin Thameur - Elwaha"
+  },
+  {
+    "route_id": "854",
+    "type": "bus",
+    "color": "#F40581",
+    "short_name": "88A",
+    "long_name": "Jardin Thameur - Ghdir Elgollah"
+  },
+  {
+    "route_id": "762",
+    "type": "bus",
+    "color": "#849EA9",
+    "short_name": "89",
+    "long_name": "Jardin Thameur - Montazah"
+  },
+  {
+    "route_id": "763",
+    "type": "bus",
+    "color": "#C759A6",
+    "short_name": "90",
+    "long_name": "Slimen Kahia - Cite Ben Younes"
+  },
+  {
+    "route_id": "764",
+    "type": "bus",
+    "color": "#3355FF",
+    "short_name": "91",
+    "long_name": "Slimen Kahia - Terminus L91 (Manouba)"
+  },
+  {
+    "route_id": "765",
+    "type": "bus",
+    "color": "#FF0000",
+    "short_name": "92",
+    "long_name": "Slimen Kahia - Terminus L92 (Manouba)"
+  },
+  {
+    "route_id": "766",
+    "type": "bus",
+    "color": "#C736A6",
+    "short_name": "93",
+    "long_name": "Khaireddine Mannouba - Sanhaja"
+  },
+  {
+    "route_id": "767",
+    "type": "bus",
+    "color": "#E49581",
+    "short_name": "94",
+    "long_name": "Slimen Kahia - Tebourba"
+  },
+  {
+    "route_id": "768",
+    "type": "bus",
+    "color": "#0000FF",
+    "short_name": "95",
+    "long_name": "Slimen Kahia - Daouar Hicher"
+  },
+  {
+    "route_id": "769",
+    "type": "bus",
+    "color": "#97793C",
+    "short_name": "96",
+    "long_name": "Khaireddine Mannouba - Gobaa"
+  },
+  {
+    "route_id": "770",
+    "type": "bus",
+    "color": "#E49981",
+    "short_name": "97",
+    "long_name": "Khaireddine Mannouba - Cité Ennassim"
+  },
+  {
+    "route_id": "771",
+    "type": "bus",
+    "color": "#829EC0",
+    "short_name": "98",
+    "long_name": "Khaireddine Mannouba - Café Jallou"
+  },
+  {
+    "route_id": "855",
+    "type": "bus",
+    "color": "#E48881",
+    "short_name": "9B",
+    "long_name": "Station Barcelone - Cité Thameur"
+  }
+]

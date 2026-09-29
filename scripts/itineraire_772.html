@@ -1,0 +1,1179 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+
+<title>Planifier un itinéraire — Tunismapper</title>
+<meta name="description" content="Planifiez votre trajet en transport public à Tunis. Saisissez votre départ et arrivée pour obtenir les meilleurs itinéraires en métro, bus, TGM, RFR et SNCFT.">
+<meta name="robots" content="index, follow">
+<link rel="canonical" href="https://www.tunismapper.com/itineraire.php">
+
+<!-- Open Graph -->
+<meta property="og:type"        content="website">
+<meta property="og:site_name"   content="Tunismapper">
+<meta property="og:title"       content="Planifier un itinéraire — Tunismapper">
+<meta property="og:description" content="Planifiez votre trajet en transport public à Tunis. Saisissez votre départ et arrivée pour obtenir les meilleurs itinéraires en métro, bus, TGM, RFR et SNCFT.">
+<meta property="og:url"         content="https://www.tunismapper.com/itineraire.php">
+<meta property="og:image"       content="https://www.tunismapper.com/img/og-image.png">
+<meta property="og:locale"      content="fr_TN">
+
+<!-- Twitter Card -->
+<meta name="twitter:card"        content="summary_large_image">
+<meta name="twitter:title"       content="Planifier un itinéraire — Tunismapper">
+<meta name="twitter:description" content="Planifiez votre trajet en transport public à Tunis. Saisissez votre départ et arrivée pour obtenir les meilleurs itinéraires en métro, bus, TGM, RFR et SNCFT.">
+<meta name="twitter:image"       content="https://www.tunismapper.com/img/og-image.png">
+
+<!-- PWA / Mobile -->
+<link rel="icon"             href="/img/favicon.png" type="image/png">
+<link rel="apple-touch-icon" href="/img/apple-touch-icon.png">
+<meta name="theme-color"     content="#ffffff">
+<meta name="application-name" content="Tunismapper">
+
+<!-- Schema.org -->
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "WebApplication",
+  "name": "Tunismapper — Planificateur d'itinéraire",
+  "description": "Planifiez votre trajet en transport public à Tunis. Saisissez votre départ et arrivée pour obtenir les meilleurs itinéraires en métro, bus, TGM, RFR et SNCFT.",
+  "url": "https://tunismapper.com/itineraire.php",
+  "applicationCategory": "TravelApplication",
+  "operatingSystem": "Android, iOS, Web",
+  "inLanguage": "fr"
+}
+</script>
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+<link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css" rel="stylesheet">
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+
+<style>
+/* ── TOKENS ── */
+:root {
+  --bg:           #f5f5f7;
+  --surface:      #ffffff;
+  --surface-2:    #f5f5f7;
+  --border:       rgba(0,0,0,.08);
+  --text-1:       #1d1d1f;
+  --text-2:       #6e6e73;
+  --text-3:       #aeaeb2;
+  --accent:       #0071e3;
+  --accent-hover: #0077ed;
+  --accent-soft:  rgba(0,113,227,.09);
+  --radius-sm:    10px;
+  --radius-md:    14px;
+  --radius-lg:    18px;
+  --shadow-sm:    0 1px 3px rgba(0,0,0,.06),0 1px 2px rgba(0,0,0,.04);
+  --shadow-md:    0 4px 16px rgba(0,0,0,.08);
+  --shadow-focus: 0 0 0 3px rgba(0,113,227,.18);
+  --font:         'DM Sans',-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;
+  --transition:   .18s cubic-bezier(.4,0,.2,1);
+}
+*,*::before,*::after { box-sizing: border-box; }
+html,body { margin:0; padding:0; font-family:var(--font); background:var(--bg); color:var(--text-1); -webkit-font-smoothing:antialiased; }
+/* ─── TOAST ─── */
+.toast-wrap {
+  position: fixed;
+  top: 20px; left: 50%;
+  transform: translateX(-50%);
+  z-index: 9999;
+  width: 90%; max-width: 380px;
+}
+#alertToast {
+  border-radius: var(--radius-md);
+  font-size: .88rem;
+  font-weight: 500;
+  font-family: var(--font);
+  box-shadow: var(--shadow-md);
+}
+/* ── FORMULAIRE ── */
+.route-form-bar {
+  background:var(--surface);
+  border-bottom:1px solid var(--border);
+  padding:20px 16px 24px;
+  position:relative; z-index:20;
+  animation: fadeUp .28s cubic-bezier(.4,0,.2,1) both;
+}
+/* Mode formulaire seul : centré, plus spacieux */
+body { display:flex; flex-direction:column; min-height:100vh; }
+.route-form-bar {
+  max-width:520px; margin:auto; border:none; border-radius:var(--radius-lg);
+  box-shadow:var(--shadow-md); padding:28px 24px 32px; margin-top:32px;
+  animation-delay:.05s;
+}
+.form-heading { font-size:1.3rem; text-align:center; margin-bottom:22px; }
+.form-heading { font-size:1.15rem; font-weight:700; letter-spacing:-.02em; margin:0 0 16px; }
+.form-heading span { color:var(--accent); }
+.form-sub { font-size:.82rem; color:var(--text-2); text-align:center; margin:-10px 0 18px; line-height:1.5; }
+
+.field-wrap { position:relative; overflow:visible; }
+.field-label { display:block; font-size:.72rem; font-weight:600; color:var(--text-2); text-transform:uppercase; letter-spacing:.06em; margin-bottom:6px; }
+.field-input {
+  width:100%; height:48px;
+  border:1.5px solid var(--border); border-radius:var(--radius-sm);
+  padding:0 14px; font-family:var(--font); font-size:.95rem; color:var(--text-1);
+  background:var(--surface-2); outline:none;
+  transition:border-color var(--transition),box-shadow var(--transition),background var(--transition);
+  -webkit-appearance:none;
+}
+.field-input::placeholder { color:var(--text-3); }
+.field-input:focus { border-color:var(--accent); box-shadow:var(--shadow-focus); background:var(--surface); }
+
+.swap-row { display:flex; align-items:center; justify-content:center; margin:8px 0; }
+.swap-btn {
+  display:flex; align-items:center; justify-content:center;
+  width:36px; height:36px; border-radius:50%;
+  border:1.5px solid var(--border); background:var(--surface);
+  color:var(--text-2); cursor:pointer; font-size:1rem;
+  box-shadow:var(--shadow-sm);
+  transition:background var(--transition),color var(--transition),
+             border-color var(--transition),transform .3s cubic-bezier(.34,1.56,.64,1);
+}
+.swap-btn:hover  { background:var(--accent); color:#fff; border-color:var(--accent); transform:rotate(180deg) scale(1.05); }
+.swap-btn:active { transform:rotate(180deg) scale(.95); }
+
+.btn-go {
+  display:flex; align-items:center; justify-content:center; gap:8px;
+  width:100%; height:50px; background:var(--accent); color:#fff;
+  border:none; border-radius:var(--radius-sm); font-family:var(--font);
+  font-size:.95rem; font-weight:600; cursor:pointer; margin-top:14px;
+  transition:background var(--transition),transform var(--transition),box-shadow var(--transition);
+  -webkit-appearance:none;
+}
+.btn-go:hover  { background:var(--accent-hover); box-shadow:0 4px 16px rgba(0,113,227,.3); }
+.btn-go:active { transform:scale(.98); }
+
+/* Autocomplete */
+.autocomplete-list {
+  position:absolute; top:calc(100% + 4px); left:0; right:0;
+  z-index:9999; background:var(--surface); border:1.5px solid var(--border);
+  border-radius:var(--radius-md); box-shadow:var(--shadow-md);
+  overflow:hidden; max-height:260px; overflow-y:auto;
+}
+.autocomplete-list:empty { display:none; }
+.autocomplete-item { display:flex; align-items:center; gap:10px; padding:11px 14px; cursor:pointer; font-size:.9rem; border-bottom:1px solid var(--border); transition:background var(--transition); color:var(--text-1); }
+.autocomplete-item:last-child { border-bottom:none; }
+.autocomplete-item:hover { background:var(--surface-2); }
+.autocomplete-item i   { font-size:1rem; color:var(--accent); flex-shrink:0; }
+.autocomplete-item img { width:20px; height:20px; flex-shrink:0; object-fit:contain; }
+.autocomplete-separator { padding:6px 14px; font-size:.68rem; font-weight:600; text-transform:uppercase; letter-spacing:.07em; color:var(--text-3); background:var(--surface-2); border-bottom:1px solid var(--border); }
+
+
+/* ── ANIMATIONS ── */
+@keyframes spin   { 100% { transform:rotate(360deg); } }
+@keyframes fadeUp { from { opacity:0; transform:translateY(9px); } to { opacity:1; transform:none; } }
+
+@media (max-width:360px) {
+  .route-form-bar { padding:14px 12px 18px; }
+  .field-input { height:44px; font-size:.88rem; }
+  .btn-go { height:46px; }
+}
+@media (min-width:600px) {
+    .route-form-bar { margin-top:60px; }}
+
+/* ── Modal carte ── */
+.modal-content {
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+  border: none;
+  box-shadow: 0 20px 48px rgba(0,0,0,.18);
+}
+.modal-header {
+  border-bottom: 1px solid var(--border);
+  padding: 14px 18px;
+}
+.modal-title { font-size: .95rem; font-weight: 600; }
+.modal-body  { padding: 0; }
+#mapPickerModal { height: 400px; }
+</style>
+
+<script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-4826567111220301"
+     crossorigin="anonymous"></script>
+	 
+	 
+<!-- Global site tag (gtag.js) - Google Analytics -->
+<script async src="https://www.googletagmanager.com/gtag/js?id=G-K9YLH3CECK"></script>
+<script>
+  window.dataLayer = window.dataLayer || [];
+  function gtag(){dataLayer.push(arguments);}
+  gtag('js', new Date());
+  gtag('config', 'G-K9YLH3CECK');
+</script>
+
+
+
+
+
+
+
+
+
+
+<!-- ########################## Information importante #################################################-->
+
+
+<!--
+<style>
+
+.alert-banner {
+    position: sticky; /* ou fixed si vous voulez qu'il reste toujours visible */
+    top: 0;
+    width: 100%;
+    background: #ff9800;
+    color: #fff;
+    padding: 12px 20px;
+    text-align: center;
+    font-size: 16px;
+    font-weight: 500;
+    z-index: 9999;
+    box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+}
+
+.alert-banner strong {
+    font-weight: 700;
+}
+</style>
+
+
+
+<div class="alert-banner">
+   
+  📢 <strong>Information importante :</strong>
+    À partir du <strong>1er juillet</strong>, les <strong>horaires d'été</strong> du transport en commun seront appliqués.
+    Les horaires affichés sur <strong>TunisMapper</strong> seront mis à jour en conséquence.
+	
+
+	📢 <strong>Information importante :</strong><br>
+À partir du <strong>1er septembre</strong>, un <strong>changement des horaires du transport en commun</strong> sera appliqué.<br>
+Les horaires affichés sur <strong>TunisMapper</strong> seront mis à jour en conséquence.
+
+
+</div>
+
+-->
+<!-- ##################################################################################################-->
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<!--Pop up Télécharger l'app google Play-->
+
+
+
+ <style>
+
+
+  /* Overlay */
+  .popup-overlay {
+    position: fixed;
+    inset: 0; /* top:0; left:0; right:0; bottom:0 */
+    background: rgba(0,0,0,0.5);
+    display: none;
+    justify-content: center;
+    align-items: center;
+    z-index: 999999 !important; /* Très élevé pour être au-dessus de tout */
+  }
+
+  /* Popup */
+  .popup {
+    background: white;
+    padding: 25px;
+    border-radius: 16px;
+    width: 90%;
+    max-width: 400px;
+    text-align: center;
+    box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+    position: relative;
+    z-index: 1000000; /* Toujours au-dessus de l’overlay */
+    animation: fadeIn 0.3s ease;
+  }
+
+  @keyframes fadeIn {
+    from { opacity: 0; transform: translateY(20px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  .store-badge {
+    margin-top: 15px;
+    width: 180px;
+    cursor: pointer;
+    transition: transform 0.2s;
+  }
+
+  .store-badge:hover {
+    transform: scale(1.05);
+  }
+
+ .close-btn {
+  display: inline-block;      /* reste sur une seule ligne */
+  white-space: nowrap;        /* empêche le texte de se couper */
+  margin: 15px auto 0 auto;   /* centré sous le badge */
+  padding: 10px 20px;
+  border: none;
+  background: #ccc;           /* gris clair */
+  color: #333;
+  border-radius: 8px;
+  cursor: pointer;
+  font-weight: 600;
+  transition: background 0.2s;
+}
+
+.close-btn:hover {
+  background: #bbb;           /* gris un peu plus foncé au hover */
+}
+</style>
+
+
+<div class="popup-overlay" id="popup">
+  <div class="popup">
+  
+      <img 
+      src="https://www.tunismapper.com/img/logo.png"
+      width="50"
+	  height="50"
+  
+      
+    >
+  
+    <h2>Installez notre application</h2>
+    <p>Profitez d’une meilleure expérience mobile</p>
+
+    <!-- ✅ Badge Google Play -->
+    <img 
+      src="https://www.tunismapper.com/img/got-it_on-google_play.png"
+      alt="Télécharger sur Google Play"
+      class="store-badge"
+      onclick="downloadApp()"
+    >
+
+    <br>
+
+    <button class="close-btn" onclick="closePopup()">Plus tard</button>
+  </div>
+</div>
+
+<script>
+  function isWebView() {
+    const ua = navigator.userAgent;
+    return ua.includes("MyAppWebView") || /wv/.test(ua);
+  }
+
+  function isAppInstalled() {
+    if (window.matchMedia('(display-mode: standalone)').matches) return true;
+    if (window.navigator.standalone === true) return true;
+    return false;
+  }
+
+  function shouldShowPopup() {
+    const lastShown = localStorage.getItem("popupLastShown");
+    if (!lastShown) return true;
+
+    const diff = Date.now() - parseInt(lastShown);
+    return diff > (7 * 24 * 60 * 60 * 1000);
+  }
+
+  function showPopup() {
+    document.getElementById("popup").style.display = "flex";
+  }
+
+  function closePopup() {
+    document.getElementById("popup").style.display = "none";
+    localStorage.setItem("popupLastShown", Date.now());
+  }
+
+  function downloadApp() {
+    // 👉 Mets ton vrai lien Google Play ici
+    window.location.href = "https://play.google.com/store/apps/details?id=com.tunismapper.app";
+  }
+
+  window.onload = function () {
+    if (!isWebView() && !isAppInstalled() && shouldShowPopup()) {
+      setTimeout(showPopup, 3000);
+    }
+  };
+</script>
+</head>
+<body>
+<style>
+/* ── Header ── */
+.app-header {
+  position: fixed;
+  top: 0; left: 0;
+  width: 100%;
+  height: 52px;
+  background: rgba(255,255,255,.92);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  border-bottom: 1px solid var(--border, rgba(0,0,0,.08));
+  display: flex;
+  align-items: center;
+  padding: 0 14px;
+  z-index: 1100;
+  gap: 0;
+}
+
+.menu-btn {
+  background: none;
+  border: none;
+  width: 36px; height: 36px;
+  border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 1.35rem;
+  color: var(--text-2, #6e6e73);
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: background .15s;
+}
+.menu-btn:hover { background: var(--surface-2, #f5f5f7); }
+
+.app-brand {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-left: 2px;
+  text-decoration: none;
+}
+.app-logo { height: 26px; }
+.app-name {
+  font-family: var(--font, 'DM Sans', sans-serif);
+  font-weight: 700;
+  font-size: 1.05rem;
+  letter-spacing: -.02em;
+  color: var(--text-1, #1d1d1f);
+}
+
+/* ── User menu ── */
+.user-menu {
+  margin-left: auto;
+  position: relative;
+}
+.user-menu button {
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 0;
+  display: flex; align-items: center;
+  color: var(--text-2, #6e6e73);
+  font-size: 1.5rem;
+}
+.user-avatar {
+  width: 34px; height: 34px;
+  border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  color: #fff;
+  font-family: var(--font, 'DM Sans', sans-serif);
+  font-weight: 700;
+  font-size: .95rem;
+  box-shadow: 0 1px 4px rgba(0,0,0,.15);
+  letter-spacing: .01em;
+}
+
+.user-dropdown {
+  position: absolute;
+  right: 0; top: calc(100% + 10px);
+  background: var(--surface, #fff);
+  border: 1px solid var(--border, rgba(0,0,0,.08));
+  border-radius: var(--radius-md, 14px);
+  box-shadow: 0 8px 28px rgba(0,0,0,.12);
+  min-width: 190px;
+  display: none;
+  z-index: 1300;
+  overflow: hidden;
+  animation: fadeUp .16s ease both;
+}
+.user-dropdown.show { display: block; }
+.user-dropdown a {
+  display: flex; align-items: center; gap: 10px;
+  padding: 11px 16px;
+  text-decoration: none;
+  color: var(--text-1, #1d1d1f);
+  font-family: var(--font, 'DM Sans', sans-serif);
+  font-size: .9rem;
+  transition: background .13s;
+}
+.user-dropdown a:hover { background: var(--surface-2, #f5f5f7); }
+.user-dropdown a i { color: var(--accent, #0071e3); font-size: 1rem; }
+.user-dropdown hr { margin: 5px 0; border: none; border-top: 1px solid var(--border, rgba(0,0,0,.08)); }
+
+/* ── Overlay ── */
+.menu-overlay {
+  position: fixed; inset: 0;
+  background: rgba(0,0,0,.28);
+  opacity: 0; visibility: hidden;
+  transition: opacity .22s, visibility .22s;
+  z-index: 1150;
+  backdrop-filter: blur(2px);
+  -webkit-backdrop-filter: blur(2px);
+}
+.menu-overlay.show { opacity: 1; visibility: visible; }
+
+/* ── Menu latéral ── */
+.side-menu {
+  position: fixed;
+  top: 0; left: -272px;
+  width: 272px; height: 100%;
+  background: var(--surface, #fff);
+  box-shadow: 4px 0 24px rgba(0,0,0,.1);
+  z-index: 1200;
+  transition: left .24s cubic-bezier(.4,0,.2,1);
+  display: flex;
+  flex-direction: column;
+  overflow-y: auto;
+}
+.side-menu.open { left: 0; }
+
+.side-menu-header {
+  height: 52px;
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 0 16px;
+  border-bottom: 1px solid var(--border, rgba(0,0,0,.08));
+  font-family: var(--font, 'DM Sans', sans-serif);
+  font-weight: 700;
+  font-size: 1rem;
+  letter-spacing: -.01em;
+  flex-shrink: 0;
+}
+.side-menu-header span { color: var(--text-1, #1d1d1f); }
+
+.close-btn {
+  background: none; border: none;
+  width: 32px; height: 32px;
+  border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 1.1rem;
+  color: var(--text-2, #6e6e73);
+  cursor: pointer;
+  transition: background .15s;
+}
+.close-btn:hover { background: var(--surface-2, #f5f5f7); }
+
+.side-menu-list {
+  list-style: none;
+  padding: 6px 0;
+  margin: 0;
+  flex-shrink: 0;
+}
+.side-menu-list + .side-menu-header {
+  border-top: 1px solid var(--border, rgba(0,0,0,.08));
+  margin-top: 2px;
+}
+.side-menu-list li a {
+  display: flex; align-items: center; gap: 12px;
+  padding: 11px 18px;
+  text-decoration: none;
+  font-family: var(--font, 'DM Sans', sans-serif);
+  font-size: .92rem;
+  font-weight: 500;
+  color: var(--text-1, #1d1d1f);
+  border-radius: 0;
+  transition: background .13s;
+}
+.side-menu-list li a:hover { background: var(--surface-2, #f5f5f7); }
+.side-menu-list li a i {
+  font-size: 1.1rem;
+  color: var(--accent, #0071e3);
+  width: 20px; text-align: center;
+  flex-shrink: 0;
+}
+/* Item actif */
+.side-menu-list li a.active-link {
+  color: var(--accent, #0071e3);
+  background: var(--accent-soft, rgba(0,113,227,.07));
+  font-weight: 600;
+}
+.side-menu-list li a.active-link i { color: var(--accent, #0071e3); }
+
+body { padding-top: 52px; }
+
+@keyframes fadeUp { from { opacity:0; transform:translateY(6px); } to { opacity:1; transform:none; } }
+</style>
+
+<!-- Header -->
+<header class="app-header">
+  <button class="menu-btn" id="openMenu" aria-label="Ouvrir le menu">
+    <i class="bi bi-list"></i>
+  </button>
+
+  <a href="https://www.tunismapper.com/index.php" class="app-brand">
+    <img src="http://www.tunismapper.com/img/logo.png" alt="Tunismapper" class="app-logo">
+    <span class="app-name">TunisMapper</span>
+  </a>
+
+  
+  <div class="user-menu">
+    <button id="userBtn" aria-label="Compte utilisateur">
+              <i class="bi bi-person-circle" style="font-size:1.6rem;"></i>
+          </button>
+
+    
+    <div class="user-dropdown" id="userDropdown">
+              <a href="https://www.tunismapper.com/login.php?redirect=https%3A%2F%2Ftunismapper.com%2Fitineraire.php%3Froute%3D772"><i class="bi bi-box-arrow-in-right"></i> Connexion</a>
+        <a href="https://www.tunismapper.com/inscription.php"><i class="bi bi-person-plus"></i> Inscription</a>
+          </div>
+  </div>
+</header>
+
+<!-- Overlay -->
+<div class="menu-overlay" id="menuOverlay"></div>
+
+<!-- Menu latéral -->
+<nav class="side-menu" id="sideMenu" aria-label="Menu principal">
+  <div class="side-menu-header">
+    <span>Menu</span>
+    <button class="close-btn" id="closeMenu" aria-label="Fermer le menu">
+      <i class="bi bi-x-lg"></i>
+    </button>
+  </div>
+
+  <ul class="side-menu-list">
+    <li><a href="https://www.tunismapper.com/index.php"><i class="bi bi-house-door"></i> Accueil</a></li>
+<li><a href="https://www.tunismapper.com/itineraire.php" class="active-link"><i class="bi bi-signpost-2-fill"></i> Itinéraires</a></li>
+<li><a href="https://www.tunismapper.com/stations.php"><i class="bi bi-geo-alt"></i> Stations</a></li>
+<li><a href="https://www.tunismapper.com/lignes.php"><i class="bi bi-clock"></i> Horaires</a></li>
+<li><a href="https://www.tunismapper.com/info_trafic.php"><i class="bi bi-exclamation-triangle"></i> Infos trafic</a></li>
+  </ul>
+
+  <ul class="side-menu-list">
+    <li><a href="https://www.tunismapper.com/guides-transport-tunisie.php"><i class="bi bi bi-question-square"></i> Tous nos guides transport</a></li>
+<li><a href="https://www.tunismapper.com/tarifs_bus_metro.php"><i class="bi bi-ticket"></i> Tarifs Bus / Métro</a></li>
+<li><a href="https://www.tunismapper.com/tarifs_tgm.php"><i class="bi bi-ticket"></i> Tarifs TGM</a></li>
+<li><a href="https://www.tunismapper.com/plan.php"><i class="bi bi-map"></i> Plans</a></li>
+<li><a href="https://www.tunismapper.com/blog.php"><i class="bi bi-menu-button-wide"></i> Blog</a></li>
+  </ul>
+
+  <ul class="side-menu-list">
+    <li><a href="https://www.tunismapper.com/bug.php"><i class="bi bi-bug"></i> Signaler un bug</a></li>
+<li><a href="https://www.tunismapper.com/contact.php"><i class="bi bi-envelope"></i> Contact</a></li>
+<li><a href="https://www.tunismapper.com/aide.php"><i class="bi bi-question-circle"></i> Aide / FAQ</a></li>
+<li><a href="https://www.tunismapper.com/about.php"><i class="bi bi-info-circle"></i> À propos</a></li>
+  </ul>
+</nav>
+
+<script>
+(function(){
+  const openMenu  = document.getElementById('openMenu');
+  const closeMenu = document.getElementById('closeMenu');
+  const sideMenu  = document.getElementById('sideMenu');
+  const overlay   = document.getElementById('menuOverlay');
+
+  function open()  { sideMenu.classList.add('open');    overlay.classList.add('show'); }
+  function close() { sideMenu.classList.remove('open'); overlay.classList.remove('show'); }
+
+  openMenu.onclick  = open;
+  closeMenu.onclick = close;
+  overlay.onclick   = close;
+
+  const userBtn      = document.getElementById('userBtn');
+  const userDropdown = document.getElementById('userDropdown');
+  userBtn.onclick = e => { e.stopPropagation(); userDropdown.classList.toggle('show'); };
+  document.addEventListener('click', () => userDropdown.classList.remove('show'));
+})();
+</script>
+
+
+    
+<!-- ① FORMULAIRE -->
+<div class="route-form-bar" role="search" aria-label="Planifier un itinéraire">
+
+    <h1 class="form-heading">Planifier un <span>itinéraire</span></h1>
+  <p class="form-sub">Trouvez le meilleur trajet en transport public à Tunis</p>
+  
+  <form id="routeForm" novalidate>
+
+    <div class="field-wrap">
+      <label class="field-label" for="fromInput">Départ</label>
+      <input id="fromInput" class="field-input" type="text"
+             autocomplete="off" autocorrect="off" spellcheck="false"
+             value="" placeholder="Arrêt, station ou ma position…"
+             aria-label="Point de départ" aria-autocomplete="list" aria-controls="fromSuggestions">
+      <input type="hidden" id="fromLat" value="">
+      <input type="hidden" id="fromLng" value="">
+      <div id="fromSuggestions" class="autocomplete-list" role="listbox"></div>
+    </div>
+    <div class="swap-row">
+      <button type="button" class="swap-btn" id="swapBtn"
+              title="Inverser départ et arrivée" aria-label="Inverser départ et arrivée">
+        <i class="bi bi-arrow-down-up" aria-hidden="true"></i>
+      </button>
+    </div>
+
+    <div class="field-wrap">
+      <label class="field-label" for="toInput">Arrivée</label>
+      <input id="toInput" class="field-input" type="text"
+             autocomplete="off" autocorrect="off" spellcheck="false"
+             value="" placeholder="Arrêt, station ou ma position…"
+             aria-label="Point d'arrivée" aria-autocomplete="list" aria-controls="toSuggestions">
+      <input type="hidden" id="toLat" value="">
+      <input type="hidden" id="toLng" value="">
+      <div id="toSuggestions" class="autocomplete-list" role="listbox"></div>
+    </div>
+
+    <button type="submit" class="btn-go">
+      <i class="bi bi-arrow-right-circle-fill" aria-hidden="true"></i>
+      Calculer l'itinéraire    </button>
+  </form>
+</div>
+
+
+
+<!-- Modal carte — choisir un point -->
+<div class="modal fade" id="mapPickerDlg" tabindex="-1" aria-modal="true" role="dialog" aria-labelledby="mapPickerTitle">
+  <div class="modal-dialog modal-lg modal-dialog-centered">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="mapPickerTitle">
+          <i class="bi bi-map me-2" style="color:var(--accent)"></i>Choisir un point sur la carte
+        </h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fermer"></button>
+      </div>
+      <div class="modal-body">
+        <div id="mapPickerModal" role="application" aria-label="Carte pour sélectionner un point"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+
+<!-- Toast -->
+<div class="toast-wrap" aria-live="polite" aria-atomic="true">
+  <div id="alertToast" class="toast align-items-center text-bg-warning border-0" role="alert">
+    <div class="d-flex">
+      <div class="toast-body">
+        <i class="bi bi-exclamation-circle me-1" aria-hidden="true"></i>
+        Veuillez sélectionner un départ et une arrivée.
+      </div>
+      <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast" aria-label="Fermer"></button>
+    </div>
+  </div>
+  
+      
+
+  
+  
+  
+    <div id="alertToastposition" class="toast align-items-center text-bg-danger border-0" role="alert">
+    <div class="d-flex">
+      <div class="toast-body">
+        <i class="bi bi-exclamation-circle me-1" aria-hidden="true"></i>
+        Impossible d'obtenir votre position.
+      </div>
+      <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast" aria-label="Fermer"></button>
+    </div>
+  </div>
+
+</div>
+
+
+
+
+
+<style>
+/* ── Menu bas ── */
+.bottom-menu {
+  position: fixed;
+  bottom: 0; left: 0;
+  width: 100%;
+  height: 58px;
+  background: rgba(255,255,255,.94);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border-top: 1px solid var(--border, rgba(0,0,0,.08));
+  display: flex;
+  justify-content: space-around;
+  align-items: stretch;
+  z-index: 1100;
+  /* Safe area iPhone */
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+
+.bottom-item {
+  flex: 1;
+  text-decoration: none;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+  color: var(--text-3, #aeaeb2);
+  font-family: var(--font, 'DM Sans', sans-serif);
+  font-size: .65rem;
+  font-weight: 500;
+  letter-spacing: .01em;
+  position: relative;
+  transition: color .15s;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.bottom-item i {
+  font-size: 1.35rem;
+  line-height: 1;
+  transition: transform .2s cubic-bezier(.34,1.56,.64,1), color .15s;
+}
+
+/* Actif */
+.bottom-item.active-tab {
+  color: var(--accent, #0071e3);
+}
+.bottom-item.active-tab i {
+  color: var(--accent, #0071e3);
+  transform: scale(1.12);
+}
+
+/* Hover desktop */
+@media (hover: hover) {
+  .bottom-item:hover {
+    color: var(--accent, #0071e3);
+  }
+  .bottom-item:hover i { transform: translateY(-2px); }
+}
+
+/* Indicateur actif : petit point bleu sous l'icône */
+.bottom-item.active-tab::after {
+  content: '';
+  position: absolute;
+  bottom: 6px;
+  width: 4px; height: 4px;
+  border-radius: 50%;
+  background: var(--accent, #0071e3);
+}
+
+body { padding-bottom: calc(58px + env(safe-area-inset-bottom, 0px)); }
+</style>
+
+
+<nav class="bottom-menu" role="navigation" aria-label="Navigation principale">
+    <a href="https://www.tunismapper.com/index.php" class="bottom-item">
+    <i class="bi bi-house-door"></i>
+    <span>Accueil</span>
+  </a>
+    <a href="https://www.tunismapper.com/itineraire.php" class="bottom-item active-tab" aria-current="page">
+    <i class="bi bi-signpost-2-fill"></i>
+    <span>Itinéraires</span>
+  </a>
+    <a href="https://www.tunismapper.com/stations.php" class="bottom-item">
+    <i class="bi bi-geo-alt"></i>
+    <span>Stations</span>
+  </a>
+    <a href="https://www.tunismapper.com/lignes.php" class="bottom-item">
+    <i class="bi bi-clock"></i>
+    <span>Horaires</span>
+  </a>
+    <a href="https://www.tunismapper.com/info_trafic.php" class="bottom-item">
+    <i class="bi bi-exclamation-triangle"></i>
+    <span>Trafic</span>
+  </a>
+  </nav>
+
+
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+<script>
+/* ── Config géolocalisation ── */
+const GEO_ACCURACY_MAX = 3000; // mètres — au-delà, position jugée inutilisable (ex: géoloc. par IP)
+
+function showGeoError(message) {
+  const el = document.getElementById('alertToastposition');
+  el.querySelector('.toast-body').innerHTML =
+    `<i class="bi bi-exclamation-circle me-1" aria-hidden="true"></i> ${message}`;
+  new bootstrap.Toast(el, { delay: 5000 }).show();
+}
+
+function requestGeolocation(onSuccess) {
+  if (!navigator.geolocation) {
+    showGeoError("Votre navigateur ne supporte pas la géolocalisation. Choisissez un point sur la carte.");
+    return;
+  }
+
+  navigator.geolocation.getCurrentPosition(
+    p => {
+      if (p.coords.accuracy > GEO_ACCURACY_MAX) {
+        showGeoError(`Position trop imprécise sur cet appareil (± ${Math.round(p.coords.accuracy)} m). Saisissez votre point de départ manuellement ou choisissez-le sur la carte.`);
+        return;
+      }
+      onSuccess(p.coords.latitude, p.coords.longitude);
+    },
+    err => {
+      const msgs = {
+        1: "Vous avez refusé l'accès à votre position. Autorisez-la ou choisissez un point sur la carte.",
+        2: "Votre appareil ne parvient pas à déterminer votre position. Choisissez un point sur la carte.",
+        3: "La localisation a pris trop de temps. Réessayez ou choisissez un point sur la carte."
+      };
+      showGeoError(msgs[err.code] || "Impossible d'obtenir votre position.");
+    },
+    { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
+  );
+}
+
+/* ── Autocomplete (toujours actif) ── */
+function setupAutocomplete(inputId, listId, latId, lngId) {
+  const input = document.getElementById(inputId);
+  const list  = document.getElementById(listId);
+  let timer;
+
+  function select(name, lat, lng) {
+    input.value = name;
+    document.getElementById(latId).value = lat;
+    document.getElementById(lngId).value = lng;
+    list.innerHTML = '';
+    input.blur();
+  }
+
+  function showBase() {
+    list.innerHTML = `
+      <div class="autocomplete-item" id="${inputId}-geo">
+        <i class="bi bi-crosshair2"></i> Ma position
+      </div>
+      <div class="autocomplete-item" id="${inputId}-map">
+        <i class="bi bi-map"></i> Choisir sur la carte
+      </div>
+      <div class="autocomplete-separator">Arrêts à proximité</div>`;
+    const geoItem = document.getElementById(`${inputId}-geo`);
+    geoItem.onclick = () => {
+      geoItem.innerHTML = `<i class="bi bi-arrow-repeat"></i> Localisation en cours…`;
+      requestGeolocation((lat, lng) => select('Ma position', lat, lng));
+    };
+    document.getElementById(`${inputId}-map`).onclick = () =>
+      openMapPicker(inputId, latId, lngId);
+  }
+
+input.addEventListener('focus', showBase);
+
+input.addEventListener('input', () => {
+  clearTimeout(timer);
+  showBase();
+
+  if (input.value.length < 2) return;
+
+  timer = setTimeout(async () => {
+    try {
+      const query = encodeURIComponent(input.value);
+
+      // Recherche des arrêts et des adresses en parallèle
+      const [stopsRes, adressesRes] = await Promise.all([
+        fetch(`backend/api/searchStops.php?q=${query}`),
+        fetch(`backend/api/searchAdresses.php?q=${query}`)
+      ]);
+
+      const [stopsData, adressesData] = await Promise.all([
+        stopsRes.json(),
+        adressesRes.json()
+      ]);
+
+      // =========================
+      // ARRÊTS
+      // =========================
+      stopsData.forEach(s => {
+        const d = document.createElement('div');
+
+        d.className = 'autocomplete-item';
+
+        const ic = [
+          'img/icon-rfr.png',
+          'img/icon-metro.png',
+          'img/icon-train.png',
+          'img/icon-bus.png'
+        ][s.route_type] || 'img/icon-rfr.png';
+
+        d.innerHTML = `
+          <img src="${ic}" alt="">
+          ${s.stop_name}
+        `;
+
+        d.onclick = () => {
+          select(s.stop_name, s.stop_lat, s.stop_lon);
+        };
+
+        list.appendChild(d);
+      });
+
+      // =========================
+      // ADRESSES
+      // =========================
+      adressesData.forEach(a => {
+        const d = document.createElement('div');
+
+        d.className = 'autocomplete-item';
+
+        d.innerHTML = `
+          <img src="img/icon-address.png" alt="">
+          ${a.name}
+        `;
+
+        d.onclick = () => {
+          select(a.name, a.lat, a.lng);
+        };
+
+        list.appendChild(d);
+      });
+
+    } catch (e) {
+      console.error(e);
+    }
+  }, 220);
+});
+  document.addEventListener('click', e => {
+    if (!input.contains(e.target) && !list.contains(e.target)) list.innerHTML = '';
+  });
+}
+/* ── Sélecteur de point sur la carte ── */
+let mapPicker = null, pickerMarker = null;
+
+function openMapPicker(inputId, latId, lngId) {
+  const modalEl = document.getElementById('mapPickerDlg');
+  const modal   = new bootstrap.Modal(modalEl);
+  modal.show();
+
+  // Détruire proprement la carte picker à la fermeture de la modal
+  function onHide() {
+    modalEl.removeEventListener('hidden.bs.modal', onHide);
+    if (mapPicker) { mapPicker.remove(); mapPicker = null; pickerMarker = null; }
+  }
+  modalEl.addEventListener('hidden.bs.modal', onHide);
+
+  modalEl.addEventListener('shown.bs.modal', function h() {
+    modalEl.removeEventListener('shown.bs.modal', h);
+    if (mapPicker) { mapPicker.remove(); mapPicker = null; }
+
+    // Centrer sur la position actuelle du champ si disponible
+    const existLat = parseFloat(document.getElementById(latId).value);
+    const existLng = parseFloat(document.getElementById(lngId).value);
+    const center = (!isNaN(existLat) && !isNaN(existLng))
+      ? [existLat, existLng] : [36.8065, 10.1815];
+
+    mapPicker = L.map('mapPickerModal', { tap: false }).setView(center, 13);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19 }).addTo(mapPicker);
+
+    // Marqueur existant si déjà défini
+    if (!isNaN(existLat)) {
+      pickerMarker = L.marker(center).addTo(mapPicker);
+    }
+
+    mapPicker.on('click', async e => {
+      // Stoppe la propagation pour ne pas interférer avec la carte principale
+      L.DomEvent.stopPropagation(e);
+
+      const lat = e.latlng.lat.toFixed(6);
+      const lng = e.latlng.lng.toFixed(6);
+
+      if (pickerMarker) mapPicker.removeLayer(pickerMarker);
+      pickerMarker = L.marker([lat, lng]).addTo(mapPicker)
+        .bindPopup('<strong>Point sélectionné</strong>', { closeButton: false })
+        .openPopup();
+
+      document.getElementById(latId).value = lat;
+      document.getElementById(lngId).value = lng;
+
+      const el = document.getElementById(inputId);
+      if (el) {
+        el.value = 'Chargement…';
+        try {
+          const r = await fetch(`https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lng}&format=json&accept-language=fr`);
+          const d = await r.json();
+          el.value = d.display_name || `${lat}, ${lng}`;
+        } catch {
+          el.value = `${lat}, ${lng}`;
+        }
+      }
+
+      // Ferme la modal après sélection
+      setTimeout(() => bootstrap.Modal.getInstance(modalEl)?.hide(), 400);
+    });
+
+    setTimeout(() => mapPicker.invalidateSize(), 100);
+  });
+}
+
+setupAutocomplete('fromInput','fromSuggestions','fromLat','fromLng');
+setupAutocomplete('toInput',  'toSuggestions',  'toLat',  'toLng');
+
+/* ── Swap ── */
+document.getElementById('swapBtn').onclick = () => {
+  [['fromInput','toInput'],['fromLat','toLat'],['fromLng','toLng']].forEach(([a,b]) => {
+    const vA = document.getElementById(a).value;
+    document.getElementById(a).value = document.getElementById(b).value;
+    document.getElementById(b).value = vA;
+  });
+};
+
+/* ── Submit : redirige vers la même page avec les params GET ── */
+document.getElementById('routeForm').onsubmit = e => {
+  e.preventDefault();
+  const fLat  = document.getElementById('fromLat').value;
+  const fLng  = document.getElementById('fromLng').value;
+  const tLat  = document.getElementById('toLat').value;
+  const tLng  = document.getElementById('toLng').value;
+  const fName = document.getElementById('fromInput').value.trim();
+  const tName = document.getElementById('toInput').value.trim();
+
+  if (!fLat || !fLng || !tLat || !tLng) {
+    new bootstrap.Toast(document.getElementById('alertToast'), { delay: 3500 }).show();
+    return;
+  }
+
+    // Mode formulaire seul : navigation vers la page avec résultats
+  const params = new URLSearchParams({ startLat:fLat, startLng:fLng, endLat:tLat, endLng:tLng, startName:fName, endName:tName });
+  window.location.href = 'itineraire.php?' + params.toString();
+  };
+
+</script>
+</body>
+</html>
