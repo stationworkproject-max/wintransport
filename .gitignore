@@ -27,3 +27,13 @@ scripts/*token*.txt
 scripts/*session*.json
 scripts/*session*.bin
 scripts/*api_keys*.json
+
+# Python caches
+__pycache__/
+*.pyc
+
+# Local build artifacts
+*.apk
+
+# Script-generated caches
+scripts/*_cache.json
