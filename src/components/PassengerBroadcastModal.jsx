@@ -15,6 +15,7 @@ import { STATIC_LINES } from '../data/staticTransit';
 import TRANSIT_SHAPES from '../data/transitShapes.json';
 import { publishLiveLocation, removeLiveLocation, SUPABASE_URL, SUPABASE_ANON_KEY } from '../supabase';
 import { isNativeAndroid, startBackgroundBroadcast, stopBackgroundBroadcast, isBackgroundBroadcastRunning } from '../native/backgroundBroadcast';
+import { getLineName, getLineShortName } from '../utils/i18n';
 
 const RAIL_LINE_TYPES = new Set(['metro', 'tgm', 'rfr', 'train']);
 const HUB_SHARED_STOP_RADIUS_METERS = 95;
@@ -28,7 +29,8 @@ export default function PassengerBroadcastModal({
   broadcastSession,
   setBroadcastSession,
   onRequestGps,
-  gpsStatus
+  gpsStatus,
+  language = 'fr'
 }) {
   const [selectedCategory, setSelectedCategory] = useState('all');
   const [selectedLineId, setSelectedLineId] = useState(broadcastSession?.lineId || '');
@@ -795,12 +797,12 @@ export default function PassengerBroadcastModal({
                           className="px-3 py-1.5 rounded-xl font-extrabold text-sm text-white flex-shrink-0 shadow"
                           style={{ backgroundColor: line.color }}
                         >
-                          {line.short_name}
+                          {getLineShortName(line, language)}
                         </span>
                         <div className="min-w-0">
-                          <div className="font-bold text-xs truncate text-white">{line.long_name}</div>
+                          <div className="font-bold text-xs truncate text-white">{getLineName(line, language)}</div>
                           <div className="text-[10px] text-slate-400 mt-0.5">
-                            Arrêt : <strong className="text-slate-300">{line.closestStopName}</strong>
+                            {language === 'ar' ? 'محطة : ' : 'Arrêt : '}<strong className="text-slate-300">{line.closestStopName}</strong>
                           </div>
                         </div>
                       </div>

@@ -1,0 +1,1529 @@
+<!DOCTYPE html>
+<html lang="fr" class="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>WinTransport Studio — Éditeur de Voies & Stations</title>
+  
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          colors: {
+            brand: { 50: '#eef2ff', 500: '#6366f1', 600: '#4f46e5', 700: '#4338ca', 900: '#1e1b4b' }
+          }
+        }
+      }
+    }
+  </script>
+
+  <!-- Leaflet CSS & JS -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+  <!-- Lucide Icons -->
+  <script src="https://unpkg.com/lucide@latest"></script>
+
+  <style>
+    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; }
+    #map { height: 100%; width: 100%; z-index: 10; background: #0f172a; }
+    
+    /* Hardware accelerated, buttery-smooth vertex handles */
+    .vertex-node {
+      width: 14px;
+      height: 14px;
+      border-radius: 50%;
+      background: #ffffff;
+      border: 2.5px solid #3b82f6;
+      box-shadow: 0 0 6px rgba(0,0,0,0.7), 0 2px 4px rgba(0,0,0,0.4);
+      cursor: grab;
+      transition: transform 0.08s ease, background 0.08s ease;
+      transform: translate3d(0,0,0);
+    }
+    .vertex-node:hover {
+      transform: scale(1.4);
+      background: #fbbf24;
+      border-color: #d97706;
+      z-index: 9999 !important;
+    }
+    .vertex-node:active {
+      cursor: grabbing;
+      transform: scale(1.5);
+      background: #f59e0b;
+    }
+    .vertex-node.first {
+      background: #10b981;
+      border-color: #ffffff;
+      width: 16px;
+      height: 16px;
+    }
+    .vertex-node.last {
+      background: #ef4444;
+      border-color: #ffffff;
+      width: 16px;
+      height: 16px;
+    }
+
+    .vertex-node.curve-start {
+      background: #10b981 !important;
+      border-color: #ffffff !important;
+      transform: scale(1.5) !important;
+      box-shadow: 0 0 12px #10b981;
+    }
+    .vertex-node.curve-end {
+      background: #ef4444 !important;
+      border-color: #ffffff !important;
+      transform: scale(1.5) !important;
+      box-shadow: 0 0 12px #ef4444;
+    }
+    .vertex-node.curve-range {
+      background: #f59e0b !important;
+      border-color: #ffffff !important;
+    }
+
+    .station-marker-pin {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border-radius: 9999px;
+      color: white;
+      font-weight: 800;
+      font-size: 11px;
+      box-shadow: 0 4px 10px rgba(0,0,0,0.7);
+      border: 2px solid white;
+      cursor: grab;
+      user-select: none;
+    }
+    .station-marker-pin:hover {
+      transform: scale(1.25);
+      z-index: 10000 !important;
+    }
+
+    /* Custom Scrollbar */
+    ::-webkit-scrollbar { width: 6px; height: 6px; }
+    ::-webkit-scrollbar-track { background: #0f172a; }
+    ::-webkit-scrollbar-thumb { background: #334155; border-radius: 3px; }
+    ::-webkit-scrollbar-thumb:hover { background: #475569; }
+  </style>
+</head>
+<body class="bg-slate-950 text-slate-100 flex flex-col h-screen overflow-hidden select-none">
+
+  <!-- INITIAL LOADING OVERLAY -->
+  <div id="loadingOverlay" class="fixed inset-0 bg-slate-950/95 backdrop-blur z-[9999] flex flex-col items-center justify-center gap-4 transition duration-300">
+    <div class="w-12 h-12 rounded-2xl bg-indigo-600 flex items-center justify-center text-white font-black text-xl shadow-2xl shadow-indigo-500/50 animate-bounce">
+      WT
+    </div>
+    <div class="text-center">
+      <h2 class="text-base font-bold text-white">WinTransport Studio</h2>
+      <p id="loadingStatusText" class="text-xs text-slate-400 mt-1">Connexion aux données du réseau...</p>
+    </div>
+    <div class="w-48 h-1.5 bg-slate-800 rounded-full overflow-hidden">
+      <div class="h-full bg-indigo-500 rounded-full animate-pulse" style="width: 70%;"></div>
+    </div>
+  </div>
+
+  <!-- TOP APP HEADER -->
+  <header class="bg-slate-900 border-b border-slate-800 px-4 py-2.5 flex items-center justify-between z-30 shrink-0">
+    <div class="flex items-center gap-3">
+      <div class="w-8 h-8 rounded-lg bg-indigo-600 flex items-center justify-center font-black text-white shadow-lg shadow-indigo-500/30">
+        WT
+      </div>
+      <div>
+        <h1 class="text-sm font-bold text-white flex items-center gap-2">
+          WinTransport Studio
+          <span class="text-[10px] px-2 py-0.5 rounded bg-indigo-900/60 border border-indigo-700/50 text-indigo-300 font-medium">Éditeur de Voies & Arrêts</span>
+        </h1>
+        <p class="text-xs text-slate-400" id="currentLineSubtitle">Sélectionnez une ligne</p>
+      </div>
+    </div>
+
+    <!-- Active Line Stats & Save Buttons -->
+    <div class="flex items-center gap-3">
+      <div id="activeStatsBadge" class="hidden items-center gap-2 bg-slate-800/80 border border-slate-700/60 px-3 py-1.5 rounded-lg text-xs">
+        <span class="flex items-center gap-1.5 font-semibold text-slate-200">
+          <span id="statLineBadge" class="px-2 py-0.5 rounded text-white font-bold bg-slate-700">--</span>
+          <span id="statLineName">--</span>
+        </span>
+        <span class="text-slate-600">|</span>
+        <span class="text-slate-400">Aller : <strong id="statPointsAller" class="text-cyan-400">0</strong> pts</span>
+        <span class="text-slate-600">|</span>
+        <span class="text-slate-400">Retour : <strong id="statPointsRetour" class="text-amber-400">0</strong> pts</span>
+        <span class="text-slate-600">|</span>
+        <span class="text-slate-400"><strong id="statDistance" class="text-slate-200">0.0</strong> km</span>
+      </div>
+
+      <button id="btnSave" onclick="saveActiveLine()" class="flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 active:bg-emerald-700 text-white font-semibold text-xs transition shadow-lg shadow-emerald-900/30">
+        <i data-lucide="save" class="w-4 h-4"></i>
+        <span>Enregistrer</span>
+      </button>
+
+      <button id="btnBuildSync" onclick="buildAndSync()" class="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white font-semibold text-xs transition shadow-lg shadow-indigo-900/30">
+        <i data-lucide="refresh-cw" class="w-3.5 h-3.5"></i>
+        <span>Compiler & Sync</span>
+      </button>
+
+      <button id="btnCopyJson" onclick="copyCurrentJson()" class="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-300 font-medium text-xs transition" title="Copier les coordonnées JSON">
+        <i data-lucide="copy" class="w-3.5 h-3.5"></i>
+      </button>
+    </div>
+  </header>
+
+  <!-- MAIN WORKSPACE LAYOUT -->
+  <div class="flex-1 flex overflow-hidden relative">
+
+    <!-- LEFT SIDEBAR -->
+    <aside class="w-96 bg-slate-900/95 border-r border-slate-800 flex flex-col shrink-0 z-20 shadow-2xl backdrop-blur">
+      
+      <!-- Network Filter Tabs -->
+      <div class="p-3 border-b border-slate-800 bg-slate-900/80">
+        <div class="flex items-center gap-1 p-1 bg-slate-950 rounded-lg border border-slate-800 text-xs font-semibold overflow-x-auto">
+          <button onclick="setFilterNetwork('all')" class="net-tab active flex-1 py-1 px-2 rounded-md transition text-center whitespace-nowrap bg-indigo-600 text-white" data-net="all">Tous</button>
+          <button onclick="setFilterNetwork('metro')" class="net-tab flex-1 py-1 px-2 rounded-md transition text-center whitespace-nowrap text-slate-400 hover:text-white" data-net="metro">Métro</button>
+          <button onclick="setFilterNetwork('tgm')" class="net-tab flex-1 py-1 px-2 rounded-md transition text-center whitespace-nowrap text-slate-400 hover:text-white" data-net="tgm">TGM</button>
+          <button onclick="setFilterNetwork('rfr')" class="net-tab flex-1 py-1 px-2 rounded-md transition text-center whitespace-nowrap text-slate-400 hover:text-white" data-net="rfr">RFR</button>
+          <button onclick="setFilterNetwork('train')" class="net-tab flex-1 py-1 px-2 rounded-md transition text-center whitespace-nowrap text-slate-400 hover:text-white" data-net="train">Train</button>
+          <button onclick="setFilterNetwork('bus')" class="net-tab flex-1 py-1 px-2 rounded-md transition text-center whitespace-nowrap text-slate-400 hover:text-white" data-net="bus">Bus</button>
+        </div>
+
+        <!-- Search input -->
+        <div class="mt-2 relative">
+          <i data-lucide="search" class="w-4 h-4 text-slate-500 absolute left-3 top-2.5"></i>
+          <input id="lineSearchInput" type="text" placeholder="Rechercher une ligne (ex: TGM, Métro 4, 38B...)" 
+                 class="w-full bg-slate-950 border border-slate-800 rounded-lg pl-9 pr-3 py-1.5 text-xs text-slate-200 placeholder-slate-500 focus:outline-none focus:border-indigo-500">
+        </div>
+      </div>
+
+      <!-- MAIN TABS (Lignes / Arrêts / Outils) -->
+      <div class="flex border-b border-slate-800 bg-slate-950/40 text-xs font-bold text-slate-400">
+        <button id="tabBtnLines" onclick="switchSidebarTab('lines')" class="flex-1 py-2 px-3 flex items-center justify-center gap-1.5 border-b-2 border-indigo-500 text-white bg-slate-800/30">
+          <i data-lucide="route" class="w-3.5 h-3.5 text-indigo-400"></i> Lignes
+        </button>
+        <button id="tabBtnStops" onclick="switchSidebarTab('stops')" class="flex-1 py-2 px-3 flex items-center justify-center gap-1.5 border-b-2 border-transparent hover:text-white">
+          <i data-lucide="map-pin" class="w-3.5 h-3.5 text-emerald-400"></i> Arrêts (<span id="tabStopsCount">0</span>)
+        </button>
+        <button id="tabBtnTools" onclick="switchSidebarTab('tools')" class="flex-1 py-2 px-3 flex items-center justify-center gap-1.5 border-b-2 border-transparent hover:text-white">
+          <i data-lucide="sparkles" class="w-3.5 h-3.5 text-amber-400"></i> Outils & Virages
+        </button>
+      </div>
+
+      <!-- TAB 1: LINES LIST -->
+      <div id="tabContentLines" class="flex-1 overflow-y-auto p-2 space-y-1">
+        <div id="linesListContainer" class="space-y-1">
+          <!-- Populated by JavaScript -->
+        </div>
+      </div>
+
+      <!-- TAB 2: STOPS LIST (Active Line) -->
+      <div id="tabContentStops" class="flex-1 overflow-y-auto p-2 space-y-1.5 hidden">
+        <div class="flex items-center justify-between px-2 py-1 bg-slate-950/60 rounded-md border border-slate-800">
+          <span class="text-xs text-slate-400 font-medium">Séquence des arrêts</span>
+          <button onclick="addNewStopAtMapCenter()" class="text-[11px] px-2 py-1 rounded bg-indigo-600/80 hover:bg-indigo-600 text-white font-semibold flex items-center gap-1">
+            <i data-lucide="plus" class="w-3 h-3"></i> Ajouter un arrêt
+          </button>
+        </div>
+        <div id="stopsListContainer" class="space-y-1">
+          <!-- Populated by JavaScript -->
+        </div>
+      </div>
+
+      <!-- TAB 3: TOOLS & ACTIONS (Including Curve Refinement) -->
+      <div id="tabContentTools" class="flex-1 overflow-y-auto p-3 space-y-3.5 hidden">
+        
+        <!-- Editing Modes -->
+        <div>
+          <label class="text-[11px] font-bold text-slate-400 uppercase tracking-wider block mb-1.5">Mode d'Action sur la Carte</label>
+          <div class="grid grid-cols-2 gap-1.5 text-xs font-semibold">
+            <button onclick="setEditMode('drag')" id="modeBtnDrag" class="p-2 rounded-lg border border-indigo-600 bg-indigo-600/20 text-indigo-300 flex items-center gap-2">
+              <i data-lucide="move" class="w-4 h-4"></i> Déplacer Nœuds
+            </button>
+            <button onclick="setEditMode('curve_select')" id="modeBtnCurve" class="p-2 rounded-lg border border-slate-800 bg-slate-950 text-amber-300 hover:text-white flex items-center gap-2">
+              <i data-lucide="sparkles" class="w-4 h-4 text-amber-400"></i> Arrondir Virage
+            </button>
+            <button onclick="setEditMode('add_end')" id="modeBtnAddEnd" class="p-2 rounded-lg border border-slate-800 bg-slate-950 text-slate-400 hover:text-white flex items-center gap-2">
+              <i data-lucide="plus-circle" class="w-4 h-4"></i> Ajouter à la Fin
+            </button>
+            <button onclick="setEditMode('add_start')" id="modeBtnAddStart" class="p-2 rounded-lg border border-slate-800 bg-slate-950 text-slate-400 hover:text-white flex items-center gap-2">
+              <i data-lucide="corner-up-left" class="w-4 h-4"></i> Ajouter au Début
+            </button>
+          </div>
+        </div>
+
+        <!-- SPECIAL FEATURE: CURVE / ROUND SHAPE REFINEMENT (NODE TO NODE) -->
+        <div class="p-3 bg-indigo-950/40 rounded-xl border border-indigo-800/60 space-y-2.5">
+          <div class="flex items-center justify-between">
+            <label class="text-xs font-bold text-indigo-200 flex items-center gap-1.5">
+              <i data-lucide="sparkles" class="w-4 h-4 text-amber-400"></i>
+              Lissage & Arrondi de Virage
+            </label>
+            <span class="text-[10px] px-1.5 py-0.5 rounded bg-indigo-900/80 text-indigo-300 font-mono">Anti-Angles</span>
+          </div>
+          
+          <p class="text-[11px] text-slate-300 leading-tight">
+            Transforme les virages angulaires en <strong>courbes circulaires parfaites et lisses</strong> entre deux nœuds.
+          </p>
+
+          <!-- Selection status -->
+          <div id="curveSelectionStatusBox" class="p-2 bg-slate-950/80 rounded-lg border border-slate-800 text-xs flex items-center justify-between">
+            <div class="space-y-0.5">
+              <div class="text-[10px] text-slate-400">Zone du virage sélectionnée :</div>
+              <div id="curveSelectionLabels" class="font-semibold text-slate-200 text-[11px]">
+                <span class="text-emerald-400">Nœud A : <strong id="lblCurveNodeA">--</strong></span> ➔ 
+                <span class="text-rose-400">Nœud B : <strong id="lblCurveNodeB">--</strong></span>
+              </div>
+            </div>
+            <button onclick="resetCurveSelection()" class="text-[10px] px-2 py-1 rounded bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white">
+              Effacer
+            </button>
+          </div>
+
+          <!-- Curve Options -->
+          <div class="grid grid-cols-2 gap-2 text-xs">
+            <div>
+              <label class="text-[10px] text-slate-400 block mb-1">Méthode d'Arrondi</label>
+              <select id="selCurveMethod" class="w-full bg-slate-950 border border-slate-800 rounded px-2 py-1 text-slate-200 text-xs focus:outline-none">
+                <option value="chaikin">Chaikin (Naturel / Voies)</option>
+                <option value="spline">Spline Catmull-Rom (Ultra Lisse)</option>
+              </select>
+            </div>
+            <div>
+              <label class="text-[10px] text-slate-400 block mb-1">Intensité / Niveaux</label>
+              <select id="selCurveLevel" class="w-full bg-slate-950 border border-slate-800 rounded px-2 py-1 text-slate-200 text-xs focus:outline-none">
+                <option value="1">Léger (1x)</option>
+                <option value="2" selected>Moyen (2x)</option>
+                <option value="3">Fort / Très Rond (3x)</option>
+              </select>
+            </div>
+          </div>
+
+          <!-- Apply buttons -->
+          <div class="space-y-1.5 pt-1">
+            <button onclick="applyCurveSmoothingOnRange()" id="btnApplyCurve" class="w-full py-1.5 px-3 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs flex items-center justify-center gap-1.5 shadow transition">
+              <i data-lucide="wand-2" class="w-3.5 h-3.5 text-amber-300"></i>
+              Arrondir le Virage Sélectionné
+            </button>
+            <button onclick="applyGlobalSmoothing()" class="w-full py-1.5 px-3 rounded-lg bg-slate-950 hover:bg-slate-800 border border-slate-800 text-slate-300 hover:text-white font-medium text-xs flex items-center justify-center gap-1.5 transition">
+              <i data-lucide="sparkles" class="w-3.5 h-3.5 text-indigo-400"></i>
+              Lisser Tous les Angles de la Ligne
+            </button>
+          </div>
+        </div>
+
+        <!-- Track Transformations -->
+        <div>
+          <label class="text-[11px] font-bold text-slate-400 uppercase tracking-wider block mb-1.5">Opérations sur le Tracé</label>
+          <div class="space-y-1.5 text-xs font-medium">
+            <button onclick="cloneAndReverseOpposite()" class="w-full p-2 rounded-lg bg-slate-950 hover:bg-slate-800 border border-slate-800 flex items-center justify-between text-left text-slate-300 hover:text-white">
+              <span class="flex items-center gap-2"><i data-lucide="arrow-left-right" class="w-4 h-4 text-indigo-400"></i> Inverser depuis la voie opposée</span>
+              <i data-lucide="chevron-right" class="w-3.5 h-3.5 text-slate-600"></i>
+            </button>
+            <button onclick="generateParallelTrack(3.5)" class="w-full p-2 rounded-lg bg-slate-950 hover:bg-slate-800 border border-slate-800 flex items-center justify-between text-left text-slate-300 hover:text-white">
+              <span class="flex items-center gap-2"><i data-lucide="git-fork" class="w-4 h-4 text-amber-400"></i> Générer voie opposée parallèle (+3.5m)</span>
+              <i data-lucide="chevron-right" class="w-3.5 h-3.5 text-slate-600"></i>
+            </button>
+            <button onclick="removeLastPoint()" class="w-full p-2 rounded-lg bg-slate-950 hover:bg-slate-800 border border-slate-800 flex items-center justify-between text-left text-slate-300 hover:text-white">
+              <span class="flex items-center gap-2"><i data-lucide="delete" class="w-4 h-4 text-rose-400"></i> Supprimer le dernier point (Fin)</span>
+            </button>
+            <button onclick="removeFirstPoint()" class="w-full p-2 rounded-lg bg-slate-950 hover:bg-slate-800 border border-slate-800 flex items-center justify-between text-left text-slate-300 hover:text-white">
+              <span class="flex items-center gap-2"><i data-lucide="delete" class="w-4 h-4 text-rose-400"></i> Supprimer le premier point (Début)</span>
+            </button>
+            <button onclick="clearCurrentTrack()" class="w-full p-2 rounded-lg bg-rose-950/40 hover:bg-rose-900/60 border border-rose-800/60 flex items-center justify-between text-left text-rose-300">
+              <span class="flex items-center gap-2"><i data-lucide="trash-2" class="w-4 h-4 text-rose-400"></i> Vider tout le tracé actif</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- History & Undo/Redo -->
+        <div>
+          <label class="text-[11px] font-bold text-slate-400 uppercase tracking-wider block mb-1.5">Historique</label>
+          <div class="grid grid-cols-2 gap-2 text-xs">
+            <button onclick="undo()" id="btnUndo" class="p-2 rounded-lg bg-slate-950 border border-slate-800 text-slate-400 hover:text-white disabled:opacity-30 flex items-center justify-center gap-1.5 font-semibold">
+              <i data-lucide="undo-2" class="w-4 h-4"></i> Annuler (Ctrl+Z)
+            </button>
+            <button onclick="redo()" id="btnRedo" class="p-2 rounded-lg bg-slate-950 border border-slate-800 text-slate-400 hover:text-white disabled:opacity-30 flex items-center justify-center gap-1.5 font-semibold">
+              <i data-lucide="redo-2" class="w-4 h-4"></i> Rétablir (Ctrl+Y)
+            </button>
+          </div>
+        </div>
+
+      </div>
+
+      <!-- SELECTION & DISPLAY CONTROL BAR (ALLER / RETOUR / LES DEUX) -->
+      <div id="dirControlPanel" class="p-3 border-t border-slate-800 bg-slate-950/95 shrink-0 space-y-2">
+        
+        <!-- Selection of Active Track for Editing -->
+        <div>
+          <label class="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1">Voie Active en Cours d'Édition</label>
+          <div class="grid grid-cols-2 gap-1.5 p-1 bg-slate-900 rounded-lg border border-slate-800 text-xs font-bold">
+            <button id="editDirBtn0" onclick="setEditingDirection(0)" class="py-1.5 px-2 rounded-md bg-cyan-600 text-white flex items-center justify-center gap-1.5 shadow">
+              <span class="w-2.5 h-2.5 rounded-full bg-white"></span>
+              <span>Aller (0)</span>
+            </button>
+            <button id="editDirBtn1" onclick="setEditingDirection(1)" class="py-1.5 px-2 rounded-md text-slate-400 hover:text-white flex items-center justify-center gap-1.5">
+              <span class="w-2.5 h-2.5 rounded-full bg-amber-400"></span>
+              <span>Retour (1)</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- Display Toggles on Map -->
+        <div class="flex items-center justify-between px-1 text-[11px] text-slate-300 font-medium">
+          <label class="flex items-center gap-1.5 cursor-pointer">
+            <input type="checkbox" id="chkShowAller" checked onchange="updateVisibility()" class="rounded text-cyan-500 focus:ring-0 bg-slate-900 border-slate-700">
+            <span class="flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-cyan-400"></span> Afficher Aller</span>
+          </label>
+          <label class="flex items-center gap-1.5 cursor-pointer">
+            <input type="checkbox" id="chkShowRetour" checked onchange="updateVisibility()" class="rounded text-amber-500 focus:ring-0 bg-slate-900 border-slate-700">
+            <span class="flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-amber-400"></span> Afficher Retour</span>
+          </label>
+        </div>
+
+        <div id="dirTerminusLabel" class="text-[11px] text-slate-400 truncate text-center font-medium bg-slate-900/60 py-1 rounded border border-slate-800/80">
+          Édition : <span id="targetDirName" class="text-cyan-300 font-semibold">Aller</span>
+        </div>
+      </div>
+
+    </aside>
+
+    <!-- MAP CONTAINER -->
+    <main class="flex-1 relative h-full">
+      <div id="map"></div>
+
+      <!-- FLOATING MAP CONTROLS -->
+      <div class="absolute top-3 right-3 z-[1000] flex flex-col gap-2">
+        
+        <!-- Base Map Switcher -->
+        <div class="bg-slate-900/90 border border-slate-700/80 rounded-lg p-1 shadow-2xl backdrop-blur flex items-center gap-1 text-xs font-semibold">
+          <button onclick="setBaseMap('satellite')" id="mapBtnSat" class="px-2.5 py-1 rounded bg-indigo-600 text-white flex items-center gap-1.5 shadow">
+            <i data-lucide="satellite" class="w-3.5 h-3.5"></i> Satellite
+          </button>
+          <button onclick="setBaseMap('streets')" id="mapBtnStreets" class="px-2.5 py-1 rounded text-slate-400 hover:text-white flex items-center gap-1.5">
+            <i data-lucide="map" class="w-3.5 h-3.5"></i> Plan Rues
+          </button>
+          <button onclick="setBaseMap('dark')" id="mapBtnDark" class="px-2.5 py-1 rounded text-slate-400 hover:text-white flex items-center gap-1.5">
+            <i data-lucide="moon" class="w-3.5 h-3.5"></i> Sombre
+          </button>
+        </div>
+
+        <!-- Station Pins Toggle -->
+        <div class="bg-slate-900/90 border border-slate-700/80 rounded-lg p-2 shadow-2xl backdrop-blur text-xs">
+          <label class="flex items-center gap-2 cursor-pointer">
+            <input type="checkbox" id="chkShowStations" checked onchange="updateVisibility()" class="rounded text-indigo-600 focus:ring-0 bg-slate-950 border-slate-700">
+            <span class="text-slate-300 font-medium">Afficher les Arrêts</span>
+          </label>
+        </div>
+      </div>
+
+      <!-- MAP BOTTOM HUD (Coords & Instructions) -->
+      <div class="absolute bottom-3 left-3 right-3 z-[1000] flex items-center justify-between pointer-events-none">
+        
+        <!-- Mode Instructions Toast -->
+        <div class="pointer-events-auto bg-slate-900/95 border border-slate-700/80 px-3 py-1.5 rounded-lg text-xs font-medium text-slate-200 shadow-xl backdrop-blur flex items-center gap-2">
+          <i data-lucide="info" class="w-4 h-4 text-indigo-400 shrink-0"></i>
+          <span id="modeInstructionText">💡 <strong>Glissez un nœud</strong> pour le déplacer. <strong>Double-cliquez sur la ligne</strong> pour insérer un nœud. <strong>Clic droit</strong> pour supprimer.</span>
+        </div>
+
+        <!-- Cursor Coordinates & Zoom -->
+        <div class="pointer-events-auto bg-slate-900/95 border border-slate-700/80 px-2.5 py-1 rounded-lg text-[11px] font-mono text-slate-400 shadow-xl backdrop-blur flex items-center gap-3">
+          <span>Lat: <strong id="hudLat" class="text-slate-200">0.000000</strong></span>
+          <span>Lon: <strong id="hudLon" class="text-slate-200">0.000000</strong></span>
+          <span>Zoom: <strong id="hudZoom" class="text-slate-200">14</strong></span>
+        </div>
+
+      </div>
+
+    </main>
+
+  </div>
+
+  <!-- TOAST NOTIFICATION CONTAINER -->
+  <div id="toastContainer" class="fixed top-5 right-5 z-[9999] space-y-2 pointer-events-none"></div>
+
+  <!-- JAVASCRIPT APPLICATION LOGIC -->
+  <script>
+    // -------------------------------------------------------------
+    // 1. STATE INITIALIZATION & ASYNC DATA LOADER
+    // -------------------------------------------------------------
+    let lines = [];
+    let shapes = {};
+
+    let currentNetworkFilter = 'all';
+    let searchQuery = '';
+    let selectedLine = null;
+    let editingDirection = 0; // 0 = Aller, 1 = Retour
+    let activeEditMode = 'drag'; // 'drag', 'curve_select', 'add_end', 'add_start', 'stations'
+
+    let currentShape0 = [];
+    let currentShape1 = [];
+    let currentStopsAller = [];
+    let currentStopsRetour = [];
+    let currentStops = [];
+
+    // Curve Smoothing Range selection indices
+    let curveNodeA = null; // Start node index
+    let curveNodeB = null; // End node index
+
+    let historyStack = [];
+    let historyIndex = -1;
+
+    async function loadDataAndBootstrap() {
+      const statusText = document.getElementById('loadingStatusText');
+      try {
+        const res = await fetch('/api/data');
+        if (res.ok) {
+          const data = await res.json();
+          lines = data.lines || [];
+          shapes = data.shapes || {};
+          onDataLoaded();
+          return;
+        }
+      } catch (e) {
+        console.warn("API load failed, trying fallback...", e);
+      }
+
+      if (window.STUDIO_DATA) {
+        lines = window.STUDIO_DATA.lines || [];
+        shapes = window.STUDIO_DATA.shapes || {};
+        onDataLoaded();
+        return;
+      }
+
+      try {
+        const res = await fetch('/studio_data.js');
+        const jsText = await res.text();
+        eval(jsText);
+        if (window.STUDIO_DATA) {
+          lines = window.STUDIO_DATA.lines || [];
+          shapes = window.STUDIO_DATA.shapes || {};
+          onDataLoaded();
+          return;
+        }
+      } catch (e) {
+        console.error("Fallback load failed:", e);
+      }
+
+      statusText.innerText = "Erreur de chargement.";
+    }
+
+    function onDataLoaded() {
+      const overlay = document.getElementById('loadingOverlay');
+      if (overlay) {
+        overlay.classList.add('opacity-0', 'pointer-events-none');
+        setTimeout(() => overlay.remove(), 400);
+      }
+
+      renderLinesList();
+      if (lines.length > 0) {
+        const defaultLine = lines.find(l => l.id === 'metro_56') || lines.find(l => l.id === 'metro_53') || lines[0];
+        selectLine(defaultLine);
+      }
+      lucide.createIcons();
+    }
+
+    // -------------------------------------------------------------
+    // 2. LEAFLET MAP INITIALIZATION
+    // -------------------------------------------------------------
+    const map = L.map('map', {
+      center: [36.8065, 10.1815],
+      zoom: 13,
+      zoomControl: true
+    });
+
+    const tileLayers = {
+      satellite: L.tileLayer('https://mt1.google.com/vt/lyrs=y&x={x}&y={y}&z={z}', {
+        maxZoom: 20,
+        subdomains: ['mt0', 'mt1', 'mt2', 'mt3'],
+        attribution: 'Google Satellite'
+      }),
+      streets: L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        maxZoom: 19,
+        attribution: '© OpenStreetMap'
+      }),
+      dark: L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+        maxZoom: 19,
+        attribution: '© CartoDB'
+      })
+    };
+
+    let activeBaseMap = tileLayers.satellite.addTo(map);
+
+    function setBaseMap(type) {
+      map.removeLayer(activeBaseMap);
+      activeBaseMap = tileLayers[type].addTo(map);
+      
+      document.querySelectorAll('#mapBtnSat, #mapBtnStreets, #mapBtnDark').forEach(btn => {
+        btn.classList.remove('bg-indigo-600', 'text-white');
+        btn.classList.add('text-slate-400');
+      });
+      const activeBtn = type === 'satellite' ? document.getElementById('mapBtnSat') :
+                        type === 'streets' ? document.getElementById('mapBtnStreets') : document.getElementById('mapBtnDark');
+      activeBtn.classList.add('bg-indigo-600', 'text-white');
+      activeBtn.classList.remove('text-slate-400');
+    }
+
+    map.on('mousemove', (e) => {
+      document.getElementById('hudLat').innerText = e.latlng.lat.toFixed(6);
+      document.getElementById('hudLon').innerText = e.latlng.lng.toFixed(6);
+    });
+    map.on('zoomend', () => {
+      document.getElementById('hudZoom').innerText = map.getZoom();
+    });
+
+    // Map Click for "Add Points" mode
+    map.on('click', (e) => {
+      if (!selectedLine) return;
+      if (activeEditMode === 'add_end' || activeEditMode === 'add_start') {
+        const newPt = [parseFloat(e.latlng.lat.toFixed(6)), parseFloat(e.latlng.lng.toFixed(6))];
+        const activeTrack = getActiveTrack();
+        
+        if (activeEditMode === 'add_end') {
+          activeTrack.push(newPt);
+        } else {
+          activeTrack.unshift(newPt);
+        }
+        
+        pushHistory();
+        renderMapLayers();
+        showToast('Nœud ajouté au tracé', 'success');
+      }
+    });
+
+    // -------------------------------------------------------------
+    // 3. PERSISTENT MAP LAYERS
+    // -------------------------------------------------------------
+    const allerCasingPolyline = L.polyline([], { color: '#ffffff', weight: 8, opacity: 0.85, lineCap: 'round', lineJoin: 'round' }).addTo(map);
+    const allerMainPolyline = L.polyline([], { color: '#06b6d4', weight: 5, opacity: 1, lineCap: 'round', lineJoin: 'round' }).addTo(map);
+
+    const retourCasingPolyline = L.polyline([], { color: '#ffffff', weight: 8, opacity: 0.85, lineCap: 'round', lineJoin: 'round' }).addTo(map);
+    const retourMainPolyline = L.polyline([], { color: '#f59e0b', weight: 5, opacity: 1, lineCap: 'round', lineJoin: 'round' }).addTo(map);
+
+    const curvePreviewPolyline = L.polyline([], { color: '#f59e0b', weight: 6, opacity: 0.9, dashArray: '6, 6', lineCap: 'round' }).addTo(map);
+
+    const vertexMarkersGroup = L.layerGroup().addTo(map);
+    const stationMarkersGroup = L.layerGroup().addTo(map);
+
+    function getActiveTrack() {
+      return editingDirection === 0 ? currentShape0 : currentShape1;
+    }
+    function setActiveTrack(newTrack) {
+      if (editingDirection === 0) currentShape0 = newTrack;
+      else currentShape1 = newTrack;
+    }
+
+    // Insert point by double-clicking directly on the active polyline
+    function handlePolylineDblClick(e) {
+      if (!selectedLine) return;
+      const activePts = getActiveTrack();
+      if (activePts.length < 2) return;
+
+      const clickPt = [parseFloat(e.latlng.lat.toFixed(6)), parseFloat(e.latlng.lng.toFixed(6))];
+      let bestSegmentIdx = 0;
+      let minDistance = Infinity;
+
+      for (let i = 0; i < activePts.length - 1; i++) {
+        const p1 = activePts[i];
+        const p2 = activePts[i + 1];
+        const dist = pointToSegmentDistance(clickPt, p1, p2);
+        if (dist < minDistance) {
+          minDistance = dist;
+          bestSegmentIdx = i;
+        }
+      }
+
+      activePts.splice(bestSegmentIdx + 1, 0, clickPt);
+      pushHistory();
+      renderMapLayers();
+      showToast(`Nœud inséré à la position #${bestSegmentIdx + 2}`, 'success');
+    }
+
+    allerMainPolyline.on('dblclick', handlePolylineDblClick);
+    retourMainPolyline.on('dblclick', handlePolylineDblClick);
+
+    function pointToSegmentDistance(p, a, b) {
+      const dx = b[1] - a[1];
+      const dy = b[0] - a[0];
+      if (dx === 0 && dy === 0) return Math.hypot(p[0] - a[0], p[1] - a[1]);
+      const t = Math.max(0, Math.min(1, ((p[1] - a[1]) * dx + (p[0] - a[0]) * dy) / (dx * dx + dy * dy)));
+      const projLat = a[0] + t * dy;
+      const projLon = a[1] + t * dx;
+      return Math.hypot(p[0] - projLat, p[1] - projLon);
+    }
+
+    // Main map render
+    function renderMapLayers() {
+      if (!selectedLine) {
+        allerCasingPolyline.setLatLngs([]);
+        allerMainPolyline.setLatLngs([]);
+        retourCasingPolyline.setLatLngs([]);
+        retourMainPolyline.setLatLngs([]);
+        curvePreviewPolyline.setLatLngs([]);
+        vertexMarkersGroup.clearLayers();
+        stationMarkersGroup.clearLayers();
+        return;
+      }
+
+      const showAller = document.getElementById('chkShowAller').checked;
+      const showRetour = document.getElementById('chkShowRetour').checked;
+      const showStations = document.getElementById('chkShowStations').checked;
+
+      // 1. Update Aller Route
+      if (showAller && currentShape0 && currentShape0.length >= 2) {
+        allerCasingPolyline.setLatLngs(currentShape0);
+        allerMainPolyline.setLatLngs(currentShape0);
+        allerMainPolyline.setStyle({
+          color: editingDirection === 0 ? '#06b6d4' : '#0284c7',
+          weight: editingDirection === 0 ? 5.5 : 3.5,
+          opacity: editingDirection === 0 ? 1 : 0.6,
+          dashArray: editingDirection === 0 ? null : '4, 4'
+        });
+      } else {
+        allerCasingPolyline.setLatLngs([]);
+        allerMainPolyline.setLatLngs([]);
+      }
+
+      // 2. Update Retour Route
+      if (showRetour && currentShape1 && currentShape1.length >= 2) {
+        retourCasingPolyline.setLatLngs(currentShape1);
+        retourMainPolyline.setLatLngs(currentShape1);
+        retourMainPolyline.setStyle({
+          color: editingDirection === 1 ? '#f59e0b' : '#d97706',
+          weight: editingDirection === 1 ? 5.5 : 3.5,
+          opacity: editingDirection === 1 ? 1 : 0.6,
+          dashArray: editingDirection === 1 ? null : '4, 4'
+        });
+      } else {
+        retourCasingPolyline.setLatLngs([]);
+        retourMainPolyline.setLatLngs([]);
+      }
+
+      // 3. Render Draggable Vertex Markers for Active Track
+      vertexMarkersGroup.clearLayers();
+      const activePts = getActiveTrack();
+
+      if ((activeEditMode === 'drag' || activeEditMode === 'curve_select') && activePts && activePts.length > 0) {
+        activePts.forEach((pt, index) => {
+          const isFirst = index === 0;
+          const isLast = index === activePts.length - 1;
+          const isCurveA = curveNodeA === index;
+          const isCurveB = curveNodeB === index;
+          const isInCurveRange = curveNodeA !== null && curveNodeB !== null && 
+                                index >= Math.min(curveNodeA, curveNodeB) && index <= Math.max(curveNodeA, curveNodeB);
+
+          let extraClass = '';
+          if (isCurveA) extraClass = 'curve-start';
+          else if (isCurveB) extraClass = 'curve-end';
+          else if (isInCurveRange) extraClass = 'curve-range';
+          else if (isFirst) extraClass = 'first';
+          else if (isLast) extraClass = 'last';
+
+          const activeColor = editingDirection === 0 ? '#06b6d4' : '#f59e0b';
+          const iconHtml = `<div class="vertex-node ${extraClass}" style="border-color:${isFirst||isLast?'#ffffff':activeColor};"></div>`;
+          const icon = L.divIcon({
+            html: iconHtml,
+            className: '',
+            iconSize: [14, 14],
+            iconAnchor: [7, 7]
+          });
+
+          const marker = L.marker(pt, {
+            icon: icon,
+            draggable: activeEditMode === 'drag',
+            riseOnHover: true
+          });
+
+          // Curve selection click
+          if (activeEditMode === 'curve_select') {
+            marker.on('click', (e) => {
+              L.DomEvent.stopPropagation(e);
+              handleNodeClickForCurve(index);
+            });
+          }
+
+          // Drag event in 'drag' mode
+          if (activeEditMode === 'drag') {
+            marker.on('drag', (e) => {
+              const newPos = [parseFloat(e.latlng.lat.toFixed(6)), parseFloat(e.latlng.lng.toFixed(6))];
+              activePts[index] = newPos;
+              if (editingDirection === 0) {
+                allerCasingPolyline.setLatLngs(activePts);
+                allerMainPolyline.setLatLngs(activePts);
+              } else {
+                retourCasingPolyline.setLatLngs(activePts);
+                retourMainPolyline.setLatLngs(activePts);
+              }
+            });
+
+            marker.on('dragend', () => {
+              pushHistory();
+              updateStatsBadge();
+            });
+
+            // Right-click to delete
+            marker.on('contextmenu', (e) => {
+              L.DomEvent.stopPropagation(e);
+              L.DomEvent.preventDefault(e);
+              if (activePts.length <= 2) {
+                showToast('Le tracé doit avoir au moins 2 points', 'warning');
+                return;
+              }
+              activePts.splice(index, 1);
+              pushHistory();
+              renderMapLayers();
+              showToast(`Nœud #${index + 1} supprimé`, 'info');
+            });
+          }
+
+          marker.bindTooltip(
+            activeEditMode === 'curve_select' 
+              ? `Cliquer pour sélectionner le Nœud #${index + 1}`
+              : `Nœud #${index + 1} (${pt[0].toFixed(5)}, ${pt[1].toFixed(5)})`, 
+            { direction: 'top', offset: [0, -8] }
+          );
+          marker.addTo(vertexMarkersGroup);
+        });
+      }
+
+      // 4. Update Curve Preview Polyline if range selected
+      if (curveNodeA !== null && curveNodeB !== null) {
+        const start = Math.min(curveNodeA, curveNodeB);
+        const end = Math.max(curveNodeA, curveNodeB);
+        const rangePts = activePts.slice(start, end + 1);
+        curvePreviewPolyline.setLatLngs(rangePts);
+      } else {
+        curvePreviewPolyline.setLatLngs([]);
+      }
+
+      // 5. Render Station Pins
+      stationMarkersGroup.clearLayers();
+      if (showStations) {
+        const activeStops = getActiveStops();
+        const baseColor = selectedLine.color || '#6366f1';
+
+        activeStops.forEach((stop, index) => {
+          const isTerminus = index === 0 || index === activeStops.length - 1;
+          const iconSize = isTerminus ? 24 : 20;
+          const stopName = stop.name_fr || stop.name || `Arrêt #${index + 1}`;
+          const stopNameAr = stop.name_ar || '';
+
+          const icon = L.divIcon({
+            html: `<div class="station-marker-pin" style="width:${iconSize}px; height:${iconSize}px; background-color: ${isTerminus ? '#10b981' : baseColor};">
+                    ${index + 1}
+                   </div>`,
+            className: '',
+            iconSize: [iconSize, iconSize],
+            iconAnchor: [iconSize / 2, iconSize / 2]
+          });
+
+          const stationMarker = L.marker([stop.lat, stop.lon], {
+            icon: icon,
+            draggable: activeEditMode === 'stations'
+          });
+
+          if (activeEditMode === 'stations') {
+            stationMarker.on('dragend', (e) => {
+              const newPos = e.target.getLatLng();
+              stop.lat = parseFloat(newPos.lat.toFixed(6));
+              stop.lon = parseFloat(newPos.lng.toFixed(6));
+              pushHistory();
+              renderStopsList();
+              showToast(`Position de ${stopName} mise à jour`, 'success');
+            });
+          }
+
+          stationMarker.bindTooltip(`
+            <div class="p-1 font-sans">
+              <div class="font-bold text-xs text-white">#${index + 1} ${stopName}</div>
+              ${stopNameAr ? `<div class="text-[11px] text-amber-300 font-arabic" dir="rtl">${stopNameAr}</div>` : ''}
+              <div class="text-[10px] text-slate-300 font-mono mt-0.5">${stop.lat.toFixed(6)}, ${stop.lon.toFixed(6)}</div>
+            </div>
+          `, { direction: 'top', offset: [0, -10] });
+
+          stationMarker.addTo(stationMarkersGroup);
+        });
+      }
+
+      updateStatsBadge();
+    }
+
+    function updateVisibility() {
+      renderMapLayers();
+    }
+
+    function getActiveStops() {
+      if (!selectedLine) return [];
+      if (editingDirection === 1 && currentStopsRetour && currentStopsRetour.length > 0) {
+        return currentStopsRetour;
+      }
+      if (currentStopsAller && currentStopsAller.length > 0) {
+        return currentStopsAller;
+      }
+      return currentStops;
+    }
+
+    // -------------------------------------------------------------
+    // 4. LINE SELECTION & DIRECTION CONTROL
+    // -------------------------------------------------------------
+    function selectLine(line) {
+      selectedLine = line;
+      editingDirection = 0;
+      resetCurveSelection();
+
+      currentShape0 = shapes[`${line.id}_0`] ? JSON.parse(JSON.stringify(shapes[`${line.id}_0`])) :
+                      shapes[line.id] ? JSON.parse(JSON.stringify(shapes[line.id])) : [];
+      currentShape1 = shapes[`${line.id}_1`] ? JSON.parse(JSON.stringify(shapes[`${line.id}_1`])) :
+                      currentShape0.length > 0 ? JSON.parse(JSON.stringify(currentShape0)).reverse() : [];
+
+      currentStops = line.stops ? JSON.parse(JSON.stringify(line.stops)) : [];
+      currentStopsAller = line.stops_aller ? JSON.parse(JSON.stringify(line.stops_aller)) : [];
+      currentStopsRetour = line.stops_retour ? JSON.parse(JSON.stringify(line.stops_retour)) : [];
+
+      historyStack = [];
+      historyIndex = -1;
+      pushHistory();
+
+      document.getElementById('currentLineSubtitle').innerText = `${line.short_name || line.route_id} • ${line.long_name_fr || line.long_name || ''}`;
+      document.getElementById('statLineBadge').innerText = line.short_name || line.route_id;
+      document.getElementById('statLineBadge').style.backgroundColor = line.color || '#4f46e5';
+      document.getElementById('statLineName').innerText = line.long_name_fr || line.long_name || '';
+      document.getElementById('activeStatsBadge').classList.remove('hidden');
+      document.getElementById('activeStatsBadge').classList.add('flex');
+
+      updateEditingDirectionUI();
+      renderLinesList();
+      renderStopsList();
+      renderMapLayers();
+
+      const activePts = currentShape0.length > 0 ? currentShape0 : currentShape1;
+      if (activePts && activePts.length >= 2) {
+        map.fitBounds(L.polyline(activePts).getBounds(), { padding: [50, 50], maxZoom: 16 });
+      }
+    }
+
+    function setEditingDirection(dir) {
+      editingDirection = dir;
+      resetCurveSelection();
+      updateEditingDirectionUI();
+      renderStopsList();
+      renderMapLayers();
+    }
+
+    function updateEditingDirectionUI() {
+      const btn0 = document.getElementById('editDirBtn0');
+      const btn1 = document.getElementById('editDirBtn1');
+      const targetNameEl = document.getElementById('targetDirName');
+
+      if (editingDirection === 0) {
+        btn0.className = 'py-1.5 px-2 rounded-md bg-cyan-600 text-white flex items-center justify-center gap-1.5 shadow font-bold';
+        btn1.className = 'py-1.5 px-2 rounded-md text-slate-400 hover:text-white flex items-center justify-center gap-1.5 font-bold';
+        targetNameEl.innerText = 'Voie Aller (0)';
+        targetNameEl.className = 'text-cyan-400 font-bold';
+      } else {
+        btn1.className = 'py-1.5 px-2 rounded-md bg-amber-600 text-white flex items-center justify-center gap-1.5 shadow font-bold';
+        btn0.className = 'py-1.5 px-2 rounded-md text-slate-400 hover:text-white flex items-center justify-center gap-1.5 font-bold';
+        targetNameEl.innerText = 'Voie Retour (1)';
+        targetNameEl.className = 'text-amber-400 font-bold';
+      }
+    }
+
+    // -------------------------------------------------------------
+    // 5. SIDEBAR & TOOLS
+    // -------------------------------------------------------------
+    function setFilterNetwork(net) {
+      currentNetworkFilter = net;
+      document.querySelectorAll('.net-tab').forEach(t => {
+        if (t.dataset.net === net) {
+          t.classList.add('bg-indigo-600', 'text-white');
+          t.classList.remove('text-slate-400');
+        } else {
+          t.classList.remove('bg-indigo-600', 'text-white');
+          t.classList.add('text-slate-400');
+        }
+      });
+      renderLinesList();
+    }
+
+    document.getElementById('lineSearchInput').addEventListener('input', (e) => {
+      searchQuery = e.target.value.toLowerCase().trim();
+      renderLinesList();
+    });
+
+    function renderLinesList() {
+      const container = document.getElementById('linesListContainer');
+      container.innerHTML = '';
+
+      const filtered = lines.filter(l => {
+        if (currentNetworkFilter !== 'all' && l.type_id !== currentNetworkFilter) return false;
+        if (searchQuery) {
+          const matchId = (l.id || '').toLowerCase().includes(searchQuery);
+          const matchShort = (l.short_name || l.route_id || '').toLowerCase().includes(searchQuery);
+          const matchLong = (l.long_name_fr || l.long_name || '').toLowerCase().includes(searchQuery);
+          const matchAr = (l.long_name_ar || l.short_name_ar || '').includes(searchQuery);
+          if (!matchId && !matchShort && !matchLong && !matchAr) return false;
+        }
+        return true;
+      });
+
+      filtered.forEach(line => {
+        const isSelected = selectedLine && selectedLine.id === line.id;
+        const card = document.createElement('div');
+        card.className = `p-2.5 rounded-lg border cursor-pointer transition flex items-center justify-between ${
+          isSelected 
+            ? 'bg-indigo-950/70 border-indigo-500 shadow-md' 
+            : 'bg-slate-950/60 hover:bg-slate-800/80 border-slate-800/80'
+        }`;
+
+        const shortName = line.short_name || line.route_id;
+        const longName = line.long_name_fr || line.long_name || '';
+        const stopCount = (line.stops && line.stops.length) || 0;
+        const color = line.color || '#6366f1';
+        const hasDual = shapes[`${line.id}_0`] && shapes[`${line.id}_1`];
+
+        card.innerHTML = `
+          <div class="flex items-center gap-2.5 min-w-0">
+            <span class="px-2 py-1 rounded-md text-white font-bold text-xs shrink-0 shadow-sm" style="background-color: ${color};">
+              ${shortName}
+            </span>
+            <div class="min-w-0">
+              <div class="text-xs font-semibold text-slate-200 truncate">${longName}</div>
+              <div class="text-[10px] text-slate-400 flex items-center gap-2 mt-0.5">
+                <span>${stopCount} arrêts</span>
+                <span>•</span>
+                <span class="${hasDual ? 'text-emerald-400 font-semibold' : 'text-slate-500'}">
+                  ${hasDual ? '✓ Double Voie' : 'Voie Unique'}
+                </span>
+              </div>
+            </div>
+          </div>
+          <i data-lucide="chevron-right" class="w-4 h-4 text-slate-600 shrink-0"></i>
+        `;
+
+        card.onclick = () => selectLine(line);
+        container.appendChild(card);
+      });
+
+      lucide.createIcons();
+    }
+
+    function renderStopsList() {
+      const container = document.getElementById('stopsListContainer');
+      container.innerHTML = '';
+
+      const activeStops = getActiveStops();
+      document.getElementById('tabStopsCount').innerText = activeStops.length;
+
+      activeStops.forEach((stop, index) => {
+        const card = document.createElement('div');
+        card.className = 'p-2 bg-slate-950/80 rounded-lg border border-slate-800/80 flex items-center justify-between text-xs gap-2';
+
+        const name = stop.name_fr || stop.name || `Arrêt #${index + 1}`;
+        const nameAr = stop.name_ar || '';
+
+        card.innerHTML = `
+          <div class="flex items-center gap-2 min-w-0">
+            <span class="w-5 h-5 rounded-full bg-slate-800 text-slate-300 font-bold text-[10px] flex items-center justify-center shrink-0">
+              ${index + 1}
+            </span>
+            <div class="min-w-0">
+              <div class="font-semibold text-slate-200 truncate">${name}</div>
+              ${nameAr ? `<div class="text-[10px] text-amber-300/80 truncate font-arabic" dir="rtl">${nameAr}</div>` : ''}
+              <div class="text-[9px] text-slate-500 font-mono">${stop.lat.toFixed(5)}, ${stop.lon.toFixed(5)}</div>
+            </div>
+          </div>
+          <div class="flex items-center gap-1 shrink-0">
+            <button onclick="panToStop(${stop.lat}, ${stop.lon})" class="p-1 rounded hover:bg-slate-800 text-slate-400 hover:text-white" title="Centrer la carte">
+              <i data-lucide="crosshair" class="w-3.5 h-3.5"></i>
+            </button>
+            <button onclick="deleteStop(${index})" class="p-1 rounded hover:bg-rose-950/60 text-slate-500 hover:text-rose-400" title="Supprimer arrêt">
+              <i data-lucide="trash" class="w-3.5 h-3.5"></i>
+            </button>
+          </div>
+        `;
+
+        container.appendChild(card);
+      });
+
+      lucide.createIcons();
+    }
+
+    function panToStop(lat, lon) {
+      map.setView([lat, lon], 17, { animate: true });
+    }
+
+    function deleteStop(index) {
+      const activeStops = getActiveStops();
+      activeStops.splice(index, 1);
+      pushHistory();
+      renderStopsList();
+      renderMapLayers();
+      showToast(`Arrêt #${index + 1} supprimé`, 'info');
+    }
+
+    function addNewStopAtMapCenter() {
+      if (!selectedLine) return;
+      const center = map.getCenter();
+      const activeStops = getActiveStops();
+      const newStop = {
+        id: `st-custom-${Date.now()}`,
+        name: `Nouvel Arrêt #${activeStops.length + 1}`,
+        name_fr: `Nouvel Arrêt #${activeStops.length + 1}`,
+        name_ar: `محطة جديدة #${activeStops.length + 1}`,
+        lat: parseFloat(center.lat.toFixed(6)),
+        lon: parseFloat(center.lng.toFixed(6))
+      };
+      activeStops.push(newStop);
+      pushHistory();
+      renderStopsList();
+      renderMapLayers();
+      showToast('Nouvel arrêt ajouté au centre de la carte', 'success');
+    }
+
+    function switchSidebarTab(tab) {
+      document.getElementById('tabContentLines').classList.add('hidden');
+      document.getElementById('tabContentStops').classList.add('hidden');
+      document.getElementById('tabContentTools').classList.add('hidden');
+
+      document.getElementById('tabBtnLines').className = 'flex-1 py-2 px-3 flex items-center justify-center gap-1.5 border-b-2 border-transparent hover:text-white';
+      document.getElementById('tabBtnStops').className = 'flex-1 py-2 px-3 flex items-center justify-center gap-1.5 border-b-2 border-transparent hover:text-white';
+      document.getElementById('tabBtnTools').className = 'flex-1 py-2 px-3 flex items-center justify-center gap-1.5 border-b-2 border-transparent hover:text-white';
+
+      if (tab === 'lines') {
+        document.getElementById('tabContentLines').classList.remove('hidden');
+        document.getElementById('tabBtnLines').className = 'flex-1 py-2 px-3 flex items-center justify-center gap-1.5 border-b-2 border-indigo-500 text-white bg-slate-800/30';
+      } else if (tab === 'stops') {
+        document.getElementById('tabContentStops').classList.remove('hidden');
+        document.getElementById('tabBtnStops').className = 'flex-1 py-2 px-3 flex items-center justify-center gap-1.5 border-b-2 border-emerald-500 text-white bg-slate-800/30';
+      } else if (tab === 'tools') {
+        document.getElementById('tabContentTools').classList.remove('hidden');
+        document.getElementById('tabBtnTools').className = 'flex-1 py-2 px-3 flex items-center justify-center gap-1.5 border-b-2 border-amber-500 text-white bg-slate-800/30';
+      }
+    }
+
+    function setEditMode(mode) {
+      activeEditMode = mode;
+      document.querySelectorAll('#modeBtnDrag, #modeBtnCurve, #modeBtnAddEnd, #modeBtnAddStart, #modeBtnStations').forEach(b => {
+        b.className = 'p-2 rounded-lg border border-slate-800 bg-slate-950 text-slate-400 hover:text-white flex items-center gap-2';
+      });
+
+      const activeBtn = mode === 'drag' ? document.getElementById('modeBtnDrag') :
+                        mode === 'curve_select' ? document.getElementById('modeBtnCurve') :
+                        mode === 'add_end' ? document.getElementById('modeBtnAddEnd') :
+                        mode === 'add_start' ? document.getElementById('modeBtnAddStart') : document.getElementById('modeBtnStations');
+      if (activeBtn) {
+        activeBtn.className = 'p-2 rounded-lg border border-indigo-600 bg-indigo-600/20 text-indigo-300 flex items-center gap-2';
+      }
+
+      const instructionEl = document.getElementById('modeInstructionText');
+      if (mode === 'drag') {
+        instructionEl.innerHTML = '💡 <strong>Glissez un nœud</strong> pour modifier le tracé. <strong>Double-cliquez sur la ligne</strong> pour insérer un nœud. <strong>Clic droit</strong> pour supprimer.';
+      } else if (mode === 'curve_select') {
+        instructionEl.innerHTML = '🪄 <strong>Mode Arrondi :</strong> Cliquez sur le <strong>Nœud A</strong> (début du virage), puis sur le <strong>Nœud B</strong> (fin du virage).';
+      } else if (mode === 'add_end') {
+        instructionEl.innerHTML = '➕ <strong>Ajouter à la Fin :</strong> Cliquez n\'importe où sur la carte pour tracer de nouveaux points à la fin de la ligne.';
+      } else if (mode === 'add_start') {
+        instructionEl.innerHTML = '⏮️ <strong>Ajouter au Début :</strong> Cliquez sur la carte pour ajouter des points au point de départ de la ligne.';
+      } else if (mode === 'stations') {
+        instructionEl.innerHTML = '📍 <strong>Mode Déplacer Arrêts :</strong> Glissez directement les pastilles d\'arrêts numérotées sur la carte.';
+      }
+
+      renderMapLayers();
+    }
+
+    // -------------------------------------------------------------
+    // 6. CURVE SMOOTHING & ROUNDING MATHEMATICS
+    // -------------------------------------------------------------
+    function handleNodeClickForCurve(index) {
+      if (curveNodeA === null) {
+        curveNodeA = index;
+        document.getElementById('lblCurveNodeA').innerText = `#${index + 1}`;
+        showToast(`Début du virage sélectionné : Nœud #${index + 1}. Cliquez maintenant sur le nœud de fin.`, 'info');
+      } else if (curveNodeB === null) {
+        if (index === curveNodeA) {
+          showToast('Veuillez sélectionner un nœud différent pour la fin du virage', 'warning');
+          return;
+        }
+        curveNodeB = index;
+        document.getElementById('lblCurveNodeB').innerText = `#${index + 1}`;
+        showToast(`Zone de virage prête : du Nœud #${Math.min(curveNodeA, curveNodeB) + 1} au Nœud #${Math.max(curveNodeA, curveNodeB) + 1}`, 'success');
+      } else {
+        // Reset and select as new A
+        curveNodeA = index;
+        curveNodeB = null;
+        document.getElementById('lblCurveNodeA').innerText = `#${index + 1}`;
+        document.getElementById('lblCurveNodeB').innerText = `--`;
+      }
+      renderMapLayers();
+    }
+
+    function resetCurveSelection() {
+      curveNodeA = null;
+      curveNodeB = null;
+      document.getElementById('lblCurveNodeA').innerText = `--`;
+      document.getElementById('lblCurveNodeB').innerText = `--`;
+      renderMapLayers();
+    }
+
+    // Chaikin's Corner Cutting Algorithm (Standard for Rails & Roads)
+    function chaikinSmooth(points, iterations = 2) {
+      if (points.length < 3) return points;
+      let current = points;
+      for (let it = 0; it < iterations; it++) {
+        const next = [current[0]];
+        for (let i = 0; i < current.length - 1; i++) {
+          const p0 = current[i];
+          const p1 = current[i + 1];
+          const q = [0.75 * p0[0] + 0.25 * p1[0], 0.75 * p0[1] + 0.25 * p1[1]];
+          const r = [0.25 * p0[0] + 0.75 * p1[0], 0.25 * p0[1] + 0.75 * p1[1]];
+          next.push(q);
+          next.push(r);
+        }
+        next.push(current[current.length - 1]);
+        current = next;
+      }
+      return current.map(p => [parseFloat(p[0].toFixed(6)), parseFloat(p[1].toFixed(6))]);
+    }
+
+    // Catmull-Rom Spline Interpolation
+    function catmullRomSpline(points, pointsPerSegment = 5) {
+      if (points.length < 3) return points;
+      const result = [];
+      const pts = [points[0], ...points, points[points.length - 1]];
+      for (let i = 1; i < pts.length - 2; i++) {
+        const p0 = pts[i - 1];
+        const p1 = pts[i];
+        const p2 = pts[i + 1];
+        const p3 = pts[i + 2];
+        for (let t = 0; t < 1; t += 1 / pointsPerSegment) {
+          const t2 = t * t;
+          const t3 = t2 * t;
+          const f0 = -0.5 * t3 + t2 - 0.5 * t;
+          const f1 = 1.5 * t3 - 2.5 * t2 + 1.0;
+          const f2 = -1.5 * t3 + 2.0 * t2 + 0.5 * t;
+          const f3 = 0.5 * t3 - 0.5 * t2;
+          const lat = f0 * p0[0] + f1 * p1[0] + f2 * p2[0] + f3 * p3[0];
+          const lon = f0 * p0[1] + f1 * p1[1] + f2 * p2[1] + f3 * p3[1];
+          result.push([parseFloat(lat.toFixed(6)), parseFloat(lon.toFixed(6))]);
+        }
+      }
+      result.push(points[points.length - 1]);
+      return result;
+    }
+
+    function applyCurveSmoothingOnRange() {
+      if (!selectedLine) return;
+      const activePts = getActiveTrack();
+
+      if (curveNodeA === null || curveNodeB === null) {
+        showToast('Veuillez d\'abord cliquer sur le Nœud A puis le Nœud B sur la carte', 'warning');
+        setEditMode('curve_select');
+        return;
+      }
+
+      const start = Math.min(curveNodeA, curveNodeB);
+      const end = Math.max(curveNodeA, curveNodeB);
+      const rangeLen = end - start + 1;
+
+      if (rangeLen < 3) {
+        showToast('La zone sélectionnée doit contenir au moins 3 points pour former un virage', 'warning');
+        return;
+      }
+
+      const subPoints = activePts.slice(start, end + 1);
+      const method = document.getElementById('selCurveMethod').value;
+      const level = parseInt(document.getElementById('selCurveLevel').value, 10);
+
+      let smoothedSub = [];
+      if (method === 'chaikin') {
+        smoothedSub = chaikinSmooth(subPoints, level);
+      } else {
+        const pps = level === 1 ? 4 : level === 2 ? 6 : 9;
+        smoothedSub = catmullRomSpline(subPoints, pps);
+      }
+
+      // Replace the sub-range with smoothed points
+      activePts.splice(start, rangeLen, ...smoothedSub);
+
+      pushHistory();
+      resetCurveSelection();
+      setEditMode('drag');
+      renderMapLayers();
+      showToast(`✓ Virage arrondi avec succès ! (+${smoothedSub.length - rangeLen} nœuds réguliers créés)`, 'success');
+    }
+
+    function applyGlobalSmoothing() {
+      if (!selectedLine) return;
+      const activePts = getActiveTrack();
+      if (activePts.length < 4) {
+        showToast('Le tracé est trop court pour être lissé', 'warning');
+        return;
+      }
+
+      const smoothed = chaikinSmooth(activePts, 1);
+      setActiveTrack(smoothed);
+      pushHistory();
+      renderMapLayers();
+      showToast('✓ Lissage global appliqué sur toute la ligne !', 'success');
+    }
+
+    // -------------------------------------------------------------
+    // 7. TRACK TRANSFORMATIONS
+    // -------------------------------------------------------------
+    function cloneAndReverseOpposite() {
+      if (!selectedLine) return;
+      const opposite = editingDirection === 0 ? currentShape1 : currentShape0;
+      if (!opposite || opposite.length < 2) {
+        showToast('Aucun tracé disponible dans la direction opposée', 'warning');
+        return;
+      }
+      setActiveTrack(JSON.parse(JSON.stringify(opposite)).reverse());
+      pushHistory();
+      renderMapLayers();
+      showToast('Tracé inversé et copié avec succès !', 'success');
+    }
+
+    function generateParallelTrack(offsetMeters = 3.5) {
+      if (!selectedLine) return;
+      const active = getActiveTrack();
+      if (!active || active.length < 2) {
+        showToast('Le tracé actif est vide', 'warning');
+        return;
+      }
+      const inverted = JSON.parse(JSON.stringify(active)).reverse();
+      const degOffset = offsetMeters / 111111;
+
+      const parallel = inverted.map((p, i) => {
+        const next = inverted[Math.min(i + 1, inverted.length - 1)];
+        const prev = inverted[Math.max(i - 1, 0)];
+        const dlat = next[0] - prev[0];
+        const dlon = next[1] - prev[1];
+        const len = Math.sqrt(dlat * dlat + dlon * dlon) || 1;
+        const normLat = -dlon / len;
+        const normLon = dlat / len;
+        return [
+          parseFloat((p[0] + normLat * degOffset).toFixed(6)),
+          parseFloat((p[1] + normLon * degOffset).toFixed(6))
+        ];
+      });
+
+      if (editingDirection === 0) currentShape1 = parallel;
+      else currentShape0 = parallel;
+
+      pushHistory();
+      renderMapLayers();
+      showToast(`Voie opposée parallèle générée (+${offsetMeters}m)`, 'success');
+    }
+
+    function removeLastPoint() {
+      const activePts = getActiveTrack();
+      if (activePts.length <= 2) {
+        showToast('Le tracé doit comporter au moins 2 points', 'warning');
+        return;
+      }
+      activePts.pop();
+      pushHistory();
+      renderMapLayers();
+      showToast('Dernier point supprimé', 'info');
+    }
+
+    function removeFirstPoint() {
+      const activePts = getActiveTrack();
+      if (activePts.length <= 2) {
+        showToast('Le tracé doit comporter au moins 2 points', 'warning');
+        return;
+      }
+      activePts.shift();
+      pushHistory();
+      renderMapLayers();
+      showToast('Premier point supprimé', 'info');
+    }
+
+    function clearCurrentTrack() {
+      if (!confirm('Êtes-vous sûr de vouloir vider le tracé actif ?')) return;
+      setActiveTrack([]);
+      pushHistory();
+      renderMapLayers();
+      showToast('Tracé vidé.', 'info');
+    }
+
+    // -------------------------------------------------------------
+    // 8. HISTORY (UNDO / REDO)
+    // -------------------------------------------------------------
+    function pushHistory() {
+      const snapshot = {
+        shape0: JSON.parse(JSON.stringify(currentShape0)),
+        shape1: JSON.parse(JSON.stringify(currentShape1)),
+        stops: JSON.parse(JSON.stringify(currentStops)),
+        stops_aller: JSON.parse(JSON.stringify(currentStopsAller)),
+        stops_retour: JSON.parse(JSON.stringify(currentStopsRetour))
+      };
+      historyStack = historyStack.slice(0, historyIndex + 1);
+      historyStack.push(snapshot);
+      historyIndex++;
+
+      document.getElementById('btnUndo').disabled = historyIndex <= 0;
+      document.getElementById('btnRedo').disabled = historyIndex >= historyStack.length - 1;
+    }
+
+    function undo() {
+      if (historyIndex > 0) {
+        historyIndex--;
+        applyHistorySnapshot(historyStack[historyIndex]);
+      }
+    }
+
+    function redo() {
+      if (historyIndex < historyStack.length - 1) {
+        historyIndex++;
+        applyHistorySnapshot(historyStack[historyIndex]);
+      }
+    }
+
+    function applyHistorySnapshot(s) {
+      currentShape0 = JSON.parse(JSON.stringify(s.shape0));
+      currentShape1 = JSON.parse(JSON.stringify(s.shape1));
+      currentStops = JSON.parse(JSON.stringify(s.stops));
+      currentStopsAller = JSON.parse(JSON.stringify(s.stops_aller));
+      currentStopsRetour = JSON.parse(JSON.stringify(s.stops_retour));
+
+      document.getElementById('btnUndo').disabled = historyIndex <= 0;
+      document.getElementById('btnRedo').disabled = historyIndex >= historyStack.length - 1;
+
+      renderMapLayers();
+      renderStopsList();
+    }
+
+    document.addEventListener('keydown', (e) => {
+      if ((e.ctrlKey || e.metaKey) && e.key === 'z') {
+        e.preventDefault();
+        undo();
+      } else if ((e.ctrlKey || e.metaKey) && e.key === 'y') {
+        e.preventDefault();
+        redo();
+      }
+    });
+
+    // -------------------------------------------------------------
+    // 9. STATS & DISTANCES
+    // -------------------------------------------------------------
+    function calculateDistanceKm(pts) {
+      if (!pts || pts.length < 2) return 0;
+      let total = 0;
+      for (let i = 0; i < pts.length - 1; i++) {
+        const p1 = pts[i];
+        const p2 = pts[i + 1];
+        const lat1 = p1[0] * Math.PI / 180;
+        const lat2 = p2[0] * Math.PI / 180;
+        const dlat = (p2[0] - p1[0]) * Math.PI / 180;
+        const dlon = (p2[1] - p1[1]) * Math.PI / 180;
+        const a = Math.sin(dlat / 2) ** 2 + Math.cos(lat1) * Math.cos(lat2) * Math.sin(dlon / 2) ** 2;
+        const c = 2 * Math.asin(Math.sqrt(a));
+        total += 6371 * c;
+      }
+      return total;
+    }
+
+    function updateStatsBadge() {
+      const pts0 = currentShape0 || [];
+      const pts1 = currentShape1 || [];
+      const activePts = getActiveTrack();
+      const dist = calculateDistanceKm(activePts);
+
+      document.getElementById('statPointsAller').innerText = pts0.length;
+      document.getElementById('statPointsRetour').innerText = pts1.length;
+      document.getElementById('statDistance').innerText = dist.toFixed(2);
+    }
+
+    // -------------------------------------------------------------
+    // 10. SAVE & EXPORT
+    // -------------------------------------------------------------
+    async function saveActiveLine() {
+      if (!selectedLine) {
+        showToast('Veuillez d\'abord sélectionner une ligne', 'warning');
+        return;
+      }
+
+      const payload = {
+        lineId: selectedLine.id,
+        shape0: currentShape0,
+        shape1: currentShape1,
+        stops: currentStops,
+        stops_aller: currentStopsAller,
+        stops_retour: currentStopsRetour
+      };
+
+      const btn = document.getElementById('btnSave');
+      const originalText = btn.innerHTML;
+      btn.innerHTML = `<i data-lucide="loader-2" class="w-4 h-4 animate-spin"></i> Enregistrement...`;
+
+      try {
+        const res = await fetch('/api/save', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        });
+        const data = await res.json();
+        if (data.success) {
+          showToast(`✓ Ligne ${selectedLine.short_name || selectedLine.id} enregistrée dans les fichiers du projet !`, 'success');
+        } else {
+          showToast(`Erreur : ${data.error}`, 'error');
+        }
+      } catch (err) {
+        copyCurrentJson();
+        showToast('⚠️ Serveur local non détecté. Les coordonnées ont été copiées dans le presse-papier !', 'warning');
+      } finally {
+        btn.innerHTML = originalText;
+        lucide.createIcons();
+      }
+    }
+
+    async function buildAndSync() {
+      const btn = document.getElementById('btnBuildSync');
+      const originalText = btn.innerHTML;
+      btn.innerHTML = `<i data-lucide="loader-2" class="w-3.5 h-3.5 animate-spin"></i> Compilation...`;
+
+      try {
+        const res = await fetch('/api/build', { method: 'POST' });
+        const data = await res.json();
+        showToast('🚀 Compilation et synchronisation Android lancées en tâche de fond !', 'success');
+      } catch (err) {
+        showToast('Serveur local hors ligne. Exécutez `npm run build` manuellement.', 'warning');
+      } finally {
+        btn.innerHTML = originalText;
+        lucide.createIcons();
+      }
+    }
+
+    function copyCurrentJson() {
+      const activePts = getActiveTrack();
+      navigator.clipboard.writeText(JSON.stringify(activePts, null, 2));
+      showToast('✓ Coordonnées copiées dans le presse-papier !', 'success');
+    }
+
+    function showToast(message, type = 'info') {
+      const container = document.getElementById('toastContainer');
+      const toast = document.createElement('div');
+      const bg = type === 'success' ? 'bg-emerald-950 border-emerald-500 text-emerald-200' :
+                 type === 'warning' ? 'bg-amber-950 border-amber-500 text-amber-200' :
+                 type === 'error' ? 'bg-rose-950 border-rose-500 text-rose-200' : 'bg-slate-900 border-indigo-500 text-slate-200';
+
+      toast.className = `px-4 py-2.5 rounded-lg border shadow-2xl text-xs font-semibold flex items-center gap-2 transform transition duration-300 opacity-0 translate-y-2 pointer-events-auto ${bg}`;
+      toast.innerHTML = message;
+      container.appendChild(toast);
+
+      setTimeout(() => { toast.classList.remove('opacity-0', 'translate-y-2'); }, 10);
+      setTimeout(() => {
+        toast.classList.add('opacity-0', 'translate-y-2');
+        setTimeout(() => toast.remove(), 300);
+      }, 3500);
+    }
+
+    // -------------------------------------------------------------
+    // 11. START APPLICATION
+    // -------------------------------------------------------------
+    window.addEventListener('DOMContentLoaded', () => {
+      loadDataAndBootstrap();
+    });
+  </script>
+</body>
+</html>

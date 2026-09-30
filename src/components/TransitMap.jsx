@@ -3,79 +3,9 @@ import L from 'leaflet';
 import { STATIC_LINES } from '../data/staticTransit';
 import TRANSIT_SHAPES from '../data/transitShapes.json';
 import { Users, Navigation, Clock, ShieldCheck, AlertCircle, X, LocateFixed, Layers, Search, Compass, MapPin } from 'lucide-react';
+import { getStationName, getLineName, getLineShortName, getDirectionLabel } from '../utils/i18n';
 
 export const GOOGLE_MAPS_API_KEY = 'AIzaSyD5AZ-rNY0NGtkFDZUyB3cwPKH3CiUit6I';
-
-
-const STATION_TRACK_PROXIMITY_METERS = 38;
-const HUB_TRACK_DRAW_RADIUS_METERS = 130;
-const HUB_MIN_TRACKS = 2;
-const RAIL_NETWORK_TYPES = new Set(['metro', 'tgm', 'rfr', 'train']);
-
-function getDistanceToSegmentMeters(pLat, pLon, aLat, aLon, bLat, bLon) {
-  const cosLat = Math.cos((aLat * Math.PI) / 180);
-  const metersPerDegLat = 111132;
-  const metersPerDegLon = 111132 * cosLat;
-
-  const dx = (bLon - aLon) * metersPerDegLon;
-  const dy = (bLat - aLat) * metersPerDegLat;
-  const lenSq = dx * dx + dy * dy;
-
-  if (lenSq === 0) {
-    const px = (pLon - aLon) * metersPerDegLon;
-    const py = (pLat - aLat) * metersPerDegLat;
-    return Math.sqrt(px * px + py * py);
-  }
-
-  const px = (pLon - aLon) * metersPerDegLon;
-  const py = (pLat - aLat) * metersPerDegLat;
-  let t = (px * dx + py * dy) / lenSq;
-  t = Math.max(0, Math.min(1, t));
-
-  const distX = px - (t * dx);
-  const distY = py - (t * dy);
-  return Math.sqrt(distX * distX + distY * distY);
-}
-
-function getDistanceToPolylineMeters(pointLat, pointLon, latlngs) {
-  if (!latlngs || latlngs.length === 0) return Infinity;
-  if (latlngs.length === 1) {
-    return getDistanceToSegmentMeters(pointLat, pointLon, latlngs[0][0], latlngs[0][1], latlngs[0][0], latlngs[0][1]);
-  }
-
-  let minDistance = Infinity;
-  for (let i = 0; i < latlngs.length - 1; i++) {
-    const a = latlngs[i];
-    const b = latlngs[i + 1];
-    const d = getDistanceToSegmentMeters(pointLat, pointLon, a[0], a[1], b[0], b[1]);
-    if (d < minDistance) minDistance = d;
-  }
-  return minDistance;
-}
-
-function getPolylineToPolylineDistanceMeters(polylineA, polylineB) {
-  if (!polylineA || polylineA.length === 0 || !polylineB || polylineB.length === 0) return Infinity;
-
-  let minDistance = Infinity;
-
-  const stepA = Math.max(1, Math.floor(polylineA.length / 160));
-  for (let i = 0; i < polylineA.length; i += stepA) {
-    const point = polylineA[i];
-    const d = getDistanceToPolylineMeters(point[0], point[1], polylineB);
-    if (d < minDistance) minDistance = d;
-    if (minDistance <= 4) return minDistance;
-  }
-
-  const stepB = Math.max(1, Math.floor(polylineB.length / 160));
-  for (let i = 0; i < polylineB.length; i += stepB) {
-    const point = polylineB[i];
-    const d = getDistanceToPolylineMeters(point[0], point[1], polylineA);
-    if (d < minDistance) minDistance = d;
-    if (minDistance <= 4) return minDistance;
-  }
-
-  return minDistance;
-}
 
 function TransitMap({
   activeNetwork,
@@ -91,14 +21,14 @@ function TransitMap({
   gpsStatus,
   gpsErrorMsg,
   onDismissGpsError,
-  onOpenTripPlanner
+  onOpenTripPlanner,
+  language = 'fr'
 }) {
   const mapContainerRef = useRef(null);
   const mapInstanceRef = useRef(null);
   const tileLayerRef = useRef(null);
   const lineLayersRef = useRef({});
   const stationLayersRef = useRef({});
-  const railStationTrackLayersRef = useRef([]);
   const vehicleMarkersRef = useRef({});
   const userMarkerRef = useRef(null);
   const userAccuracyCircleRef = useRef(null);
@@ -115,7 +45,6 @@ function TransitMap({
   // Map layer style: Google Streets (default) with API key, Google Satellite, Google Traffic, or Dark
   const [mapStyle, setMapStyle] = useState('google_streets');
   const [isLayerSelectorOpen, setIsLayerSelectorOpen] = useState(false);
-  const [railNetworkGeoJson, setRailNetworkGeoJson] = useState(null);
   
   // Floating line search bar on the map
   const [lineFilterSearch, setLineFilterSearch] = useState('');
@@ -131,7 +60,12 @@ function TransitMap({
   const searchResults = STATIC_LINES.filter(line => {
     if (!lineFilterSearch.trim()) return false;
     const q = lineFilterSearch.toLowerCase().trim();
-    return line.short_name.toLowerCase().includes(q) || line.long_name.toLowerCase().includes(q);
+    const sn = (line.short_name || '').toLowerCase();
+    const sna = (line.short_name_ar || '').toLowerCase();
+    const ln = (line.long_name || '').toLowerCase();
+    const lnf = (line.long_name_fr || '').toLowerCase();
+    const lna = (line.long_name_ar || '').toLowerCase();
+    return sn.includes(q) || sna.includes(q) || ln.includes(q) || lnf.includes(q) || lna.includes(q);
   });
 
   // Initialize Map
@@ -146,7 +80,7 @@ function TransitMap({
       tap: false, // Ensures standard pointer/click events are not intercepted on mobile
     });
 
-    L.control.zoom({ position: 'bottomright' }).addTo(map);
+    L.control.zoom({ position: 'bottomleft' }).addTo(map);
 
     // Clicking on empty map area deselects active line/station
     map.on('click', () => {
@@ -222,186 +156,6 @@ function TransitMap({
     tileLayerRef.current = newLayer;
   }, [mapStyle]);
 
-  // Load the full physical rail network (all parallel tracks at hubs like Barcelone / Tunis Marine / Tunis Ville)
-  useEffect(() => {
-    let cancelled = false;
-
-    fetch(`${import.meta.env.BASE_URL}rail_network.geojson`)
-      .then((response) => (response.ok ? response.json() : null))
-      .then((data) => {
-        if (cancelled) return;
-        if (data?.type === 'FeatureCollection' && Array.isArray(data.features)) {
-          setRailNetworkGeoJson(data);
-        }
-      })
-      .catch(() => {});
-
-    return () => {
-      cancelled = true;
-    };
-  }, []);
-
-  const railPolylines = useMemo(() => {
-    if (!railNetworkGeoJson?.features?.length) return [];
-
-    const lines = [];
-    railNetworkGeoJson.features.forEach((feature) => {
-      const geometry = feature?.geometry;
-      if (!geometry) return;
-
-      if (geometry.type === 'LineString') {
-        const latlngs = (geometry.coordinates || []).map((point) => [point[1], point[0]]);
-        if (latlngs.length >= 2) lines.push(latlngs);
-        return;
-      }
-
-      if (geometry.type === 'MultiLineString') {
-        (geometry.coordinates || []).forEach((coords) => {
-          const latlngs = coords.map((point) => [point[1], point[0]]);
-          if (latlngs.length >= 2) lines.push(latlngs);
-        });
-      }
-    });
-
-    return lines;
-  }, [railNetworkGeoJson]);
-
-  // Draw rail side tracks from GeoJSON only for selected rail lines
-  useEffect(() => {
-    const map = mapInstanceRef.current;
-    if (!map) return;
-
-    railStationTrackLayersRef.current.forEach((layer) => map.removeLayer(layer));
-    railStationTrackLayersRef.current = [];
-
-    if (!selectedLine || selectedLine.type_id === 'bus' || railPolylines.length === 0) return;
-
-    const activeDir = typeof selectedDirection === 'number' ? selectedDirection : 0;
-    const dirShapeKey = `${selectedLine.id}_${activeDir}`;
-
-    const directionalStops = activeDir === 1
-      ? ((selectedLine.stops_retour && selectedLine.stops_retour.length > 0)
-          ? selectedLine.stops_retour
-          : [...selectedLine.stops].reverse())
-      : (selectedLine.stops_aller || selectedLine.stops || []);
-
-    let selectedShape = null;
-    if (TRANSIT_SHAPES[dirShapeKey] && TRANSIT_SHAPES[dirShapeKey].length > 1) {
-      selectedShape = TRANSIT_SHAPES[dirShapeKey];
-    } else if (TRANSIT_SHAPES[selectedLine.id] && TRANSIT_SHAPES[selectedLine.id].length > 1) {
-      selectedShape = activeDir === 1
-        ? [...TRANSIT_SHAPES[selectedLine.id]].reverse()
-        : TRANSIT_SHAPES[selectedLine.id];
-    } else {
-      selectedShape = directionalStops.map((s) => [s.lat, s.lon]);
-    }
-
-    const segmentIndexes = new Set();
-    const segmentDistances = new Map();
-
-    const type = selectedLine.type_id;
-    const corridorMeters = type === 'tgm'
-      ? 90
-      : type === 'metro'
-        ? 60
-        : type === 'rfr'
-          ? 70
-          : 55;
-
-    const onTrackMeters = 2;
-
-    railPolylines.forEach((latlngs, idx) => {
-      const d = getPolylineToPolylineDistanceMeters(selectedShape, latlngs);
-      if (d <= corridorMeters) {
-        segmentDistances.set(idx, d);
-      }
-    });
-
-    // Draw nearby parallel rails (exclude the exact centerline itself)
-    Array.from(segmentDistances.entries())
-      .filter(([, d]) => d > onTrackMeters)
-      .forEach(([idx]) => segmentIndexes.add(idx));
-
-    // Safety fallback: if no side track found, include nearest rail segments
-    if (segmentIndexes.size === 0) {
-      Array.from(segmentDistances.entries())
-        .sort((a, b) => a[1] - b[1])
-        .slice(0, 8)
-        .forEach(([idx]) => segmentIndexes.add(idx));
-    }
-
-    // Station-hub augmentation: always include all parallel station tracks at shared rail stops
-    if (RAIL_NETWORK_TYPES.has(type)) {
-      const dedupedStops = [];
-      const seenStops = new Set();
-      directionalStops.forEach((stop) => {
-        const key = `${Number(stop.lat).toFixed(5)}:${Number(stop.lon).toFixed(5)}`;
-        if (!seenStops.has(key)) {
-          seenStops.add(key);
-          dedupedStops.push(stop);
-        }
-      });
-
-      const hubStops = dedupedStops.filter((stop) => {
-        let nearbyTracks = 0;
-        for (let i = 0; i < railPolylines.length; i++) {
-          const d = getDistanceToPolylineMeters(stop.lat, stop.lon, railPolylines[i]);
-          if (d <= STATION_TRACK_PROXIMITY_METERS) nearbyTracks += 1;
-          if (nearbyTracks >= HUB_MIN_TRACKS) return true;
-        }
-        return false;
-      });
-
-      if (hubStops.length > 0) {
-        railPolylines.forEach((latlngs, idx) => {
-          for (let i = 0; i < hubStops.length; i++) {
-            const stop = hubStops[i];
-            const d = getDistanceToPolylineMeters(stop.lat, stop.lon, latlngs);
-            if (d <= HUB_TRACK_DRAW_RADIUS_METERS) {
-              segmentIndexes.add(idx);
-              break;
-            }
-          }
-        });
-      }
-    }
-
-    if (segmentIndexes.size === 0) return;
-
-    const layers = [];
-    const lineColor = selectedLine.color || '#0ea5e9';
-
-    segmentIndexes.forEach((idx) => {
-      const latlngs = railPolylines[idx];
-      const casing = L.polyline(latlngs, {
-        color: '#ffffff',
-        weight: 5,
-        opacity: 0.6,
-        lineJoin: 'round',
-        lineCap: 'round',
-        interactive: false,
-      }).addTo(map);
-
-      const main = L.polyline(latlngs, {
-        color: lineColor,
-        weight: 2.8,
-        opacity: 0.9,
-        lineJoin: 'round',
-        lineCap: 'round',
-        interactive: false,
-      }).addTo(map);
-
-      layers.push(casing, main);
-    });
-
-    railStationTrackLayersRef.current = layers;
-
-    return () => {
-      railStationTrackLayersRef.current.forEach((layer) => map.removeLayer(layer));
-      railStationTrackLayersRef.current = [];
-    };
-  }, [selectedLine, selectedDirection, railPolylines]);
-
   // Draw Transit Lines & Stations (Single Line Isolation or Clean Overview)
   useEffect(() => {
     const map = mapInstanceRef.current;
@@ -441,10 +195,26 @@ function TransitMap({
             ? selectedLine.stops_retour
             : [...selectedLine.stops].reverse())
         : (selectedLine.stops_aller || selectedLine.stops);
-      const activeDirLabel = selectedLine.directions?.[activeDir] || (activeDir === 0 ? 'Aller' : 'Retour');
+      const activeDirLabel = getDirectionLabel(selectedLine, activeDir, language);
       
       // 1. Draw glowing background casing + crisp colored route line
       if (latlngs && latlngs.length >= 2) {
+        // Draw complementary return/going rail so both rails are clearly visible line by line
+        const otherDir = activeDir === 0 ? 1 : 0;
+        const otherDirShapeKey = `${selectedLine.id}_${otherDir}`;
+        const otherLatlngs = TRANSIT_SHAPES[otherDirShapeKey];
+        if (otherLatlngs && otherLatlngs.length >= 2 && otherLatlngs !== latlngs) {
+          const companionPolyline = L.polyline(otherLatlngs, {
+            color: selectedLine.color,
+            weight: 3.5,
+            opacity: 0.8,
+            lineJoin: 'round',
+            lineCap: 'round',
+          }).addTo(map);
+
+          lineLayersRef.current[`${selectedLine.id}-companion`] = companionPolyline;
+        }
+
         const casing = L.polyline(latlngs, {
           color: '#ffffff',
           weight: 8,
@@ -470,6 +240,9 @@ function TransitMap({
         const isStart = index === 0;
         const isEnd = index === directionalStops.length - 1;
         const stopNum = index + 1;
+        const stopName = getStationName(stop, language);
+        const lineShort = getLineShortName(selectedLine, language);
+        const isAr = language === 'ar';
 
         const stopIcon = L.divIcon({
           html: `
@@ -491,9 +264,9 @@ function TransitMap({
         });
 
         marker.bindTooltip(`
-          <div class="font-bold text-xs text-white">Arrêt ${stopNum} : ${stop.name}</div>
-          <div class="text-[10px] text-slate-300">
-            ${isStart ? '🏁 Départ' : isEnd ? '🛑 Terminus' : 'Arrêt'} • ${selectedLine.short_name} (vers ${activeDirLabel})
+          <div class="font-bold text-xs text-white" dir="${isAr ? 'rtl' : 'ltr'}">${isAr ? 'المحطة' : 'Arrêt'} ${stopNum} : ${stopName}</div>
+          <div class="text-[10px] text-slate-300" dir="${isAr ? 'rtl' : 'ltr'}">
+            ${isStart ? (isAr ? '🏁 انطلاق' : '🏁 Départ') : isEnd ? (isAr ? '🛑 نهاية الخط' : '🛑 Terminus') : (isAr ? 'محطة' : 'Arrêt')} • ${lineShort} (${isAr ? 'إلى' : 'vers'} ${activeDirLabel})
           </div>
         `, {
           direction: 'top',
@@ -513,8 +286,13 @@ function TransitMap({
       // Fit map bounds smoothly to the isolated line
       if (lineLayersRef.current[selectedLine.id]) {
         const bounds = lineLayersRef.current[selectedLine.id].getBounds();
-        if (bounds.isValid()) {
-          map.fitBounds(bounds, { padding: [60, 60], maxZoom: 15 });
+        if (bounds && bounds.isValid()) {
+          map.fitBounds(bounds, { 
+            paddingTopLeft: [40, 130], 
+            paddingBottomRight: [40, 90], 
+            maxZoom: 15,
+            animate: true
+          });
         }
       }
 
@@ -531,10 +309,17 @@ function TransitMap({
     });
 
     linesToProcess.forEach(line => {
+      const shape0 = TRANSIT_SHAPES[`${line.id}_0`];
+      const shape1 = TRANSIT_SHAPES[`${line.id}_1`];
+      const hasDualRails = shape0 && shape1 && shape0.length > 1 && shape1.length > 1;
       const hasShape = TRANSIT_SHAPES[line.id] && TRANSIT_SHAPES[line.id].length > 1;
-      const latlngs = hasShape
-        ? TRANSIT_SHAPES[line.id]
-        : line.stops.map(s => [s.lat, s.lon]);
+      const latlngs = hasDualRails
+        ? [shape0, shape1]
+        : (hasShape ? TRANSIT_SHAPES[line.id] : line.stops.map(s => [s.lat, s.lon]));
+
+      const lineShort = getLineShortName(line, language);
+      const lineName = getLineName(line, language);
+      const isAr = language === 'ar';
 
       // 1. Draw route polylines
       if (latlngs.length >= 2) {
@@ -550,8 +335,8 @@ function TransitMap({
         });
 
         polyline.bindTooltip(`
-          <div class="font-bold text-xs">${line.short_name} : ${line.long_name}</div>
-          <div class="text-[10px] text-slate-300">${line.stops.length} arrêts • Cliquez pour isoler la ligne</div>
+          <div class="font-bold text-xs" dir="${isAr ? 'rtl' : 'ltr'}">${lineShort} : ${lineName}</div>
+          <div class="text-[10px] text-slate-300" dir="${isAr ? 'rtl' : 'ltr'}">${line.stops.length} ${isAr ? 'محطة • اضغط لعرض المسار' : 'arrêts • Cliquez pour isoler la ligne'}</div>
         `, {
           sticky: true,
           className: 'station-label',
@@ -571,6 +356,7 @@ function TransitMap({
         const key = `${line.id}-${stop.id}`;
         const isTerminus = index === 0 || index === line.stops.length - 1;
         const radius = isTerminus ? 5 : 3.5;
+        const sName = getStationName(stop, language);
 
         const stationMarker = L.circleMarker([stop.lat, stop.lon], {
           radius: radius,
@@ -581,8 +367,8 @@ function TransitMap({
         });
 
         stationMarker.bindTooltip(`
-          <div class="font-bold text-xs">${stop.name}</div>
-          <div class="text-[10px] text-slate-300">${line.short_name} • ${line.long_name}</div>
+          <div class="font-bold text-xs" dir="${isAr ? 'rtl' : 'ltr'}">${sName}</div>
+          <div class="text-[10px] text-slate-300" dir="${isAr ? 'rtl' : 'ltr'}">${lineShort} • ${lineName}</div>
         `, {
           direction: 'top',
           offset: [0, -6],
@@ -598,7 +384,7 @@ function TransitMap({
         stationLayersRef.current[key] = stationMarker;
       });
     });
-  }, [activeNetwork, selectedLine, selectedDirection]);
+  }, [activeNetwork, selectedLine, selectedDirection, language]);
 
   // ── Vehicle marker updater — runs on interval, reads from refs (NO re-render) ──
   useEffect(() => {
@@ -780,20 +566,20 @@ function TransitMap({
                 className="w-8 h-8 rounded-xl flex items-center justify-center font-extrabold text-xs text-white shadow flex-shrink-0"
                 style={{ backgroundColor: selectedLine.color }}
               >
-                {selectedLine.short_name}
+                {getLineShortName(selectedLine, language)}
               </span>
               <div className="min-w-0 flex-1 pr-1">
                 <div className="font-bold text-xs text-white truncate max-w-[140px] sm:max-w-xs">
-                  {selectedLine.long_name}
+                  {getLineName(selectedLine, language)}
                 </div>
                 <div className="text-[10px] text-slate-400 flex items-center gap-1">
                   <span>
                     {((selectedDirection === 1 && selectedLine.stops_retour?.length)
                       ? selectedLine.stops_retour.length
-                      : (selectedLine.stops_aller?.length || selectedLine.stops.length))} arrêts
+                      : (selectedLine.stops_aller?.length || selectedLine.stops.length))} {language === 'ar' ? 'محطة' : 'arrêts'}
                   </span>
                   <span>•</span>
-                  <span className="text-emerald-400 font-semibold">Ligne isolée</span>
+                  <span className="text-emerald-400 font-semibold">{language === 'ar' ? 'مسار معزول' : 'Ligne isolée'}</span>
                 </div>
               </div>
               <div className="flex items-center gap-1.5 flex-shrink-0">
@@ -801,19 +587,19 @@ function TransitMap({
                   <button
                     onClick={onOpenSchedule}
                     className="p-1.5 px-2.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold flex items-center gap-1 transition shadow border border-blue-400/40"
-                    title="Voir la liste des arrêts et horaires"
+                    title={language === 'ar' ? 'عرض المحطات والتوقيت' : 'Voir la liste des arrêts et horaires'}
                   >
                     <Clock className="w-3.5 h-3.5" />
-                    <span>Arrêts</span>
+                    <span>{language === 'ar' ? 'المحطات' : 'Arrêts'}</span>
                   </button>
                 )}
                 <button
                   onClick={() => onSelectLine(null)}
                   className="p-1.5 px-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 hover:text-white text-xs font-bold flex items-center gap-1 transition shadow border border-slate-600/60"
-                  title="Afficher tout le réseau"
+                  title={language === 'ar' ? 'إلغاء وعرض كامل الشبكة' : 'Afficher tout le réseau'}
                 >
                   <X className="w-3.5 h-3.5" />
-                  <span className="hidden sm:inline">Effacer</span>
+                  <span className="hidden sm:inline">{language === 'ar' ? 'إلغاء' : 'Effacer'}</span>
                 </button>
               </div>
             </div>
@@ -821,22 +607,25 @@ function TransitMap({
             {/* Direction Switcher (Sens Aller / Sens Retour) */}
             {selectedLine.directions && selectedLine.directions.length > 1 && (
               <div className="flex items-center gap-1.5 mt-2 pt-2 border-t border-slate-800/80">
-                {selectedLine.directions.map((dir, idx) => (
-                  <button
-                    key={idx}
-                    onClick={() => onDirectionChange && onDirectionChange(idx)}
-                    className={`flex-1 py-1 px-2 rounded-xl text-[11px] font-bold transition flex items-center justify-center gap-1 truncate ${
-                      (selectedDirection || 0) === idx
-                        ? 'bg-blue-600 text-white shadow-md ring-1 ring-blue-400'
-                        : 'bg-slate-800/80 text-slate-400 hover:bg-slate-800 hover:text-slate-200'
-                    }`}
-                  >
-                    <span className="text-[9px] uppercase tracking-wider opacity-75">
-                      {idx === 0 ? 'Aller :' : 'Retour :'}
-                    </span>
-                    <span className="truncate max-w-[120px]">{dir}</span>
-                  </button>
-                ))}
+                {selectedLine.directions.map((dir, idx) => {
+                  const dirText = getDirectionLabel(selectedLine, idx, language);
+                  return (
+                    <button
+                      key={idx}
+                      onClick={() => onDirectionChange && onDirectionChange(idx)}
+                      className={`flex-1 py-1 px-2 rounded-xl text-[11px] font-bold transition flex items-center justify-center gap-1 truncate ${
+                        (selectedDirection || 0) === idx
+                          ? 'bg-blue-600 text-white shadow-md ring-1 ring-blue-400'
+                          : 'bg-slate-800/80 text-slate-400 hover:bg-slate-800 hover:text-slate-200'
+                      }`}
+                    >
+                      <span className="text-[9px] uppercase tracking-wider opacity-75">
+                        {idx === 0 ? (language === 'ar' ? 'ذهاب :' : 'Aller :') : (language === 'ar' ? 'إياب :' : 'Retour :')}
+                      </span>
+                      <span className="truncate max-w-[120px]">{dirText}</span>
+                    </button>
+                  );
+                })}
               </div>
             )}
           </div>
@@ -853,7 +642,7 @@ function TransitMap({
                     setIsSearchDropdownOpen(true);
                   }}
                   onFocus={() => setIsSearchDropdownOpen(true)}
-                  placeholder="Isoler une ligne (ex: Bus 104, 35...)"
+                  placeholder={language === 'ar' ? 'ابحث عن خط أو حافلة أو قطار...' : 'Isoler une ligne (ex: Bus 36B, Métro 1...)'}
                   className="bg-transparent text-xs text-white placeholder:text-slate-500 focus:outline-none w-full font-medium"
                 />
                 {lineFilterSearch && (
@@ -875,9 +664,9 @@ function TransitMap({
                   onMouseDown={(e) => e.stopPropagation()}
                   onTouchStart={(e) => e.stopPropagation()}
                   onClick={(e) => e.stopPropagation()}
-                  className="absolute top-full left-0 right-0 mt-1.5 max-h-60 overflow-y-auto bg-slate-900/95 border border-slate-700/90 rounded-2xl shadow-2xl divide-y divide-slate-800/80 backdrop-blur-xl z-[1020]"
+                  className="absolute top-full left-0 right-0 mt-1.5 max-h-60 overflow-y-auto bg-slate-900/95 border border-slate-700/90 rounded-2xl shadow-2xl divide-y divide-slate-800/80 backdrop-blur-xl z-[1030]"
                 >
-                  {searchResults.slice(0, 20).map(line => (
+                  {searchResults.slice(0, 25).map(line => (
                     <button
                       key={line.id}
                       type="button"
@@ -896,46 +685,18 @@ function TransitMap({
                           className="px-2 py-0.5 rounded font-extrabold text-[11px] text-white flex-shrink-0"
                           style={{ backgroundColor: line.color }}
                         >
-                          {line.short_name}
+                          {getLineShortName(line, language)}
                         </span>
-                        <span className="text-white font-medium truncate">{line.long_name}</span>
+                        <span className="text-white font-medium truncate">{getLineName(line, language)}</span>
                       </div>
                       <span className="text-[10px] text-slate-400 flex-shrink-0 ml-1">
-                        {line.stops.length} arrêts
+                        {line.stops.length} {language === 'ar' ? 'محطة' : 'arrêts'}
                       </span>
                     </button>
                   ))}
                 </div>
               )}
             </div>
-
-            {/* Quick Bus suggestions when Bus tab is active */}
-            {activeNetwork === 'bus' && (
-              <div className="flex items-center gap-1 overflow-x-auto no-scrollbar py-0.5 animate-fade-in">
-                <span className="text-[10px] uppercase font-bold text-slate-400 whitespace-nowrap mr-0.5">
-                  Lignes :
-                </span>
-                {['104', '35', '20', '116', '71', '4A', '23', '3D', '14A', '12', '16'].map(name => {
-                  const line = STATIC_LINES.find(l => l.short_name.toLowerCase() === name.toLowerCase());
-                  if (!line) return null;
-                  return (
-                    <button
-                      key={name}
-                      onClick={(e) => {
-                        e.preventDefault();
-                        e.stopPropagation();
-                        ignoreMapClickUntilRef.current = Date.now() + 500;
-                        onSelectLine(line);
-                      }}
-                      className="px-2 py-0.5 rounded-lg text-[10px] font-bold text-white bg-slate-800/90 hover:bg-blue-600 transition shadow flex items-center gap-1 border border-slate-700/60 whitespace-nowrap"
-                    >
-                      <span className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: line.color }} />
-                      <span>{line.short_name}</span>
-                    </button>
-                  );
-                })}
-              </div>
-            )}
           </div>
         )}
 
@@ -946,26 +707,28 @@ function TransitMap({
             className="flex items-center gap-1.5 bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 hover:from-blue-500 hover:to-indigo-500 text-white font-bold text-xs p-2 px-3 sm:px-4 rounded-2xl shadow-xl shadow-blue-500/25 transition active:scale-95 border border-white/20 whitespace-nowrap"
           >
             <Compass className="w-4 h-4 text-white" />
-            <span className="hidden sm:inline">Guide Trajet</span>
-            <span className="sm:hidden">Trajet</span>
+            <span className="hidden sm:inline">{language === 'ar' ? 'تخطيط المسار' : 'Guide Trajet'}</span>
+            <span className="sm:hidden">{language === 'ar' ? 'مسار' : 'Trajet'}</span>
           </button>
         )}
 
       </div>
 
       {/* Floating Controls: GPS Center & Google Maps Layer Selector */}
-      <div className="absolute bottom-28 right-4 sm:bottom-6 sm:right-4 z-[1002] flex flex-col items-end gap-2 pointer-events-auto">
+      <div className="absolute bottom-20 sm:bottom-8 right-3 sm:right-6 z-[1002] flex flex-col items-end gap-2.5 pointer-events-auto">
         {/* Layer Selector Dropdown */}
         {isLayerSelectorOpen && (
           <div className="bg-slate-900/95 border border-slate-700/80 rounded-2xl shadow-2xl p-2 flex flex-col gap-1 backdrop-blur-xl animate-fade-in text-xs min-w-[170px] mb-1">
-            <span className="text-[10px] uppercase font-bold text-slate-400 px-2 py-1">Fond de Carte</span>
+            <span className="text-[10px] uppercase font-bold text-slate-400 px-2 py-1">
+              {language === 'ar' ? 'نمط الخريطة' : 'Fond de Carte'}
+            </span>
             <button
               onClick={() => { setMapStyle('google_streets'); setIsLayerSelectorOpen(false); }}
               className={`px-3 py-1.5 rounded-xl text-left flex items-center justify-between transition-all ${
                 mapStyle === 'google_streets' ? 'bg-blue-600 text-white font-bold' : 'text-slate-300 hover:bg-slate-800'
               }`}
             >
-              <span>🗺️ Google Plan</span>
+              <span>{language === 'ar' ? '🗺️ خريطة عادية' : '🗺️ Google Plan'}</span>
               {mapStyle === 'google_streets' && <span className="text-[10px]">✓</span>}
             </button>
             <button
@@ -974,7 +737,7 @@ function TransitMap({
                 mapStyle === 'google_satellite' ? 'bg-blue-600 text-white font-bold' : 'text-slate-300 hover:bg-slate-800'
               }`}
             >
-              <span>🛰️ Google Satellite</span>
+              <span>{language === 'ar' ? '🛰️ قمر صناعي' : '🛰️ Google Satellite'}</span>
               {mapStyle === 'google_satellite' && <span className="text-[10px]">✓</span>}
             </button>
             <button
@@ -983,7 +746,7 @@ function TransitMap({
                 mapStyle === 'google_traffic' ? 'bg-blue-600 text-white font-bold' : 'text-slate-300 hover:bg-slate-800'
               }`}
             >
-              <span>🚦 Google Trafic</span>
+              <span>{language === 'ar' ? '🚦 حركة المرور' : '🚦 Google Trafic'}</span>
               {mapStyle === 'google_traffic' && <span className="text-[10px]">✓</span>}
             </button>
             <button
@@ -992,7 +755,7 @@ function TransitMap({
                 mapStyle === 'dark' ? 'bg-blue-600 text-white font-bold' : 'text-slate-300 hover:bg-slate-800'
               }`}
             >
-              <span>🌙 Mode Sombre</span>
+              <span>{language === 'ar' ? '🌙 الوضع الليلي' : '🌙 Mode Sombre'}</span>
               {mapStyle === 'dark' && <span className="text-[10px]">✓</span>}
             </button>
           </div>
@@ -1001,13 +764,13 @@ function TransitMap({
         {/* Toggle Layer Button */}
         <button
           onClick={() => setIsLayerSelectorOpen(!isLayerSelectorOpen)}
-          className="p-3.5 rounded-2xl shadow-xl border bg-slate-900/95 border-slate-700 text-slate-300 hover:text-white hover:bg-slate-800 transition-all flex items-center justify-center"
-          title="Changer le style de carte (Google Maps, Satellite, Trafic, Sombre)"
+          className="p-3 sm:p-3.5 rounded-2xl shadow-xl border bg-slate-900/95 border-slate-700 text-slate-300 hover:text-white hover:bg-slate-800 transition-all flex items-center justify-center active:scale-95"
+          title={language === 'ar' ? 'تغيير نمط الخريطة' : 'Changer le style de carte'}
         >
           <Layers className="w-5 h-5 text-blue-400" />
         </button>
 
-        {/* Center on GPS */}
+        {/* Center on GPS Target Button */}
         <button
           onClick={() => {
             if (!userLocation) {
@@ -1016,51 +779,73 @@ function TransitMap({
               mapInstanceRef.current.flyTo([userLocation.lat, userLocation.lon], 16, { animate: true, duration: 1 });
             }
           }}
-          className={`p-3.5 rounded-2xl shadow-2xl border flex items-center justify-center transition-all ${
+          className={`p-3 sm:p-3.5 rounded-2xl shadow-2xl border flex items-center justify-center transition-all active:scale-95 ${
             userLocation
-              ? 'bg-slate-900/95 border-blue-500/80 text-blue-400 hover:bg-slate-800 hover:scale-105 active:scale-95 ring-2 ring-blue-500/20'
+              ? 'bg-slate-900/95 border-blue-500/80 text-blue-400 hover:bg-slate-800 hover:scale-105 ring-2 ring-blue-500/20'
               : 'bg-blue-600 border-blue-400 text-white shadow-blue-500/30 animate-pulse hover:bg-blue-500'
           }`}
-          title={userLocation ? `Ma position GPS (±${Math.round(userLocation.accuracy || 10)}m)` : "Activer et centrer sur mon GPS"}
+          title={userLocation ? (language === 'ar' ? `موقعي الحالي (±${Math.round(userLocation.accuracy || 10)}م)` : `Ma position GPS (±${Math.round(userLocation.accuracy || 10)}m)`) : (language === 'ar' ? 'تحديد موقعي' : 'Activer mon GPS')}
         >
-          <Navigation className={`w-5 h-5 ${userLocation ? 'text-blue-400' : 'text-white'}`} />
+          <LocateFixed className={`w-5 h-5 ${userLocation ? 'text-blue-400' : 'text-white'}`} />
         </button>
       </div>
 
+      {/* GPS Status & Satellite Search Pill */}
+      {gpsErrorMsg && gpsStatus !== 'insecure' && (
+        <div className="absolute top-20 sm:top-20 left-1/2 -translate-x-1/2 z-[1050] max-w-md w-[calc(100%-2rem)] sm:w-auto p-2 px-3.5 rounded-2xl bg-slate-900/95 border border-blue-500/50 shadow-2xl backdrop-blur-xl flex items-center justify-between gap-3 text-xs text-slate-100 pointer-events-auto animate-fade-in">
+          <div className="flex items-center gap-2.5 min-w-0">
+            <span className="relative flex h-2.5 w-2.5 flex-shrink-0">
+              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-blue-400 opacity-75"></span>
+              <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-blue-500"></span>
+            </span>
+            <span className="text-[11px] font-medium truncate">
+              {language === 'ar'
+                ? (gpsErrorMsg.includes('satellite') ? 'جاري البحث عن إشارة GPS...' : gpsErrorMsg)
+                : gpsErrorMsg}
+            </span>
+          </div>
+          <div className="flex items-center gap-1.5 flex-shrink-0">
+            {onRequestGps && gpsStatus !== 'acquiring' && (
+              <button
+                onClick={onRequestGps}
+                className="px-2.5 py-1 bg-blue-600 hover:bg-blue-500 text-white rounded-lg text-[10px] font-bold transition shadow"
+              >
+                {language === 'ar' ? 'تفعيل' : 'Autoriser'}
+              </button>
+            )}
+            {onDismissGpsError && (
+              <button
+                onClick={onDismissGpsError}
+                className="p-1 text-slate-400 hover:text-white rounded-lg transition"
+                title={language === 'ar' ? 'إغلاق' : 'Fermer'}
+              >
+                <X className="w-3.5 h-3.5" />
+              </button>
+            )}
+          </div>
+        </div>
+      )}
+
       {/* Mobile HTTPS Insecure Guidance Notice */}
       {gpsStatus === 'insecure' && (
-        <div className="absolute top-16 left-4 right-4 sm:left-auto sm:right-4 z-20 max-w-md p-3.5 rounded-2xl bg-amber-950/95 border border-amber-500/50 shadow-2xl backdrop-blur-md flex items-start gap-3 text-xs text-amber-100">
+        <div className="absolute top-20 left-4 right-4 sm:left-auto sm:right-4 z-[1050] max-w-md p-3.5 rounded-2xl bg-amber-950/95 border border-amber-500/50 shadow-2xl backdrop-blur-md flex items-start gap-3 text-xs text-amber-100">
           <AlertCircle className="w-5 h-5 text-amber-400 flex-shrink-0 mt-0.5" />
           <div className="flex-1">
-            <p className="font-bold text-white text-sm">Autorisation GPS sur mobile</p>
+            <p className="font-bold text-white text-sm">
+              {language === 'ar' ? 'إذن الـ GPS على الهاتف' : 'Autorisation GPS sur mobile'}
+            </p>
             <p className="mt-1 text-[11px] leading-relaxed text-amber-200">
-              Pour des raisons de sécurité, les navigateurs mobiles bloquent le GPS sur HTTP. Utilisez l'adresse sécurisée <strong>HTTPS</strong> ou l'application Android installée.
+              {language === 'ar'
+                ? 'لأسباب أمنية، تمنع المتصفحات إذن GPS على روابط غير مشفرة. يرجى استخدام HTTPS أو التطبيق المثبت.'
+                : "Pour des raisons de sécurité, les navigateurs mobiles bloquent le GPS sur HTTP. Utilisez l'adresse sécurisée HTTPS ou l'application Android installée."}
             </p>
             <a
               href={`https://${window.location.hostname}:3000/`}
               className="inline-block mt-2 px-3 py-1.5 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold rounded-lg text-xs transition-colors"
             >
-              Passer sur l'URL HTTPS sécurisée
+              {language === 'ar' ? 'التحويل إلى رابط HTTPS' : "Passer sur l'URL HTTPS sécurisée"}
             </a>
           </div>
-        </div>
-      )}
-
-      {/* GPS Error message banner */}
-      {gpsErrorMsg && gpsStatus !== 'insecure' && (
-        <div className="absolute top-16 left-4 right-4 sm:left-auto sm:right-4 z-20 max-w-sm p-3 rounded-xl bg-slate-900/95 border border-slate-700 shadow-xl backdrop-blur-md flex items-center justify-between text-xs text-slate-200">
-          <div className="flex items-center gap-2">
-            <AlertCircle className="w-4 h-4 text-amber-400 flex-shrink-0" />
-            <span className="text-[11px]">{gpsErrorMsg}</span>
-          </div>
-          {onRequestGps && (
-            <button
-              onClick={onRequestGps}
-              className="ml-2 px-2.5 py-1 bg-blue-600 hover:bg-blue-500 text-white rounded-lg text-[10px] font-bold"
-            >
-              Autoriser
-            </button>
-          )}
         </div>
       )}
     </div>

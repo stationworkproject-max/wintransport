@@ -2,8 +2,9 @@ import React, { useState } from 'react';
 import { AlertTriangle, X, CheckCircle, Clock, Users, Wrench, ShieldAlert } from 'lucide-react';
 import { STATIC_LINES } from '../data/staticTransit';
 import { submitCrowdReport } from '../supabase';
+import { getLineName, getLineShortName } from '../utils/i18n';
 
-export default function CrowdReportModal({ isOpen, onClose, onReportSuccess }) {
+export default function CrowdReportModal({ isOpen, onClose, onReportSuccess, language = 'fr' }) {
   const [lineId, setLineId] = useState('m1');
   const [reportType, setReportType] = useState('crowded');
   const [severity, setSeverity] = useState('medium');
@@ -102,7 +103,7 @@ export default function CrowdReportModal({ isOpen, onClose, onReportSuccess }) {
               >
                 {STATIC_LINES.map((l) => (
                   <option key={l.id} value={l.id}>
-                    {l.short_name} : {l.long_name}
+                    {getLineShortName(l, language)} : {getLineName(l, language)}
                   </option>
                 ))}
               </select>

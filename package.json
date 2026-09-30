@@ -5,6 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
+    "studio": "python scripts/studio_server.py",
     "build": "vite build",
     "preview": "vite preview"
   },

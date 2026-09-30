@@ -19,8 +19,24 @@ import {
 import { STATIC_LINES } from './data/staticTransit';
 import { isNativeAndroid, isBackgroundBroadcastRunning } from './native/backgroundBroadcast';
 import { Radio, AlertTriangle, Layers, Navigation, Search } from 'lucide-react';
+import { getStationName, getLineName, getLineShortName, t } from './utils/i18n';
 
 export default function App() {
+  const [language, setLanguage] = useState(() => localStorage.getItem('app_lang') || 'fr');
+
+  const toggleLanguage = useCallback(() => {
+    setLanguage(prev => {
+      const next = prev === 'fr' ? 'ar' : 'fr';
+      localStorage.setItem('app_lang', next);
+      return next;
+    });
+  }, []);
+
+  useEffect(() => {
+    document.documentElement.lang = language;
+    document.documentElement.dir = language === 'ar' ? 'rtl' : 'ltr';
+  }, [language]);
+
   const [activeNetwork, setActiveNetwork] = useState('all');
   const [liveLocations, setLiveLocations] = useState([]);
   const [crowdReports, setCrowdReports] = useState([]);
@@ -233,6 +249,8 @@ export default function App() {
         onRequestGps={requestUserGps}
         gpsStatus={gpsStatus}
         onOpenTripPlanner={() => setIsTripPlannerOpen(true)}
+        language={language}
+        onToggleLanguage={toggleLanguage}
       />
 
       {/* Main View Area */}
@@ -242,10 +260,10 @@ export default function App() {
         <aside className="hidden lg:flex flex-col w-80 border-r border-slate-800 bg-slate-900/90 z-[1005] backdrop-blur-md pointer-events-auto">
           <div className="p-3 border-b border-slate-800 bg-slate-800/40 flex items-center justify-between">
             <span className="text-xs font-bold uppercase tracking-wider text-slate-300">
-              Lignes en service
+              {language === 'ar' ? 'الخطوط العاملة' : 'Lignes en service'}
             </span>
             <span className="text-[11px] bg-blue-500/20 text-blue-400 font-semibold px-2 py-0.5 rounded-full">
-              229 Lignes
+              {STATIC_LINES.length} {language === 'ar' ? 'خط' : 'Lignes'}
             </span>
           </div>
 
@@ -257,7 +275,7 @@ export default function App() {
                 type="text"
                 value={sidebarSearch}
                 onChange={(e) => setSidebarSearch(e.target.value)}
-                placeholder="Chercher ligne (ex : 35, 1, TGM...)"
+                placeholder={language === 'ar' ? 'بحث عن خط (مثال: 36، 1، TGM...)' : 'Chercher ligne (ex : 35, 1, TGM...)'}
                 className="w-full bg-slate-800/80 border border-slate-700/80 rounded-lg pl-8 pr-3 py-1.5 text-xs text-white placeholder:text-slate-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
               />
             </div>
@@ -268,12 +286,19 @@ export default function App() {
               .filter(l => activeNetwork === 'all' || l.type_id === activeNetwork)
               .filter(l => {
                 if (!sidebarSearch.trim()) return true;
-                const q = sidebarSearch.toLowerCase();
-                return l.short_name.toLowerCase().includes(q) || l.long_name.toLowerCase().includes(q);
+                const q = sidebarSearch.toLowerCase().trim();
+                const sn = (l.short_name || '').toLowerCase();
+                const sna = (l.short_name_ar || '').toLowerCase();
+                const ln = (l.long_name || '').toLowerCase();
+                const lnf = (l.long_name_fr || '').toLowerCase();
+                const lna = (l.long_name_ar || '').toLowerCase();
+                return sn.includes(q) || sna.includes(q) || ln.includes(q) || lnf.includes(q) || lna.includes(q);
               })
               .map(line => {
               const liveCount = liveLocations.filter(loc => loc.line_id === line.id).length;
               const isSelected = selectedLine?.id === line.id;
+              const dispShort = getLineShortName(line, language);
+              const dispLong = getLineName(line, language);
 
               return (
                 <div
@@ -290,11 +315,13 @@ export default function App() {
                       className="w-7 h-7 rounded-lg flex items-center justify-center font-bold text-xs text-white flex-shrink-0 shadow"
                       style={{ backgroundColor: line.color }}
                     >
-                      {line.short_name}
+                      {dispShort}
                     </span>
                     <div className="min-w-0">
-                      <div className="font-semibold text-xs truncate">{line.long_name}</div>
-                      <div className="text-[10px] text-slate-400">{line.stops.length} stations</div>
+                      <div className="font-semibold text-xs truncate">{dispLong}</div>
+                      <div className="text-[10px] text-slate-400">
+                        {line.stops.length} {language === 'ar' ? 'محطة' : 'stations'}
+                      </div>
                     </div>
                   </div>
 
@@ -314,13 +341,13 @@ export default function App() {
             <div className="p-3 bg-emerald-950/40 border-t border-emerald-800/40 flex items-center justify-between text-xs text-emerald-400">
               <span className="flex items-center gap-1.5 font-semibold">
                 <Radio className="w-3.5 h-3.5 animate-pulse" />
-                GPS Actif à bord
+                {language === 'ar' ? 'GPS نشط على المتن' : 'GPS Actif à bord'}
               </span>
               <button
                 onClick={() => setIsBroadcastOpen(true)}
                 className="text-[11px] underline hover:text-white"
               >
-                Gérer
+                {language === 'ar' ? 'إدارة' : 'Gérer'}
               </button>
             </div>
           )}
@@ -344,6 +371,7 @@ export default function App() {
               gpsErrorMsg={gpsErrorMsg}
               onDismissGpsError={() => setGpsErrorMsg('')}
               onOpenTripPlanner={() => setIsTripPlannerOpen(true)}
+              language={language}
             />
           ) : (
             <div className="h-full overflow-y-auto pb-20">
@@ -355,6 +383,7 @@ export default function App() {
                   setIsScheduleDrawerOpen(false);
                   setActiveTab('map');
                 }}
+                language={language}
               />
             </div>
           )}
@@ -373,6 +402,7 @@ export default function App() {
           crowdReports={crowdReports}
           selectedDirection={selectedDirection}
           onDirectionChange={setSelectedDirection}
+          language={language}
         />
       )}
 
@@ -383,6 +413,7 @@ export default function App() {
         onClose={() => setSelectedStation(null)}
         liveLocations={liveLocations}
         onOpenBroadcast={handleOpenBroadcast}
+        language={language}
       />
 
       {/* Smart Trip Planner Modal ("Guide Trajet / Où aller ?") */}
@@ -398,6 +429,7 @@ export default function App() {
           setActiveTab('map');
         }}
         liveLocations={liveLocations}
+        language={language}
       />
 
       {/* Passenger Broadcast Modal ("Je suis à bord") */}
@@ -411,6 +443,7 @@ export default function App() {
         setBroadcastSession={setBroadcastSession}
         onRequestGps={requestUserGps}
         gpsStatus={gpsStatus}
+        language={language}
       />
 
       {/* Community Report Modal */}
@@ -418,6 +451,7 @@ export default function App() {
         isOpen={isReportOpen}
         onClose={() => setIsReportOpen(false)}
         onReportSuccess={() => fetchCrowdReports().then(setCrowdReports)}
+        language={language}
       />
 
       {/* Mobile Bottom Navigation */}
@@ -429,6 +463,7 @@ export default function App() {
         onOpenReport={() => setIsReportOpen(true)}
         reportCount={crowdReports.length}
         onOpenTripPlanner={() => setIsTripPlannerOpen(true)}
+        language={language}
       />
 
     </div>

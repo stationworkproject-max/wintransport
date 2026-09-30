@@ -8,7 +8,8 @@ export default function BottomNav({
   isBroadcasting,
   onOpenReport,
   reportCount,
-  onOpenTripPlanner
+  onOpenTripPlanner,
+  language = 'fr'
 }) {
   return (
     <nav className="fixed bottom-0 inset-x-0 z-[1010] md:hidden glass-panel border-t border-slate-800/80 px-1.5 py-1.5 flex items-center justify-around safe-bottom-padding pointer-events-auto">
@@ -21,7 +22,7 @@ export default function BottomNav({
         }`}
       >
         <Map className="w-5 h-5" />
-        <span className="text-[10px]">Carte</span>
+        <span className="text-[10px]">{language === 'ar' ? 'الخريطة' : 'Carte'}</span>
       </button>
 
       {/* Guide Trajet (Smart Trip Planner) */}
@@ -30,7 +31,7 @@ export default function BottomNav({
         className="flex flex-col items-center gap-1 py-1 px-2.5 rounded-xl text-slate-400 hover:text-blue-300 transition-all group"
       >
         <Compass className="w-5 h-5 text-indigo-400 group-hover:scale-110 transition-transform" />
-        <span className="text-[10px] text-indigo-300 font-semibold">Trajet</span>
+        <span className="text-[10px] text-indigo-300 font-semibold">{language === 'ar' ? 'مسار' : 'Trajet'}</span>
       </button>
 
       {/* Passenger Broadcast (Prominent Center Button) */}
@@ -49,7 +50,9 @@ export default function BottomNav({
         }`}>
           <Radio className="w-5 h-5" />
         </div>
-        <span className="text-[10px] font-bold">{isBroadcasting ? 'À bord' : 'Diffuser'}</span>
+        <span className="text-[10px] font-bold">
+          {isBroadcasting ? (language === 'ar' ? 'على المتن' : 'À bord') : (language === 'ar' ? 'بث GPS' : 'Diffuser')}
+        </span>
       </button>
 
       {/* Lines Tab */}
@@ -60,7 +63,7 @@ export default function BottomNav({
         }`}
       >
         <List className="w-5 h-5" />
-        <span className="text-[10px]">Lignes</span>
+        <span className="text-[10px]">{language === 'ar' ? 'الخطوط' : 'Lignes'}</span>
       </button>
 
       {/* Report Tab */}
@@ -69,7 +72,7 @@ export default function BottomNav({
         className="flex flex-col items-center gap-1 py-1 px-2.5 rounded-xl text-slate-400 hover:text-slate-200 relative"
       >
         <AlertTriangle className="w-5 h-5 text-amber-400" />
-        <span className="text-[10px]">Signaler</span>
+        <span className="text-[10px]">{language === 'ar' ? 'إبلاغ' : 'Signaler'}</span>
         {reportCount > 0 && (
           <span className="absolute top-0 right-1.5 w-4 h-4 bg-amber-500 text-slate-950 font-bold text-[9px] rounded-full flex items-center justify-center">
             {reportCount}

@@ -56,7 +56,8 @@ export default function SmartTripPlannerModal({
   userLocation,
   onRequestGps,
   onSelectLineAndStation,
-  liveLocations
+  liveLocations,
+  language = 'fr'
 }) {
   const [destinationQuery, setDestinationQuery] = useState('');
   const [targetDestination, setTargetDestination] = useState(null);
@@ -69,6 +70,8 @@ export default function SmartTripPlannerModal({
         if (!stationMap.has(stop.name)) {
           stationMap.set(stop.name, {
             name: stop.name,
+            name_fr: stop.name_fr || stop.name,
+            name_ar: stop.name_ar || stop.name,
             lat: stop.lat,
             lon: stop.lon,
             lines: []
@@ -79,7 +82,10 @@ export default function SmartTripPlannerModal({
           st.lines.push({
             id: line.id,
             short_name: line.short_name,
+            short_name_ar: line.short_name_ar,
             long_name: line.long_name,
+            long_name_fr: line.long_name_fr,
+            long_name_ar: line.long_name_ar,
             color: line.color,
             type_id: line.type_id,
             stopIndex: index,
@@ -414,14 +420,14 @@ export default function SmartTripPlannerModal({
                             className="px-2.5 py-1 rounded-xl text-white font-black text-xs shadow flex-shrink-0"
                             style={{ backgroundColor: sol.line.color }}
                           >
-                            {sol.line.short_name}
+                            {getLineShortName(sol.line, language)}
                           </span>
                           <div className="min-w-0">
                             <div className="font-bold text-xs text-white truncate">
-                              {sol.line.long_name}
+                              {getLineName(sol.line, language)}
                             </div>
                             <div className="text-[10px] text-slate-400 truncate">
-                              Direction : <span className="text-slate-200 font-semibold">{sol.direction}</span>
+                              {language === 'ar' ? 'الاتجاه : ' : 'Direction : '}<span className="text-slate-200 font-semibold">{sol.direction}</span>
                             </div>
                           </div>
                         </div>
@@ -429,11 +435,11 @@ export default function SmartTripPlannerModal({
                         {sol.liveVehiclesCount > 0 ? (
                           <span className="bg-emerald-500/20 text-emerald-400 border border-emerald-500/40 text-[10px] font-bold px-2 py-0.5 rounded-full flex items-center gap-1 flex-shrink-0">
                             <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
-                            {sol.liveVehiclesCount} en direct
+                            {sol.liveVehiclesCount} {language === 'ar' ? 'مباشرة' : 'en direct'}
                           </span>
                         ) : (
                           <span className="text-[10px] text-slate-400 bg-slate-900/60 px-2 py-0.5 rounded-full flex-shrink-0">
-                            ~{sol.estimatedTotalMins} min au total
+                            ~{sol.estimatedTotalMins} {language === 'ar' ? 'دقيقة إجمالاً' : 'min au total'}
                           </span>
                         )}
                       </div>
@@ -444,10 +450,10 @@ export default function SmartTripPlannerModal({
                         <div className="flex items-start gap-2.5">
                           <Footprints className="w-4 h-4 text-blue-400 flex-shrink-0 mt-0.5" />
                           <div>
-                            <span>Prendre à l'arrêt </span>
-                            <strong className="text-white">{sol.originStation.name}</strong>
+                            <span>{language === 'ar' ? 'الركوب من محطة ' : 'Prendre à l\'arrêt '}</span>
+                            <strong className="text-white">{getStationName(sol.originStation, language)}</strong>
                             {sol.walkToOriginMeters > 0 && (
-                              <span className="text-slate-400"> ({sol.walkToOriginMeters}m - ~{sol.walkToOriginMins} min à pied)</span>
+                              <span className="text-slate-400"> ({sol.walkToOriginMeters}m - ~{sol.walkToOriginMins} {language === 'ar' ? 'دقيقة سيراً' : 'min à pied'})</span>
                             )}
                           </div>
                         </div>
@@ -458,12 +464,12 @@ export default function SmartTripPlannerModal({
                             {sol.line.type_id === 'bus' ? '🚌' : '🚇'}
                           </div>
                           <div>
-                            <span>Voyager sur la ligne </span>
-                            <strong className="text-white">{sol.line.short_name}</strong>
-                            <span className="text-slate-400"> pendant {sol.stopsCount} arrêt(s)</span>
+                            <span>{language === 'ar' ? 'السفر عبر الخط ' : 'Voyager sur la ligne '}</span>
+                            <strong className="text-white">{getLineShortName(sol.line, language)}</strong>
+                            <span className="text-slate-400"> {language === 'ar' ? `لمدة ${sol.stopsCount} محطات` : `pendant ${sol.stopsCount} arrêt(s)`}</span>
                             {sol.liveVehiclesCount > 0 && (
                               <div className="text-[11px] text-emerald-400 font-semibold mt-0.5">
-                                🟢 Véhicule en direct suivi par GPS sur cette ligne
+                                {language === 'ar' ? '🟢 مركبة مباشرة متابعة بالـ GPS على هذا الخط' : '🟢 Véhicule en direct suivi par GPS sur cette ligne'}
                               </div>
                             )}
                           </div>
@@ -473,8 +479,8 @@ export default function SmartTripPlannerModal({
                         <div className="flex items-start gap-2.5">
                           <MapPin className="w-4 h-4 text-amber-400 flex-shrink-0 mt-0.5" />
                           <div>
-                            <span>Descendre à l'arrêt </span>
-                            <strong className="text-white">{sol.dropoffStation.name}</strong>
+                            <span>{language === 'ar' ? 'النزول في محطة ' : 'Descendre à l\'arrêt '}</span>
+                            <strong className="text-white">{getStationName(sol.dropoffStation, language)}</strong>
                           </div>
                         </div>
 

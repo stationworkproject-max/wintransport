@@ -11,6 +11,7 @@ import {
   ChevronRight,
   Navigation
 } from 'lucide-react';
+import { getStationName, getLineName, getLineShortName, getDirectionLabel } from '../utils/i18n';
 
 function getDistanceKm(lat1, lon1, lat2, lon2) {
   if (!lat1 || !lon1 || !lat2 || !lon2) return 999;
@@ -33,7 +34,8 @@ export default function LineScheduleDrawer({
   onSelectStation,
   crowdReports,
   selectedDirection = 0,
-  onDirectionChange
+  onDirectionChange,
+  language = 'fr'
 }) {
   if (!line) return null;
 
@@ -41,7 +43,7 @@ export default function LineScheduleDrawer({
   const displayedStops = activeDir === 1
     ? ((line.stops_retour && line.stops_retour.length > 0) ? line.stops_retour : [...line.stops].reverse())
     : (line.stops_aller || line.stops);
-  const activeDirectionName = line.directions[activeDir] || line.directions[0] || '';
+  const activeDirectionName = getDirectionLabel(line, activeDir, language);
 
   // Filter ONLY real vehicles currently broadcasting on this line
   const vehiclesOnLine = (liveLocations || []).filter(loc => loc.line_id === line.id);
@@ -62,20 +64,20 @@ export default function LineScheduleDrawer({
             className="w-10 h-10 rounded-xl flex items-center justify-center font-black text-sm text-white shadow-lg"
             style={{ backgroundColor: line.color }}
           >
-            {line.short_name}
+            {getLineShortName(line, language)}
           </div>
           <div>
-            <h2 className="font-bold text-sm text-white leading-tight">{line.long_name}</h2>
+            <h2 className="font-bold text-sm text-white leading-tight">{getLineName(line, language)}</h2>
             <div className="flex items-center gap-2 text-xs text-slate-400 mt-0.5">
-              <span>{displayedStops.length} arrêts</span>
+              <span>{displayedStops.length} {language === 'ar' ? 'محطة' : 'arrêts'}</span>
               <span>•</span>
               {vehiclesOnLine.length > 0 ? (
                 <span className="text-emerald-400 font-semibold flex items-center gap-1">
                   <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
-                  {vehiclesOnLine.length} véhicule(s) en direct
+                  {vehiclesOnLine.length} {language === 'ar' ? 'مركبة مباشرة' : 'véhicule(s) en direct'}
                 </span>
               ) : (
-                <span className="text-slate-400">Aucun signal direct</span>
+                <span className="text-slate-400">{language === 'ar' ? 'لا توجد إشارة مباشرة' : 'Aucun signal direct'}</span>
               )}
             </div>
           </div>
@@ -92,9 +94,9 @@ export default function LineScheduleDrawer({
       {/* Direction Switcher */}
       <div className="p-3 bg-slate-950/60 border-b border-slate-800/80">
         <div className="text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1.5 flex items-center justify-between">
-          <span>Direction du trajet</span>
+          <span>{language === 'ar' ? 'اتجاه الخط' : 'Direction du trajet'}</span>
           <span className="text-[11px] font-semibold text-blue-400">
-            {activeDir === 0 ? 'Aller' : 'Retour'}
+            {language === 'ar' ? (activeDir === 0 ? 'ذهاب' : 'إياب') : (activeDir === 0 ? 'Aller' : 'Retour')}
           </span>
         </div>
         <div className="grid grid-cols-2 gap-1.5">
@@ -111,9 +113,9 @@ export default function LineScheduleDrawer({
               }`}
             >
               <span className="text-[9px] uppercase tracking-wider opacity-75">
-                {idx === 0 ? 'Sens Aller' : 'Sens Retour'}
+                {language === 'ar' ? (idx === 0 ? 'اتجاه الذهاب' : 'اتجاه الإياب') : (idx === 0 ? 'Sens Aller' : 'Sens Retour')}
               </span>
-              <span className="truncate max-w-full">Vers {dir}</span>
+              <span className="truncate max-w-full">{getDirectionLabel(line, idx, language)}</span>
             </button>
           ))}
         </div>
@@ -123,22 +125,26 @@ export default function LineScheduleDrawer({
       {vehiclesOnLine.length === 0 ? (
         <div className="p-3 bg-blue-500/10 border-b border-blue-500/20 flex items-center justify-between text-xs">
           <div className="text-slate-300">
-            <strong>Pas de signal direct en ce moment</strong>
-            <p className="text-[11px] text-slate-400">Partagez votre position si vous êtes à bord</p>
+            <strong>{language === 'ar' ? 'لا توجد إشارة مباشرة حالياً' : 'Pas de signal direct en ce moment'}</strong>
+            <p className="text-[11px] text-slate-400">
+              {language === 'ar' ? 'شارك موقعك إذا كنت على متن وسيلة النقل' : 'Partagez votre position si vous êtes à bord'}
+            </p>
           </div>
           <button
             onClick={() => onOpenBroadcast(line.id)}
             className="text-xs bg-blue-600 hover:bg-blue-500 text-white font-bold px-3 py-1.5 rounded-lg shadow flex items-center gap-1.5 whitespace-nowrap"
           >
             <Radio className="w-3.5 h-3.5" />
-            Je suis à bord
+            {language === 'ar' ? 'أنا على المتن' : 'Je suis à bord'}
           </button>
         </div>
       ) : (
         <div className="p-3 bg-emerald-500/10 border-b border-emerald-500/20 flex items-center justify-between text-xs text-emerald-300">
           <span className="font-semibold flex items-center gap-1.5">
             <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping"></span>
-            {vehiclesOnLine.length} voyageur(s) transmettent la position réelle
+            {language === 'ar'
+              ? `${vehiclesOnLine.length} مسافر ينقلون الموقع الفعلي الآن`
+              : `${vehiclesOnLine.length} voyageur(s) transmettent la position réelle`}
           </span>
           <span className="text-[10px] bg-emerald-500/20 px-2 py-0.5 rounded-full font-bold">
             GPS Live
@@ -151,9 +157,11 @@ export default function LineScheduleDrawer({
         <div className="p-3 bg-amber-500/10 border-b border-amber-500/20 flex items-start gap-2.5">
           <AlertTriangle className="w-4 h-4 text-amber-400 flex-shrink-0 mt-0.5" />
           <div className="text-xs">
-            <strong className="text-amber-300">Infos voyageurs récentes :</strong>
+            <strong className="text-amber-300">
+              {language === 'ar' ? 'تنبيهات المسافرين الحديثة :' : 'Infos voyageurs récentes :'}
+            </strong>
             <p className="text-slate-300 mt-0.5">
-              {reportsOnLine[0].message || `Signalement ${reportsOnLine[0].report_type} près de la ligne`}
+              {reportsOnLine[0].message || (language === 'ar' ? 'إبلاغ مسافرين بالقرب من الخط' : `Signalement ${reportsOnLine[0].report_type} près de la ligne`)}
             </p>
           </div>
         </div>
@@ -162,7 +170,7 @@ export default function LineScheduleDrawer({
       {/* Vertical Station Progression Timeline */}
       <div className="flex-1 overflow-y-auto p-4 space-y-2">
         <div className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">
-          Arrêts et passages
+          {language === 'ar' ? 'المحطات والمسار' : 'Arrêts et passages'}
         </div>
 
         <div className="relative pl-6 space-y-3">
@@ -175,6 +183,7 @@ export default function LineScheduleDrawer({
           {displayedStops.map((stop, index) => {
             const isFirst = index === 0;
             const isLast = index === displayedStops.length - 1;
+            const stopName = getStationName(stop, language);
 
             // Find nearest REAL live vehicle to this stop
             const nearest = vehiclesOnLine.reduce((closest, v) => {
@@ -189,7 +198,9 @@ export default function LineScheduleDrawer({
             if (nearest && nearest.dist < 15) {
               const speed = Math.max(nearest.vehicle.speed_kmh || 25, 10);
               const etaMins = Math.max(1, Math.round((nearest.dist / speed) * 60));
-              liveEtaText = `🟢 Véhicule à ${nearest.dist.toFixed(1)} km (~${etaMins} min)`;
+              liveEtaText = language === 'ar' 
+                ? `🟢 مركبة على بعد ${nearest.dist.toFixed(1)} كم (~${etaMins} دقيقة)`
+                : `🟢 Véhicule à ${nearest.dist.toFixed(1)} km (~${etaMins} min)`;
             }
 
             return (
@@ -209,7 +220,7 @@ export default function LineScheduleDrawer({
                 >
                   <div>
                     <div className="font-semibold text-xs text-white group-hover:text-blue-400 transition-colors">
-                      {stop.name}
+                      {stopName}
                     </div>
                     <div className="text-[11px] text-slate-400 mt-0.5 flex items-center gap-1.5">
                       <Clock className="w-3 h-3 text-slate-500" />
@@ -218,7 +229,7 @@ export default function LineScheduleDrawer({
                           {liveEtaText}
                         </span>
                       ) : (
-                        <span>En attente de transmission GPS</span>
+                        <span>{language === 'ar' ? 'في انتظار إشارة الـ GPS' : 'En attente de transmission GPS'}</span>
                       )}
                     </div>
                   </div>

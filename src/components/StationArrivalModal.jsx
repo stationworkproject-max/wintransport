@@ -1,5 +1,6 @@
 import React from 'react';
 import { X, MapPin, Clock, Radio, Navigation, Users, AlertCircle, Compass } from 'lucide-react';
+import { getStationName, getLineName, getLineShortName } from '../utils/i18n';
 
 function getDistanceKm(lat1, lon1, lat2, lon2) {
   if (!lat1 || !lon1 || !lat2 || !lon2) return 999;
@@ -19,9 +20,14 @@ export default function StationArrivalModal({
   line,
   onClose,
   liveLocations,
-  onOpenBroadcast
+  onOpenBroadcast,
+  language = 'fr'
 }) {
   if (!station) return null;
+
+  const stationName = getStationName(station, language);
+  const lineShort = line ? getLineShortName(line, language) : null;
+  const lineLong = line ? getLineName(line, language) : null;
 
   // Filter ONLY real vehicles currently broadcasting on this line
   const vehiclesOnLine = (liveLocations || []).filter(loc => {
@@ -38,7 +44,7 @@ export default function StationArrivalModal({
 
       return {
         id: v.id,
-        lineShort: line?.short_name || 'Direct',
+        lineShort: lineShort || 'Direct',
         lineColor: line?.color || '#0071e3',
         direction: v.direction || line?.directions?.[0] || 'En route',
         distanceKm: distKm.toFixed(1),
@@ -46,7 +52,7 @@ export default function StationArrivalModal({
         isLive: true,
         passengers: v.passenger_count || 1,
         speedKmh: v.speed_kmh || 25,
-        vehicleLabel: v.vehicle_label || 'Véhicule en direct'
+        vehicleLabel: v.vehicle_label || (language === 'ar' ? 'مركبة مباشرة' : 'Véhicule en direct')
       };
     })
     .sort((a, b) => a.etaMins - b.etaMins);
@@ -68,12 +74,12 @@ export default function StationArrivalModal({
               className="w-9 h-9 rounded-xl flex items-center justify-center text-white font-bold text-xs shadow-md"
               style={{ backgroundColor: line?.color || '#0071e3' }}
             >
-              {line?.short_name || <MapPin className="w-4 h-4" />}
+              {lineShort || <MapPin className="w-4 h-4" />}
             </div>
             <div>
-              <h3 className="font-bold text-sm text-white">{station.name}</h3>
+              <h3 className="font-bold text-sm text-white">{stationName}</h3>
               <p className="text-[11px] text-slate-400">
-                {line ? `${line.short_name} • ${line.long_name}` : 'Arrêt de transport'}
+                {line ? `${lineShort} • ${lineLong}` : (language === 'ar' ? 'محطة نقل' : 'Arrêt de transport')}
               </p>
             </div>
           </div>
