@@ -6,6 +6,12 @@ export default defineConfig({
   plugins: [react(), basicSsl()],
   server: {
     port: 3000,
-    host: true
+    host: true,
+    proxy: {
+      '/api': {
+        target: 'http://127.0.0.1:5055',
+        changeOrigin: true
+      }
+    }
   }
 });

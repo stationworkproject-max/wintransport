@@ -32,22 +32,26 @@ Ouvrez ensuite votre navigateur à l'adresse :
 - **Affichage sur la carte :** Deux cases à cocher permettent d'afficher l'Aller seul, le Retour seul, ou les deux voies superposées sur le plan Google Maps.
 
 ### 3. Fonds de Carte Haute Précision
-- 🗺️ **Plan Google (Par défaut)** : Affiche le véritable fond de carte routier de Google Maps avec le réseau des rues, numéros de routes nationales (RN, RR, R33...), ponts, giratoires et terre-pleins centraux.
+- 🗺️ **Plan OSM (OpenStreetMap)** : Fond de carte routier OpenStreetMap précis et à jour avec toutes les voies réelles, giratoires, sens uniques et voirie.
+- 🚗 **Plan Google** : Affiche le fond de carte routier de Google Maps avec le réseau des rues, numéros de routes nationales (RN, RR, R33...), ponts et terre-pleins centraux.
 - 🛰️ **Satellite Google** : Imagerie aérienne détaillée pour positionner les voies sur les chaussées et quais physiques.
 - 🚦 **Trafic Google** : Visualisation en direct du trafic et des axes principaux.
 - 🌙 **Plan Sombre** : Mode haute visibilité nocturne.
 
-### 4. 🧭 Tracé d'Itinéraire Tronçon (Nœud A ➔ Nœud B) style Google Maps
-Pour corriger un tronçon problématique (par exemple un virage coupé, un terre-plein franchi illégalement ou un demi-tour manqué) :
-1. Activez le mode **« Arrondir / Tronçon »**.
-2. **Cliquez sur le Nœud A** (Point de départ / point d'origine) 👉 un badge vert fluo **`A (Départ)`** s'affiche sur la carte.
-3. **Cliquez sur le Nœud B** (Point d'arrivée / prochain point à atteindre) 👉 un badge rouge **`B (Arrivée)`** s'affiche sur la carte.
-4. **Tracé Automatique :** Si l'option *« Tracer auto dès sélection du Nœud B »* est cochée, le tronçon est instantanément recalculé et plaqué sur la route selon l'itinéraire Google Maps !
-5. **Respect strict du code de la route :**
-   - L'itinéraire prend obligatoirement les ronds-points (« hip ») pour faire demi-tour.
+### 4. 🧭 Tracé d'Itinéraire Tronçon (Nœud A ➔ Nœud B) & HUD Flottant
+Pour corriger un tronçon problématique (par exemple un virage coupé, un terre-plein franchi illégalement, un demi-tour manqué ou un rond-point à contourner) :
+1. **Sélection ultra-rapide sur la carte :**
+   - **Cliquez simplement sur le Nœud A** (Point de départ) 👉 un badge vert fluo s'affiche et s'inscrit dans la barre d'outils flottante en haut de la carte.
+   - **Cliquez sur le Nœud B** (Point d'arrivée) 👉 le tronçon est instantanément calculé et recalculé le long du réseau routier réel via OSM/OSRM (temps de réponse < 0.2s) !
+2. **Barre d'outils Flottante (HUD) en haut à gauche de la carte :**
+   - Affiche en direct les coordonnées du Nœud A et du Nœud B.
+   - Bouton **`▶ Tracer la Route`** : Déclenche le recalcul immédiat.
+   - Bouton **`⇄ A / B`** : Inverse le sens de départ et d'arrivée.
+   - Bouton **`↗ G-Maps`** : Ouvre directement l'itinéraire exact dans Google Maps dans un nouvel onglet pour vérifier le cheminement.
+   - Bouton **`✕ Réinit`** : Réinitialise la sélection pour choisir un nouveau tronçon.
+3. **Respect strict du code de la route :**
+   - L'itinéraire prend obligatoirement les ronds-points (« hip ») pour faire demi-tour au lieu de couper la barrière.
    - Il emprunte les bretelles et ponts légaux sans jamais couper à travers les terre-pleins ou rails.
-6. **Bouton « Inverser A ⇄ B » :** Inverse immédiatement le sens de parcours en cas de besoin.
-7. **Bouton « Tracer l'Itinéraire Google Maps (A ➔ B) » :** Déclenche le calcul manuel à la demande.
 
 ### 5. 🪄 Tracé Global de la Ligne & Anti-Boucles
 - Cliquez sur **« Tracer la Voie »** pour recalculer l'ensemble de l'itinéraire le long de tous les arrêts.

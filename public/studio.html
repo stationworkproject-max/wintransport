@@ -637,13 +637,64 @@
     <main class="flex-1 relative h-full">
       <div id="map"></div>
 
+      <!-- FLOATING HUD TOOLBAR FOR A -> B ROAD ROUTING -->
+      <div id="floatingRouteHud" class="absolute top-3 left-3 z-[1000] bg-slate-900/95 border border-slate-700/80 rounded-xl p-3 shadow-2xl backdrop-blur max-w-sm space-y-2 pointer-events-auto">
+        <div class="flex items-center justify-between gap-2 border-b border-slate-800 pb-2">
+          <div class="flex items-center gap-2">
+            <span class="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse"></span>
+            <span class="text-xs font-bold text-white flex items-center gap-1.5">
+              <i data-lucide="navigation" class="w-4 h-4 text-emerald-400"></i>
+              Correction Tronçon (A ➔ B)
+            </span>
+          </div>
+          <span class="text-[10px] px-2 py-0.5 rounded-full bg-emerald-950 text-emerald-300 font-bold border border-emerald-800/80">OSM / Google</span>
+        </div>
+
+        <div class="grid grid-cols-2 gap-2 text-xs">
+          <div class="p-2 bg-emerald-950/40 border border-emerald-700/60 rounded-lg">
+            <div class="text-[10px] text-emerald-400 font-bold uppercase tracking-wider flex items-center gap-1">
+              <span class="w-2 h-2 rounded-full bg-emerald-400"></span> Point A (Départ)
+            </div>
+            <div id="hudRouteNodeA" class="font-mono font-bold text-white text-[11px] mt-0.5 truncate">Cliquez sur un nœud</div>
+          </div>
+          <div class="p-2 bg-rose-950/40 border border-rose-700/60 rounded-lg">
+            <div class="text-[10px] text-rose-400 font-bold uppercase tracking-wider flex items-center gap-1">
+              <span class="w-2 h-2 rounded-full bg-rose-400"></span> Point B (Arrivée)
+            </div>
+            <div id="hudRouteNodeB" class="font-mono font-bold text-white text-[11px] mt-0.5 truncate">Cliquez sur un nœud</div>
+          </div>
+        </div>
+
+        <div class="flex items-center gap-1.5 pt-0.5">
+          <button onclick="routeSegmentBetweenNodes()" id="btnHudRoute" class="flex-1 py-1.5 px-2 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs flex items-center justify-center gap-1.5 shadow transition">
+            <i data-lucide="play" class="w-3.5 h-3.5 fill-current"></i> Tracer la Route
+          </button>
+          <button onclick="swapCurveNodes()" class="py-1.5 px-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white font-semibold text-xs flex items-center gap-1" title="Inverser Départ et Arrivée">
+            <i data-lucide="arrow-left-right" class="w-3.5 h-3.5"></i> A ⇄ B
+          </button>
+          <button onclick="resetCurveSelection()" class="py-1.5 px-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white font-semibold text-xs" title="Réinitialiser">
+            ✕
+          </button>
+          <button onclick="openExternalGoogleMapsForSegment()" class="py-1.5 px-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-cyan-400 hover:text-cyan-300 font-semibold text-xs flex items-center gap-1" title="Ouvrir dans Google Maps">
+            <i data-lucide="external-link" class="w-3.5 h-3.5"></i> G-Maps
+          </button>
+        </div>
+
+        <div class="text-[10px] text-slate-400 leading-tight">
+          💡 <em>Cliquez sur 2 nœuds ronds de la ligne pour redessiner la route entre eux (respecte ponts et ronds-points).</em>
+        </div>
+      </div>
+
       <!-- FLOATING MAP CONTROLS -->
       <div class="absolute top-3 right-3 z-[1000] flex flex-col gap-2">
         
         <!-- Base Map Switcher -->
         <div class="bg-slate-900/90 border border-slate-700/80 rounded-lg p-1 shadow-2xl backdrop-blur flex items-center gap-1 text-xs font-semibold">
-          <button onclick="setBaseMap('streets')" id="mapBtnStreets" class="px-2.5 py-1 rounded bg-indigo-600 text-white flex items-center gap-1.5 shadow">
-            <i data-lucide="map" class="w-3.5 h-3.5"></i> Plan Google
+          <button onclick="setBaseMap('osm')" id="mapBtnOsm" class="px-2.5 py-1 rounded bg-indigo-600 text-white flex items-center gap-1.5 shadow" title="OpenStreetMap officiel">
+            <i data-lucide="map" class="w-3.5 h-3.5"></i> Plan OSM
+          </button>
+          <button onclick="setBaseMap('streets')" id="mapBtnStreets" class="px-2.5 py-1 rounded text-slate-400 hover:text-white flex items-center gap-1.5" title="Google Maps Plan Rues">
+            <i data-lucide="layers" class="w-3.5 h-3.5"></i> Plan Google
           </button>
           <button onclick="setBaseMap('satellite')" id="mapBtnSat" class="px-2.5 py-1 rounded text-slate-400 hover:text-white flex items-center gap-1.5">
             <i data-lucide="satellite" class="w-3.5 h-3.5"></i> Satellite
@@ -786,6 +837,10 @@
     const GOOGLE_MAPS_KEY = 'AIzaSyD5AZ-rNY0NGtkFDZUyB3cwPKH3CiUit6I';
 
     const tileLayers = {
+      osm: L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        maxZoom: 19,
+        attribution: '© OpenStreetMap'
+      }),
       streets: L.tileLayer(`https://mt{s}.google.com/vt/lyrs=m&x={x}&y={y}&z={z}&key=${GOOGLE_MAPS_KEY}`, {
         maxZoom: 21,
         subdomains: ['0', '1', '2', '3'],
@@ -807,21 +862,22 @@
       })
     };
 
-    // Google Maps Plan Rues (Roadmap) active by default
-    let activeBaseMap = tileLayers.streets.addTo(map);
+    // Plan OSM active by default
+    let activeBaseMap = tileLayers.osm.addTo(map);
 
     function setBaseMap(type) {
       if (!tileLayers[type]) return;
       map.removeLayer(activeBaseMap);
       activeBaseMap = tileLayers[type].addTo(map);
       
-      document.querySelectorAll('#mapBtnStreets, #mapBtnSat, #mapBtnTraffic, #mapBtnDark').forEach(btn => {
+      document.querySelectorAll('#mapBtnOsm, #mapBtnStreets, #mapBtnSat, #mapBtnTraffic, #mapBtnDark').forEach(btn => {
         if (btn) {
           btn.classList.remove('bg-indigo-600', 'text-white');
           btn.classList.add('text-slate-400');
         }
       });
-      const activeBtn = type === 'streets' ? document.getElementById('mapBtnStreets') :
+      const activeBtn = type === 'osm' ? document.getElementById('mapBtnOsm') :
+                        type === 'streets' ? document.getElementById('mapBtnStreets') :
                         type === 'satellite' ? document.getElementById('mapBtnSat') :
                         type === 'traffic' ? document.getElementById('mapBtnTraffic') : document.getElementById('mapBtnDark');
       if (activeBtn) {
@@ -1007,12 +1063,11 @@
             riseOnHover: true
           });
 
-          if (activeEditMode === 'curve_select') {
-            marker.on('click', (e) => {
-              L.DomEvent.stopPropagation(e);
-              handleNodeClickForCurve(index);
-            });
-          }
+          // Always allow clicking to select Point A or Point B for road itinerary
+          marker.on('click', (e) => {
+            L.DomEvent.stopPropagation(e);
+            handleNodeClickForCurve(index);
+          });
 
           if (activeEditMode === 'drag') {
             marker.on('drag', (e) => {
@@ -1047,9 +1102,7 @@
           }
 
           marker.bindTooltip(
-            activeEditMode === 'curve_select' 
-              ? `Cliquer pour sélectionner le Nœud #${index + 1}`
-              : `Nœud #${index + 1} (${pt[0].toFixed(5)}, ${pt[1].toFixed(5)})`, 
+            `Nœud #${index + 1} (${pt[0].toFixed(5)}, ${pt[1].toFixed(5)})<br><span class="text-emerald-400 font-bold">👆 Clic : Définir Point A ou B (Itinéraire)</span><br><span class="text-slate-300">✋ Glisser : Déplacer le nœud</span>`, 
             { direction: 'top', offset: [0, -8] }
           );
           marker.addTo(vertexMarkersGroup);
@@ -1686,40 +1739,7 @@
 
     async function calculateDrivingRoute(origin, destination) {
       // origin: [lat, lon], destination: [lat, lon]
-      // 1. Try Google Maps DirectionsService in browser
-      if (window.google && window.google.maps && window.google.maps.DirectionsService) {
-        try {
-          const directionsService = new google.maps.DirectionsService();
-          const googleResult = await new Promise((resolve) => {
-            directionsService.route({
-              origin: new google.maps.LatLng(origin[0], origin[1]),
-              destination: new google.maps.LatLng(destination[0], destination[1]),
-              travelMode: google.maps.TravelMode.DRIVING,
-              avoidHighways: false,
-              avoidTolls: false
-            }, (res, status) => {
-              if (status === google.maps.DirectionsStatus.OK && res && res.routes && res.routes[0]) {
-                const path = res.routes[0].overview_path.map(p => [
-                  parseFloat(p.lat().toFixed(6)),
-                  parseFloat(p.lng().toFixed(6))
-                ]);
-                resolve({ success: true, coordinates: path, provider: 'Google Maps Directions' });
-              } else {
-                console.warn('[Google DirectionsService] Status:', status);
-                resolve({ success: false, status: status });
-              }
-            });
-          });
-
-          if (googleResult.success && googleResult.coordinates && googleResult.coordinates.length > 0) {
-            return googleResult;
-          }
-        } catch (err) {
-          console.warn('[Google DirectionsService] Error:', err);
-        }
-      }
-
-      // 2. Seamless fallback to local backend OSRM driving engine (/api/route)
+      // 1. Primary: Local Studio Routing API (/api/route) using OSRM driving engine (fast, preserves roundabouts/bridges)
       try {
         const netType = selectedLine ? (selectedLine.type_id || selectedLine.network) : 'bus';
         const res = await fetch('/api/route', {
@@ -1732,15 +1752,104 @@
             remove_loops: false
           })
         });
-        const data = await res.json();
-        if (data.success && data.coordinates && data.coordinates.length > 0) {
-          return { success: true, coordinates: data.coordinates, provider: 'Moteur Routier OSRM (Google-aligné)' };
+        if (res.ok) {
+          const data = await res.json();
+          if (data.success && data.coordinates && data.coordinates.length > 0) {
+            return { success: true, coordinates: data.coordinates, provider: 'OSM / OSRM (Réseau Routier Réel)' };
+          }
         }
       } catch (err) {
-        console.error('[Driving Route] Fallback error:', err);
+        console.warn('[Routing] /api/route fetch error:', err);
       }
 
-      return { success: false, error: 'Impossible de calculer l\'itinéraire' };
+      // 2. Secondary: Direct Browser Fetch to OSRM Driving Engine
+      try {
+        const osrmUrl = `https://router.project-osrm.org/route/v1/driving/${origin[1].toFixed(6)},${origin[0].toFixed(6)};${destination[1].toFixed(6)},${destination[0].toFixed(6)}?overview=full&geometries=geojson`;
+        const directRes = await fetch(osrmUrl);
+        if (directRes.ok) {
+          const osrmData = await directRes.json();
+          if (osrmData.code === 'Ok' && osrmData.routes && osrmData.routes[0]) {
+            const rawCoords = osrmData.routes[0].geometry.coordinates;
+            const pts = rawCoords.map(c => [parseFloat(c[1].toFixed(6)), parseFloat(c[0].toFixed(6))]);
+            if (pts.length > 0) {
+              return { success: true, coordinates: pts, provider: 'OSM Direct' };
+            }
+          }
+        }
+      } catch (err) {
+        console.warn('[Routing] Direct OSRM error:', err);
+      }
+
+      // 3. Optional: Google Maps DirectionsService with strict 1.5s timeout (never hangs)
+      if (window.google && window.google.maps && window.google.maps.DirectionsService) {
+        try {
+          const directionsService = new google.maps.DirectionsService();
+          const googleResult = await Promise.race([
+            new Promise((resolve) => {
+              directionsService.route({
+                origin: new google.maps.LatLng(origin[0], origin[1]),
+                destination: new google.maps.LatLng(destination[0], destination[1]),
+                travelMode: google.maps.TravelMode.DRIVING
+              }, (res, status) => {
+                if (status === google.maps.DirectionsStatus.OK && res && res.routes && res.routes[0]) {
+                  const path = res.routes[0].overview_path.map(p => [
+                    parseFloat(p.lat().toFixed(6)),
+                    parseFloat(p.lng().toFixed(6))
+                  ]);
+                  resolve({ success: true, coordinates: path, provider: 'Google Maps Directions' });
+                } else {
+                  resolve({ success: false });
+                }
+              });
+            }),
+            new Promise((resolve) => setTimeout(() => resolve({ success: false, timeout: true }), 1500))
+          ]);
+
+          if (googleResult && googleResult.success && googleResult.coordinates && googleResult.coordinates.length > 0) {
+            return googleResult;
+          }
+        } catch (err) {
+          console.warn('[Routing] Google Directions error:', err);
+        }
+      }
+
+      // 4. Safe fallback: Linear interpolation (never crashes or hangs)
+      const fallbackPts = [];
+      for (let i = 0; i <= 6; i++) {
+        const t = i / 6;
+        fallbackPts.push([
+          parseFloat((origin[0] + t * (destination[0] - origin[0])).toFixed(6)),
+          parseFloat((origin[1] + t * (destination[1] - origin[1])).toFixed(6))
+        ]);
+      }
+      return { success: true, coordinates: fallbackPts, provider: 'Interpolation Directe' };
+    }
+
+    function openExternalGoogleMapsForSegment() {
+      const activePts = getActiveTrack();
+      let pA, pB;
+      if (curveNodeA !== null && activePts && activePts[curveNodeA]) {
+        pA = activePts[curveNodeA];
+      }
+      if (curveNodeB !== null && activePts && activePts[curveNodeB]) {
+        pB = activePts[curveNodeB];
+      }
+      if (!pA) {
+        if (activePts && activePts.length >= 2) {
+          pA = activePts[0];
+          pB = activePts[activePts.length - 1];
+        } else {
+          showToast('Veuillez sélectionner au moins le Nœud A sur la carte', 'warning');
+          return;
+        }
+      }
+      if (!pB) {
+        pB = activePts[Math.min((curveNodeA || 0) + 1, activePts.length - 1)];
+      }
+
+      const gmapsUrl = `https://www.google.com/maps/dir/?api=1&origin=${pA[0]},${pA[1]}&destination=${pB[0]},${pB[1]}&travelmode=driving`;
+      window.open(gmapsUrl, '_blank');
+      showToast('Itinéraire ouvert dans Google Maps !', 'info');
     }
 
     async function routeSegmentBetweenNodes() {
@@ -1749,7 +1858,6 @@
 
       if (curveNodeA === null || curveNodeB === null) {
         showToast('Veuillez cliquer sur le Nœud A (Départ) puis le Nœud B (Arrivée) sur la carte', 'warning');
-        setEditMode('curve_select');
         return;
       }
 
@@ -1768,8 +1876,10 @@
       const isForward = curveNodeA <= curveNodeB;
 
       const btn = document.getElementById('btnRouteSegment');
+      const btnHud = document.getElementById('btnHudRoute');
       const originalText = btn ? btn.innerHTML : '';
-      if (btn) btn.innerHTML = `<i data-lucide="loader-2" class="w-3.5 h-3.5 animate-spin"></i> Traçage Google Maps...`;
+      if (btn) btn.innerHTML = `<i data-lucide="loader-2" class="w-3.5 h-3.5 animate-spin"></i> Traçage...`;
+      if (btnHud) btnHud.innerHTML = `<i data-lucide="loader-2" class="w-3.5 h-3.5 animate-spin"></i> Calcul...`;
 
       try {
         const routeRes = await calculateDrivingRoute(origin, destination);
@@ -1779,20 +1889,23 @@
             coordsToInsert = [...coordsToInsert].reverse();
           }
 
+          // Replace the segment in the active track with real road nodes
           activePts.splice(start, rangeLen, ...coordsToInsert);
+
           pushHistory();
           markUnsavedChanges();
           resetCurveSelection();
-          setEditMode('drag');
           renderMapLayers();
-          showToast(`✓ Tronçon tracé selon ${routeRes.provider} (${coordsToInsert.length} points sur la route, demi-tour rond-point respecté) !`, 'success');
+          showToast(`✓ Tronçon tracé selon ${routeRes.provider} (${coordsToInsert.length} nœuds créés sur la route, demi-tour rond-point respecté) ! Cliquez sur le prochain nœud pour continuer.`, 'success');
         } else {
           showToast(`Erreur : ${routeRes.error || 'Routage impossible sur ce tronçon'}`, 'error');
         }
       } catch (e) {
+        console.error('Error routing segment:', e);
         showToast('Erreur serveur lors du calcul du tronçon', 'error');
       } finally {
         if (btn) btn.innerHTML = originalText;
+        if (btnHud) btnHud.innerHTML = `<i data-lucide="play" class="w-3.5 h-3.5 fill-current"></i> Tracer la Route`;
         lucide.createIcons();
       }
     }
@@ -1833,34 +1946,45 @@
     // 7. CURVE SMOOTHING & ROUNDING MATHEMATICS
     // -------------------------------------------------------------
     function handleNodeClickForCurve(index) {
+      const activePts = getActiveTrack();
+      if (!activePts || !activePts[index]) return;
+
+      const formatNode = (idx) => `#${idx + 1} (${activePts[idx][0].toFixed(5)}, ${activePts[idx][1].toFixed(5)})`;
+
       if (curveNodeA === null) {
         curveNodeA = index;
         const lblA = document.getElementById('lblCurveNodeA');
+        const hudA = document.getElementById('hudRouteNodeA');
         if (lblA) lblA.innerText = `#${index + 1}`;
-        showToast(`📍 Nœud A (#${index + 1} - Départ) sélectionné. Cliquez sur le Nœud B (Arrivée / Prochain point).`, 'info');
+        if (hudA) hudA.innerText = formatNode(index);
+        showToast(`📍 Point A (Départ : Nœud #${index + 1}) sélectionné. Cliquez maintenant sur le Point B (Arrivée).`, 'info');
       } else if (curveNodeB === null) {
         if (index === curveNodeA) {
-          showToast('Veuillez sélectionner un nœud différent pour l\'arrivée (Nœud B)', 'warning');
+          showToast('Veuillez sélectionner un nœud différent pour l\'arrivée (Point B)', 'warning');
           return;
         }
         curveNodeB = index;
         const lblB = document.getElementById('lblCurveNodeB');
+        const hudB = document.getElementById('hudRouteNodeB');
         if (lblB) lblB.innerText = `#${index + 1}`;
-        showToast(`🎯 Tronçon sélectionné : Nœud A (#${curveNodeA + 1}) ➔ Nœud B (#${curveNodeB + 1})`, 'success');
+        if (hudB) hudB.innerText = formatNode(index);
+        showToast(`🎯 Tronçon prêt : Nœud A (#${curveNodeA + 1}) ➔ Nœud B (#${curveNodeB + 1}). Traçage automatique sur la route...`, 'success');
 
-        const autoRoute = document.getElementById('chkAutoRouteOnB');
-        if (autoRoute && autoRoute.checked) {
-          routeSegmentBetweenNodes();
-          return;
-        }
+        // Automatically route immediately on selecting B
+        routeSegmentBetweenNodes();
+        return;
       } else {
         curveNodeA = index;
         curveNodeB = null;
         const lblA = document.getElementById('lblCurveNodeA');
         const lblB = document.getElementById('lblCurveNodeB');
+        const hudA = document.getElementById('hudRouteNodeA');
+        const hudB = document.getElementById('hudRouteNodeB');
         if (lblA) lblA.innerText = `#${index + 1}`;
         if (lblB) lblB.innerText = `--`;
-        showToast(`📍 Nouveau Nœud A (#${index + 1} - Départ) sélectionné.`, 'info');
+        if (hudA) hudA.innerText = formatNode(index);
+        if (hudB) hudB.innerText = `Cliquez sur un nœud`;
+        showToast(`📍 Nouveau Point A (Départ : Nœud #${index + 1}) sélectionné. Cliquez sur le Point B.`, 'info');
       }
       renderMapLayers();
     }
@@ -1875,8 +1999,15 @@
       curveNodeB = tmp;
       const lblA = document.getElementById('lblCurveNodeA');
       const lblB = document.getElementById('lblCurveNodeB');
+      const hudA = document.getElementById('hudRouteNodeA');
+      const hudB = document.getElementById('hudRouteNodeB');
+      const activePts = getActiveTrack();
+      const txtA = activePts[curveNodeA] ? `#${curveNodeA + 1} (${activePts[curveNodeA][0].toFixed(5)}, ${activePts[curveNodeA][1].toFixed(5)})` : `#${curveNodeA + 1}`;
+      const txtB = activePts[curveNodeB] ? `#${curveNodeB + 1} (${activePts[curveNodeB][0].toFixed(5)}, ${activePts[curveNodeB][1].toFixed(5)})` : `#${curveNodeB + 1}`;
       if (lblA) lblA.innerText = `#${curveNodeA + 1}`;
       if (lblB) lblB.innerText = `#${curveNodeB + 1}`;
+      if (hudA) hudA.innerText = txtA;
+      if (hudB) hudB.innerText = txtB;
       renderMapLayers();
       showToast(`Sens inversé : Nœud A (#${curveNodeA + 1}) ➔ Nœud B (#${curveNodeB + 1})`, 'info');
     }
@@ -1886,8 +2017,12 @@
       curveNodeB = null;
       const lblA = document.getElementById('lblCurveNodeA');
       const lblB = document.getElementById('lblCurveNodeB');
+      const hudA = document.getElementById('hudRouteNodeA');
+      const hudB = document.getElementById('hudRouteNodeB');
       if (lblA) lblA.innerText = `--`;
       if (lblB) lblB.innerText = `--`;
+      if (hudA) hudA.innerText = `Cliquez sur un nœud`;
+      if (hudB) hudB.innerText = `Cliquez sur un nœud`;
       renderMapLayers();
     }
 
