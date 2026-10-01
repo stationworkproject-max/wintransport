@@ -5,10 +5,38 @@ import os
 import re
 import subprocess
 import sys
+import urllib.request
 
 PORT = 5055
 CWD = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 PUBLIC_DIR = os.path.join(CWD, 'public')
+
+def smart_route_osrm(points, chunk_size=20):
+    if len(points) < 2:
+        return points
+    full_route = []
+    for i in range(0, len(points) - 1, chunk_size - 1):
+        chunk = points[i : i + chunk_size]
+        if len(chunk) < 2:
+            continue
+        coords_str = ';'.join(f'{c[1]},{c[0]}' for c in chunk)
+        url = f'https://router.project-osrm.org/route/v1/driving/{coords_str}?overview=full&geometries=geojson'
+        try:
+            req = urllib.request.Request(url, headers={'User-Agent': 'WinTransportStudio/1.0'})
+            with urllib.request.urlopen(req, timeout=12) as resp:
+                data = json.loads(resp.read().decode('utf-8'))
+                if data.get('code') == 'Ok':
+                    leg_pts = [[round(pt[1], 6), round(pt[0], 6)] for pt in data['routes'][0]['geometry']['coordinates']]
+                    if not full_route:
+                        full_route.extend(leg_pts)
+                    else:
+                        full_route.extend(leg_pts[1:])
+                else:
+                    full_route.extend(chunk if not full_route else chunk[1:])
+        except Exception as e:
+            print(f"[OSRM] Error routing chunk {i}: {e}")
+            full_route.extend(chunk if not full_route else chunk[1:])
+    return full_route if full_route else points
 
 class StudioRequestHandler(http.server.SimpleHTTPRequestHandler):
     def __init__(self, *args, **kwargs):
@@ -54,7 +82,6 @@ class StudioRequestHandler(http.server.SimpleHTTPRequestHandler):
                 self.wfile.write(json.dumps({'error': str(e)}).encode('utf-8'))
                 return
 
-        # Default static file serving with UTF-8 charset
         return super().do_GET()
 
     def guess_type(self, path):
@@ -64,7 +91,32 @@ class StudioRequestHandler(http.server.SimpleHTTPRequestHandler):
         return ctype
 
     def do_POST(self):
-        if self.path == '/api/save':
+        if self.path == '/api/route':
+            content_length = int(self.headers['Content-Length'])
+            post_data = self.rfile.read(content_length)
+            try:
+                payload = json.loads(post_data.decode('utf-8'))
+                points = payload.get('points', [])
+                if len(points) < 2:
+                    self.send_response(400)
+                    self.end_headers()
+                    self.wfile.write(json.dumps({'error': 'At least 2 points required'}).encode('utf-8'))
+                    return
+
+                routed_pts = smart_route_osrm(points)
+                self.send_response(200)
+                self.send_header('Content-Type', 'application/json; charset=utf-8')
+                self.end_headers()
+                response = json.dumps({'success': True, 'coordinates': routed_pts})
+                self.wfile.write(response.encode('utf-8'))
+                print(f"[Studio] Smart route calculated: {len(points)} stops -> {len(routed_pts)} street points")
+            except Exception as e:
+                self.send_response(500)
+                self.send_header('Content-Type', 'application/json; charset=utf-8')
+                self.end_headers()
+                self.wfile.write(json.dumps({'success': False, 'error': str(e)}).encode('utf-8'))
+
+        elif self.path == '/api/save':
             content_length = int(self.headers['Content-Length'])
             post_data = self.rfile.read(content_length)
             try:
@@ -81,18 +133,18 @@ class StudioRequestHandler(http.server.SimpleHTTPRequestHandler):
                 with open(shapes_path, 'r', encoding='utf-8') as f:
                     shapes = json.load(f)
 
-                if shape0:
+                if shape0 is not None:
                     shapes[line_id] = shape0
                     shapes[f"{line_id}_0"] = shape0
                     shapes[f"{line_id}_aller"] = shape0
-                if shape1:
+                if shape1 is not None:
                     shapes[f"{line_id}_1"] = shape1
                     shapes[f"{line_id}_retour"] = shape1
 
                 with open(shapes_path, 'w', encoding='utf-8') as f:
                     json.dump(shapes, f, ensure_ascii=False)
 
-                # 2. Update src/data/staticTransit.js
+                # 2. Update src/data/staticTransit.js (both line stops AND all lines sharing moved stations!)
                 transit_path = os.path.join(CWD, 'src', 'data', 'staticTransit.js')
                 with open(transit_path, 'r', encoding='utf-8') as f:
                     st_text = f.read()
@@ -100,6 +152,14 @@ class StudioRequestHandler(http.server.SimpleHTTPRequestHandler):
                 m = re.search(r'export const STATIC_LINES\s*=\s*(\[.*?\]);', st_text, re.DOTALL)
                 if m:
                     lines = json.loads(m.group(1))
+                    
+                    # Map all modified stops by their unique stop id
+                    modified_stops_map = {}
+                    for s in (stops or []) + (stops_aller or []) + (stops_retour or []):
+                        if isinstance(s, dict) and 'id' in s:
+                            modified_stops_map[s['id']] = s
+
+                    # Update target line
                     for l in lines:
                         if l['id'] == line_id:
                             if stops is not None:
@@ -108,8 +168,20 @@ class StudioRequestHandler(http.server.SimpleHTTPRequestHandler):
                                 l['stops_aller'] = stops_aller
                             if stops_retour is not None:
                                 l['stops_retour'] = stops_retour
-                            break
-                    
+
+                        # Update any other lines that contain these modified station coordinates
+                        for k in ['stops', 'stops_aller', 'stops_retour']:
+                            if k in l and isinstance(l[k], list):
+                                for idx, stop_item in enumerate(l[k]):
+                                    sid = stop_item.get('id')
+                                    if sid in modified_stops_map:
+                                        m_stop = modified_stops_map[sid]
+                                        stop_item['lat'] = m_stop['lat']
+                                        stop_item['lon'] = m_stop['lon']
+                                        if 'name_fr' in m_stop: stop_item['name_fr'] = m_stop['name_fr']
+                                        if 'name_ar' in m_stop: stop_item['name_ar'] = m_stop['name_ar']
+                                        if 'name' in m_stop: stop_item['name'] = m_stop['name']
+
                     new_json = json.dumps(lines, ensure_ascii=False, indent=2)
                     st_text = st_text[:m.start(1)] + new_json + st_text[m.end(1):]
                     with open(transit_path, 'w', encoding='utf-8') as f:
@@ -124,9 +196,12 @@ class StudioRequestHandler(http.server.SimpleHTTPRequestHandler):
                 self.send_response(200)
                 self.send_header('Content-Type', 'application/json; charset=utf-8')
                 self.end_headers()
-                response = json.dumps({'success': True, 'message': f'Line {line_id} saved successfully to project files!'})
+                response = json.dumps({
+                    'success': True,
+                    'message': f'Ligne {line_id} et stations enregistrées avec succès dans la base de données !'
+                })
                 self.wfile.write(response.encode('utf-8'))
-                print(f"[Studio] Saved line {line_id}: shape0={len(shape0) if shape0 else 0} pts, shape1={len(shape1) if shape1 else 0} pts")
+                print(f"[Studio] Saved line {line_id} & synced stations across database!")
 
             except Exception as e:
                 self.send_response(500)

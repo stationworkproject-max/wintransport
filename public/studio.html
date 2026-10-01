@@ -31,7 +31,6 @@
     body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; }
     #map { height: 100%; width: 100%; z-index: 10; background: #0f172a; }
     
-    /* Hardware accelerated, buttery-smooth vertex handles */
     .vertex-node {
       width: 14px;
       height: 14px;
@@ -96,13 +95,13 @@
       border: 2px solid white;
       cursor: grab;
       user-select: none;
+      transition: transform 0.1s;
     }
     .station-marker-pin:hover {
-      transform: scale(1.25);
+      transform: scale(1.3);
       z-index: 10000 !important;
     }
 
-    /* Custom Scrollbar */
     ::-webkit-scrollbar { width: 6px; height: 6px; }
     ::-webkit-scrollbar-track { background: #0f172a; }
     ::-webkit-scrollbar-thumb { background: #334155; border-radius: 3px; }
@@ -122,6 +121,124 @@
     </div>
     <div class="w-48 h-1.5 bg-slate-800 rounded-full overflow-hidden">
       <div class="h-full bg-indigo-500 rounded-full animate-pulse" style="width: 70%;"></div>
+    </div>
+  </div>
+
+  <!-- ADD STATION MODAL -->
+  <div id="modalAddStation" class="fixed inset-0 bg-slate-950/80 backdrop-blur z-[9990] hidden flex items-center justify-center p-4">
+    <div class="bg-slate-900 border border-slate-700/80 rounded-2xl w-full max-w-md p-5 shadow-2xl space-y-4">
+      <div class="flex items-center justify-between border-b border-slate-800 pb-3">
+        <h3 class="text-sm font-bold text-white flex items-center gap-2">
+          <i data-lucide="map-pin" class="w-4 h-4 text-emerald-400"></i>
+          Ajouter une Nouvelle Station
+        </h3>
+        <button onclick="closeAddStationModal()" class="text-slate-400 hover:text-white p-1 rounded-lg hover:bg-slate-800">
+          <i data-lucide="x" class="w-4 h-4"></i>
+        </button>
+      </div>
+
+      <div class="space-y-3 text-xs">
+        <div>
+          <label class="block text-slate-400 mb-1 font-semibold">Nom en Français</label>
+          <input type="text" id="modalInputStationFr" placeholder="Ex: Place de Barcelone..." 
+                 class="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-white focus:outline-none focus:border-indigo-500">
+        </div>
+        <div>
+          <label class="block text-slate-400 mb-1 font-semibold">Nom en Arabe</label>
+          <input type="text" id="modalInputStationAr" dir="rtl" placeholder="مثال: ساحة برشلونة..." 
+                 class="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-white focus:outline-none focus:border-indigo-500 font-arabic">
+        </div>
+        <div class="grid grid-cols-2 gap-2">
+          <div>
+            <label class="block text-slate-400 mb-1 font-semibold">Latitude</label>
+            <input type="number" step="0.000001" id="modalInputStationLat" 
+                   class="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-1.5 text-white font-mono text-xs focus:outline-none">
+          </div>
+          <div>
+            <label class="block text-slate-400 mb-1 font-semibold">Longitude</label>
+            <input type="number" step="0.000001" id="modalInputStationLon" 
+                   class="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-1.5 text-white font-mono text-xs focus:outline-none">
+          </div>
+        </div>
+        <div>
+          <label class="block text-slate-400 mb-1 font-semibold">Position dans la ligne</label>
+          <select id="modalSelectStationPosition" class="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-white focus:outline-none">
+            <option value="end">À la fin de la ligne</option>
+            <option value="start">Au début de la ligne</option>
+            <option value="auto">Déterminer automatiquement selon la proximité</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="flex items-center justify-end gap-2 pt-2 border-t border-slate-800">
+        <button onclick="closeAddStationModal()" class="px-4 py-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 font-semibold text-xs transition">
+          Annuler
+        </button>
+        <button onclick="confirmAddStation()" class="px-4 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs flex items-center gap-1.5 shadow transition">
+          <i data-lucide="check" class="w-4 h-4"></i>
+          Créer la Station
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- EDIT EXISTING STATION MODAL -->
+  <div id="modalEditStation" class="fixed inset-0 bg-slate-950/80 backdrop-blur z-[9990] hidden flex items-center justify-center p-4">
+    <div class="bg-slate-900 border border-slate-700/80 rounded-2xl w-full max-w-md p-5 shadow-2xl space-y-4">
+      <div class="flex items-center justify-between border-b border-slate-800 pb-3">
+        <h3 class="text-sm font-bold text-white flex items-center gap-2">
+          <i data-lucide="edit-3" class="w-4 h-4 text-indigo-400"></i>
+          Modifier la Station
+        </h3>
+        <button onclick="closeEditStationModal()" class="text-slate-400 hover:text-white p-1 rounded-lg hover:bg-slate-800">
+          <i data-lucide="x" class="w-4 h-4"></i>
+        </button>
+      </div>
+
+      <div class="space-y-3 text-xs">
+        <div>
+          <label class="block text-slate-400 mb-1 font-semibold">Nom en Français</label>
+          <input type="text" id="editStationInputFr" 
+                 class="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-white focus:outline-none focus:border-indigo-500">
+        </div>
+        <div>
+          <label class="block text-slate-400 mb-1 font-semibold">Nom en Arabe</label>
+          <input type="text" id="editStationInputAr" dir="rtl" 
+                 class="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-white focus:outline-none focus:border-indigo-500 font-arabic">
+        </div>
+        <div class="grid grid-cols-2 gap-2">
+          <div>
+            <label class="block text-slate-400 mb-1 font-semibold">Latitude</label>
+            <input type="number" step="0.000001" id="editStationInputLat" 
+                   class="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-1.5 text-white font-mono text-xs focus:outline-none">
+          </div>
+          <div>
+            <label class="block text-slate-400 mb-1 font-semibold">Longitude</label>
+            <input type="number" step="0.000001" id="editStationInputLon" 
+                   class="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-1.5 text-white font-mono text-xs focus:outline-none">
+          </div>
+        </div>
+        <div class="p-2.5 bg-slate-950 rounded-lg border border-slate-800 text-[11px] text-slate-400 flex items-center justify-between">
+          <span>Identifiant interne de station :</span>
+          <span id="editStationIdBadge" class="font-mono text-indigo-400 font-semibold">--</span>
+        </div>
+      </div>
+
+      <div class="flex items-center justify-between pt-2 border-t border-slate-800">
+        <button onclick="deleteCurrentlyEditingStation()" class="px-3 py-2 rounded-lg bg-rose-950/40 hover:bg-rose-900/60 border border-rose-800/60 text-rose-300 font-semibold text-xs flex items-center gap-1.5 transition">
+          <i data-lucide="trash" class="w-3.5 h-3.5"></i>
+          Supprimer
+        </button>
+        <div class="flex items-center gap-2">
+          <button onclick="closeEditStationModal()" class="px-4 py-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 font-semibold text-xs transition">
+            Annuler
+          </button>
+          <button onclick="confirmEditStation()" class="px-4 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs flex items-center gap-1.5 shadow transition">
+            <i data-lucide="check" class="w-4 h-4"></i>
+            Enregistrer
+          </button>
+        </div>
+      </div>
     </div>
   </div>
 
@@ -157,7 +274,7 @@
 
       <button id="btnSave" onclick="saveActiveLine()" class="flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 active:bg-emerald-700 text-white font-semibold text-xs transition shadow-lg shadow-emerald-900/30">
         <i data-lucide="save" class="w-4 h-4"></i>
-        <span>Enregistrer</span>
+        <span>Enregistrer Base</span>
       </button>
 
       <button id="btnBuildSync" onclick="buildAndSync()" class="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white font-semibold text-xs transition shadow-lg shadow-indigo-900/30">
@@ -196,7 +313,7 @@
         </div>
       </div>
 
-      <!-- MAIN TABS (Lignes / Arrêts / Outils) -->
+      <!-- MAIN TABS (Lignes / Arrêts / Outils & Routage) -->
       <div class="flex border-b border-slate-800 bg-slate-950/40 text-xs font-bold text-slate-400">
         <button id="tabBtnLines" onclick="switchSidebarTab('lines')" class="flex-1 py-2 px-3 flex items-center justify-center gap-1.5 border-b-2 border-indigo-500 text-white bg-slate-800/30">
           <i data-lucide="route" class="w-3.5 h-3.5 text-indigo-400"></i> Lignes
@@ -205,7 +322,7 @@
           <i data-lucide="map-pin" class="w-3.5 h-3.5 text-emerald-400"></i> Arrêts (<span id="tabStopsCount">0</span>)
         </button>
         <button id="tabBtnTools" onclick="switchSidebarTab('tools')" class="flex-1 py-2 px-3 flex items-center justify-center gap-1.5 border-b-2 border-transparent hover:text-white">
-          <i data-lucide="sparkles" class="w-3.5 h-3.5 text-amber-400"></i> Outils & Virages
+          <i data-lucide="navigation" class="w-3.5 h-3.5 text-amber-400"></i> Routage & Outils
         </button>
       </div>
 
@@ -218,20 +335,45 @@
 
       <!-- TAB 2: STOPS LIST (Active Line) -->
       <div id="tabContentStops" class="flex-1 overflow-y-auto p-2 space-y-1.5 hidden">
-        <div class="flex items-center justify-between px-2 py-1 bg-slate-950/60 rounded-md border border-slate-800">
-          <span class="text-xs text-slate-400 font-medium">Séquence des arrêts</span>
-          <button onclick="addNewStopAtMapCenter()" class="text-[11px] px-2 py-1 rounded bg-indigo-600/80 hover:bg-indigo-600 text-white font-semibold flex items-center gap-1">
-            <i data-lucide="plus" class="w-3 h-3"></i> Ajouter un arrêt
-          </button>
+        <div class="flex items-center justify-between px-2 py-1.5 bg-slate-950/80 rounded-lg border border-slate-800">
+          <span class="text-xs text-slate-400 font-medium">Liste des arrêts</span>
+          <div class="flex items-center gap-1">
+            <button onclick="openAddStationModal()" class="text-[11px] px-2.5 py-1 rounded bg-emerald-600 hover:bg-emerald-500 text-white font-semibold flex items-center gap-1 shadow">
+              <i data-lucide="plus" class="w-3 h-3"></i> Nouvel Arrêt
+            </button>
+            <button onclick="setEditMode('add_station_click')" id="btnQuickAddStation" class="text-[11px] px-2 py-1 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 font-medium flex items-center gap-1" title="Cliquer sur la carte pour déposer un arrêt">
+              <i data-lucide="mouse-pointer-click" class="w-3 h-3 text-emerald-400"></i> Au Clic
+            </button>
+          </div>
         </div>
         <div id="stopsListContainer" class="space-y-1">
           <!-- Populated by JavaScript -->
         </div>
       </div>
 
-      <!-- TAB 3: TOOLS & ACTIONS (Including Curve Refinement) -->
+      <!-- TAB 3: SMART ROUTING & TOOLS -->
       <div id="tabContentTools" class="flex-1 overflow-y-auto p-3 space-y-3.5 hidden">
         
+        <!-- SMART GOOGLE MAPS STYLE ROUTING -->
+        <div class="p-3 bg-gradient-to-br from-indigo-950/60 to-slate-900 rounded-xl border border-indigo-700/60 space-y-2.5 shadow-lg">
+          <div class="flex items-center justify-between">
+            <label class="text-xs font-bold text-white flex items-center gap-1.5">
+              <i data-lucide="navigation-2" class="w-4 h-4 text-cyan-400"></i>
+              Tracé Intelligent (Style Google Maps)
+            </label>
+            <span class="text-[10px] px-1.5 py-0.5 rounded bg-cyan-950 text-cyan-300 font-semibold border border-cyan-800">OSRM AI</span>
+          </div>
+
+          <p class="text-[11px] text-slate-300 leading-tight">
+            Génère instantanément un <strong>itinéraire propre épousant exactement les routes et carrefours</strong> à travers tous les arrêts de la ligne.
+          </p>
+
+          <button id="btnSmartRoute" onclick="generateSmartRouteFromStops()" class="w-full py-2 px-3 rounded-lg bg-indigo-600 hover:bg-indigo-500 active:bg-indigo-700 text-white font-bold text-xs flex items-center justify-center gap-2 shadow-lg shadow-indigo-950/50 transition">
+            <i data-lucide="wand-2" class="w-4 h-4 text-amber-300"></i>
+            Tracer Automatiquement entre les Arrêts
+          </button>
+        </div>
+
         <!-- Editing Modes -->
         <div>
           <label class="text-[11px] font-bold text-slate-400 uppercase tracking-wider block mb-1.5">Mode d'Action sur la Carte</label>
@@ -239,36 +381,31 @@
             <button onclick="setEditMode('drag')" id="modeBtnDrag" class="p-2 rounded-lg border border-indigo-600 bg-indigo-600/20 text-indigo-300 flex items-center gap-2">
               <i data-lucide="move" class="w-4 h-4"></i> Déplacer Nœuds
             </button>
+            <button onclick="setEditMode('stations')" id="modeBtnStations" class="p-2 rounded-lg border border-slate-800 bg-slate-950 text-slate-400 hover:text-white flex items-center gap-2">
+              <i data-lucide="map-pin" class="w-4 h-4"></i> Déplacer Arrêts
+            </button>
             <button onclick="setEditMode('curve_select')" id="modeBtnCurve" class="p-2 rounded-lg border border-slate-800 bg-slate-950 text-amber-300 hover:text-white flex items-center gap-2">
               <i data-lucide="sparkles" class="w-4 h-4 text-amber-400"></i> Arrondir Virage
             </button>
             <button onclick="setEditMode('add_end')" id="modeBtnAddEnd" class="p-2 rounded-lg border border-slate-800 bg-slate-950 text-slate-400 hover:text-white flex items-center gap-2">
               <i data-lucide="plus-circle" class="w-4 h-4"></i> Ajouter à la Fin
             </button>
-            <button onclick="setEditMode('add_start')" id="modeBtnAddStart" class="p-2 rounded-lg border border-slate-800 bg-slate-950 text-slate-400 hover:text-white flex items-center gap-2">
-              <i data-lucide="corner-up-left" class="w-4 h-4"></i> Ajouter au Début
-            </button>
           </div>
         </div>
 
         <!-- SPECIAL FEATURE: CURVE / ROUND SHAPE REFINEMENT (NODE TO NODE) -->
-        <div class="p-3 bg-indigo-950/40 rounded-xl border border-indigo-800/60 space-y-2.5">
+        <div class="p-3 bg-slate-900/90 rounded-xl border border-slate-800 space-y-2.5">
           <div class="flex items-center justify-between">
-            <label class="text-xs font-bold text-indigo-200 flex items-center gap-1.5">
+            <label class="text-xs font-bold text-slate-200 flex items-center gap-1.5">
               <i data-lucide="sparkles" class="w-4 h-4 text-amber-400"></i>
-              Lissage & Arrondi de Virage
+              Arrondi & Lissage de Virage (Nœud à Nœud)
             </label>
-            <span class="text-[10px] px-1.5 py-0.5 rounded bg-indigo-900/80 text-indigo-300 font-mono">Anti-Angles</span>
+            <span class="text-[10px] px-1.5 py-0.5 rounded bg-slate-800 text-slate-300 font-mono">Anti-Angles</span>
           </div>
-          
-          <p class="text-[11px] text-slate-300 leading-tight">
-            Transforme les virages angulaires en <strong>courbes circulaires parfaites et lisses</strong> entre deux nœuds.
-          </p>
 
-          <!-- Selection status -->
-          <div id="curveSelectionStatusBox" class="p-2 bg-slate-950/80 rounded-lg border border-slate-800 text-xs flex items-center justify-between">
+          <div id="curveSelectionStatusBox" class="p-2 bg-slate-950 rounded-lg border border-slate-800 text-xs flex items-center justify-between">
             <div class="space-y-0.5">
-              <div class="text-[10px] text-slate-400">Zone du virage sélectionnée :</div>
+              <div class="text-[10px] text-slate-400">Zone du virage :</div>
               <div id="curveSelectionLabels" class="font-semibold text-slate-200 text-[11px]">
                 <span class="text-emerald-400">Nœud A : <strong id="lblCurveNodeA">--</strong></span> ➔ 
                 <span class="text-rose-400">Nœud B : <strong id="lblCurveNodeB">--</strong></span>
@@ -279,17 +416,16 @@
             </button>
           </div>
 
-          <!-- Curve Options -->
           <div class="grid grid-cols-2 gap-2 text-xs">
             <div>
-              <label class="text-[10px] text-slate-400 block mb-1">Méthode d'Arrondi</label>
+              <label class="text-[10px] text-slate-400 block mb-1">Méthode</label>
               <select id="selCurveMethod" class="w-full bg-slate-950 border border-slate-800 rounded px-2 py-1 text-slate-200 text-xs focus:outline-none">
-                <option value="chaikin">Chaikin (Naturel / Voies)</option>
-                <option value="spline">Spline Catmull-Rom (Ultra Lisse)</option>
+                <option value="chaikin">Chaikin (Naturel / Rails)</option>
+                <option value="spline">Spline (Ultra Lisse)</option>
               </select>
             </div>
             <div>
-              <label class="text-[10px] text-slate-400 block mb-1">Intensité / Niveaux</label>
+              <label class="text-[10px] text-slate-400 block mb-1">Intensité</label>
               <select id="selCurveLevel" class="w-full bg-slate-950 border border-slate-800 rounded px-2 py-1 text-slate-200 text-xs focus:outline-none">
                 <option value="1">Léger (1x)</option>
                 <option value="2" selected>Moyen (2x)</option>
@@ -298,11 +434,10 @@
             </div>
           </div>
 
-          <!-- Apply buttons -->
           <div class="space-y-1.5 pt-1">
-            <button onclick="applyCurveSmoothingOnRange()" id="btnApplyCurve" class="w-full py-1.5 px-3 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs flex items-center justify-center gap-1.5 shadow transition">
-              <i data-lucide="wand-2" class="w-3.5 h-3.5 text-amber-300"></i>
-              Arrondir le Virage Sélectionné
+            <button onclick="applyCurveSmoothingOnRange()" id="btnApplyCurve" class="w-full py-1.5 px-3 rounded-lg bg-amber-600 hover:bg-amber-500 text-white font-bold text-xs flex items-center justify-center gap-1.5 shadow transition">
+              <i data-lucide="wand-2" class="w-3.5 h-3.5"></i>
+              Arrondir ce Virage
             </button>
             <button onclick="applyGlobalSmoothing()" class="w-full py-1.5 px-3 rounded-lg bg-slate-950 hover:bg-slate-800 border border-slate-800 text-slate-300 hover:text-white font-medium text-xs flex items-center justify-center gap-1.5 transition">
               <i data-lucide="sparkles" class="w-3.5 h-3.5 text-indigo-400"></i>
@@ -422,7 +557,7 @@
         <!-- Mode Instructions Toast -->
         <div class="pointer-events-auto bg-slate-900/95 border border-slate-700/80 px-3 py-1.5 rounded-lg text-xs font-medium text-slate-200 shadow-xl backdrop-blur flex items-center gap-2">
           <i data-lucide="info" class="w-4 h-4 text-indigo-400 shrink-0"></i>
-          <span id="modeInstructionText">💡 <strong>Glissez un nœud</strong> pour le déplacer. <strong>Double-cliquez sur la ligne</strong> pour insérer un nœud. <strong>Clic droit</strong> pour supprimer.</span>
+          <span id="modeInstructionText">💡 <strong>Glissez un nœud</strong> pour modifier le tracé. <strong>Double-cliquez sur la ligne</strong> pour insérer un nœud. <strong>Glissez un arrêt</strong> pour le déplacer.</span>
         </div>
 
         <!-- Cursor Coordinates & Zoom -->
@@ -453,7 +588,7 @@
     let searchQuery = '';
     let selectedLine = null;
     let editingDirection = 0; // 0 = Aller, 1 = Retour
-    let activeEditMode = 'drag'; // 'drag', 'curve_select', 'add_end', 'add_start', 'stations'
+    let activeEditMode = 'drag'; // 'drag', 'curve_select', 'add_end', 'add_start', 'stations', 'add_station_click'
 
     let currentShape0 = [];
     let currentShape1 = [];
@@ -462,8 +597,11 @@
     let currentStops = [];
 
     // Curve Smoothing Range selection indices
-    let curveNodeA = null; // Start node index
-    let curveNodeB = null; // End node index
+    let curveNodeA = null;
+    let curveNodeB = null;
+
+    // Station currently being edited in modal
+    let editingStationObj = null;
 
     let historyStack = [];
     let historyIndex = -1;
@@ -571,9 +709,16 @@
       document.getElementById('hudZoom').innerText = map.getZoom();
     });
 
-    // Map Click for "Add Points" mode
+    // Map Click Handler (for Adding Points or Dropping Stations)
     map.on('click', (e) => {
       if (!selectedLine) return;
+
+      if (activeEditMode === 'add_station_click') {
+        openAddStationModal(e.latlng.lat, e.latlng.lng);
+        setEditMode('stations');
+        return;
+      }
+
       if (activeEditMode === 'add_end' || activeEditMode === 'add_start') {
         const newPt = [parseFloat(e.latlng.lat.toFixed(6)), parseFloat(e.latlng.lng.toFixed(6))];
         const activeTrack = getActiveTrack();
@@ -733,7 +878,6 @@
             riseOnHover: true
           });
 
-          // Curve selection click
           if (activeEditMode === 'curve_select') {
             marker.on('click', (e) => {
               L.DomEvent.stopPropagation(e);
@@ -741,7 +885,6 @@
             });
           }
 
-          // Drag event in 'drag' mode
           if (activeEditMode === 'drag') {
             marker.on('drag', (e) => {
               const newPos = [parseFloat(e.latlng.lat.toFixed(6)), parseFloat(e.latlng.lng.toFixed(6))];
@@ -760,7 +903,6 @@
               updateStatsBadge();
             });
 
-            // Right-click to delete
             marker.on('contextmenu', (e) => {
               L.DomEvent.stopPropagation(e);
               L.DomEvent.preventDefault(e);
@@ -785,7 +927,7 @@
         });
       }
 
-      // 4. Update Curve Preview Polyline if range selected
+      // 4. Update Curve Preview Polyline
       if (curveNodeA !== null && curveNodeB !== null) {
         const start = Math.min(curveNodeA, curveNodeB);
         const end = Math.max(curveNodeA, curveNodeB);
@@ -795,7 +937,7 @@
         curvePreviewPolyline.setLatLngs([]);
       }
 
-      // 5. Render Station Pins
+      // 5. Render Station Pins (Draggable & Clickable)
       stationMarkersGroup.clearLayers();
       if (showStations) {
         const activeStops = getActiveStops();
@@ -816,27 +958,33 @@
             iconAnchor: [iconSize / 2, iconSize / 2]
           });
 
+          // In station edit mode or default, allow dragging
           const stationMarker = L.marker([stop.lat, stop.lon], {
             icon: icon,
-            draggable: activeEditMode === 'stations'
+            draggable: true,
+            riseOnHover: true
           });
 
-          if (activeEditMode === 'stations') {
-            stationMarker.on('dragend', (e) => {
-              const newPos = e.target.getLatLng();
-              stop.lat = parseFloat(newPos.lat.toFixed(6));
-              stop.lon = parseFloat(newPos.lng.toFixed(6));
-              pushHistory();
-              renderStopsList();
-              showToast(`Position de ${stopName} mise à jour`, 'success');
-            });
-          }
+          stationMarker.on('dragend', (e) => {
+            const newPos = e.target.getLatLng();
+            stop.lat = parseFloat(newPos.lat.toFixed(6));
+            stop.lon = parseFloat(newPos.lng.toFixed(6));
+            pushHistory();
+            renderStopsList();
+            showToast(`Position de ${stopName} déplacée à (${stop.lat.toFixed(5)}, ${stop.lon.toFixed(5)}) ! Cliquez sur "Enregistrer Base" pour persister.`, 'success');
+          });
+
+          stationMarker.on('click', (e) => {
+            L.DomEvent.stopPropagation(e);
+            openEditStationModal(stop, index);
+          });
 
           stationMarker.bindTooltip(`
             <div class="p-1 font-sans">
               <div class="font-bold text-xs text-white">#${index + 1} ${stopName}</div>
               ${stopNameAr ? `<div class="text-[11px] text-amber-300 font-arabic" dir="rtl">${stopNameAr}</div>` : ''}
               <div class="text-[10px] text-slate-300 font-mono mt-0.5">${stop.lat.toFixed(6)}, ${stop.lon.toFixed(6)}</div>
+              <div class="text-[9px] text-emerald-400 mt-1 font-semibold">📍 Glisser pour déplacer • Cliquer pour modifier</div>
             </div>
           `, { direction: 'top', offset: [0, -10] });
 
@@ -1015,13 +1163,13 @@
 
       activeStops.forEach((stop, index) => {
         const card = document.createElement('div');
-        card.className = 'p-2 bg-slate-950/80 rounded-lg border border-slate-800/80 flex items-center justify-between text-xs gap-2';
+        card.className = 'p-2 bg-slate-950/80 rounded-lg border border-slate-800/80 flex items-center justify-between text-xs gap-2 hover:border-slate-700 transition';
 
         const name = stop.name_fr || stop.name || `Arrêt #${index + 1}`;
         const nameAr = stop.name_ar || '';
 
         card.innerHTML = `
-          <div class="flex items-center gap-2 min-w-0">
+          <div class="flex items-center gap-2 min-w-0 cursor-pointer flex-1" onclick="panToStop(${stop.lat}, ${stop.lon})">
             <span class="w-5 h-5 rounded-full bg-slate-800 text-slate-300 font-bold text-[10px] flex items-center justify-center shrink-0">
               ${index + 1}
             </span>
@@ -1032,6 +1180,9 @@
             </div>
           </div>
           <div class="flex items-center gap-1 shrink-0">
+            <button onclick="openEditStationModalByIndex(${index})" class="p-1 rounded hover:bg-slate-800 text-indigo-400 hover:text-white" title="Modifier nom & coordonnées">
+              <i data-lucide="edit-2" class="w-3.5 h-3.5"></i>
+            </button>
             <button onclick="panToStop(${stop.lat}, ${stop.lon})" class="p-1 rounded hover:bg-slate-800 text-slate-400 hover:text-white" title="Centrer la carte">
               <i data-lucide="crosshair" class="w-3.5 h-3.5"></i>
             </button>
@@ -1060,23 +1211,104 @@
       showToast(`Arrêt #${index + 1} supprimé`, 'info');
     }
 
-    function addNewStopAtMapCenter() {
-      if (!selectedLine) return;
-      const center = map.getCenter();
+    // --- STATION MODAL MANAGEMENT ---
+    function openAddStationModal(lat = null, lon = null) {
+      if (!selectedLine) {
+        showToast('Veuillez d\'abord sélectionner une ligne', 'warning');
+        return;
+      }
+      const center = lat !== null ? { lat, lng: lon } : map.getCenter();
+      document.getElementById('modalInputStationFr').value = `Nouvel Arrêt`;
+      document.getElementById('modalInputStationAr').value = `محطة جديدة`;
+      document.getElementById('modalInputStationLat').value = center.lat.toFixed(6);
+      document.getElementById('modalInputStationLon').value = center.lng.toFixed(6);
+      document.getElementById('modalAddStation').classList.remove('hidden');
+    }
+
+    function closeAddStationModal() {
+      document.getElementById('modalAddStation').classList.add('hidden');
+    }
+
+    function confirmAddStation() {
+      const nameFr = document.getElementById('modalInputStationFr').value.trim() || 'Nouvel Arrêt';
+      const nameAr = document.getElementById('modalInputStationAr').value.trim() || 'محطة جديدة';
+      const lat = parseFloat(document.getElementById('modalInputStationLat').value);
+      const lon = parseFloat(document.getElementById('modalInputStationLon').value);
+      const position = document.getElementById('modalSelectStationPosition').value;
+
+      if (isNaN(lat) || isNaN(lon)) {
+        showToast('Coordonnées invalides', 'warning');
+        return;
+      }
+
       const activeStops = getActiveStops();
       const newStop = {
-        id: `st-custom-${Date.now()}`,
-        name: `Nouvel Arrêt #${activeStops.length + 1}`,
-        name_fr: `Nouvel Arrêt #${activeStops.length + 1}`,
-        name_ar: `محطة جديدة #${activeStops.length + 1}`,
-        lat: parseFloat(center.lat.toFixed(6)),
-        lon: parseFloat(center.lng.toFixed(6))
+        id: `st-user-${Date.now()}`,
+        name: nameFr,
+        name_fr: nameFr,
+        name_ar: nameAr,
+        lat: parseFloat(lat.toFixed(6)),
+        lon: parseFloat(lon.toFixed(6))
       };
-      activeStops.push(newStop);
+
+      if (position === 'start') {
+        activeStops.unshift(newStop);
+      } else {
+        activeStops.push(newStop);
+      }
+
       pushHistory();
       renderStopsList();
       renderMapLayers();
-      showToast('Nouvel arrêt ajouté au centre de la carte', 'success');
+      closeAddStationModal();
+      showToast(`✓ Station "${nameFr}" créée avec succès ! Cliquez sur "Enregistrer Base" pour persister.`, 'success');
+    }
+
+    function openEditStationModalByIndex(index) {
+      const activeStops = getActiveStops();
+      const stop = activeStops[index];
+      if (stop) openEditStationModal(stop, index);
+    }
+
+    function openEditStationModal(stop, index) {
+      editingStationObj = { stop, index };
+      document.getElementById('editStationInputFr').value = stop.name_fr || stop.name || '';
+      document.getElementById('editStationInputAr').value = stop.name_ar || '';
+      document.getElementById('editStationInputLat').value = stop.lat.toFixed(6);
+      document.getElementById('editStationInputLon').value = stop.lon.toFixed(6);
+      document.getElementById('editStationIdBadge').innerText = stop.id || 'Nouveau';
+      document.getElementById('modalEditStation').classList.remove('hidden');
+    }
+
+    function closeEditStationModal() {
+      document.getElementById('modalEditStation').classList.add('hidden');
+      editingStationObj = null;
+    }
+
+    function confirmEditStation() {
+      if (!editingStationObj) return;
+      const { stop } = editingStationObj;
+
+      stop.name_fr = document.getElementById('editStationInputFr').value.trim() || stop.name_fr;
+      stop.name = stop.name_fr;
+      stop.name_ar = document.getElementById('editStationInputAr').value.trim() || stop.name_ar;
+      const lat = parseFloat(document.getElementById('editStationInputLat').value);
+      const lon = parseFloat(document.getElementById('editStationInputLon').value);
+      if (!isNaN(lat)) stop.lat = parseFloat(lat.toFixed(6));
+      if (!isNaN(lon)) stop.lon = parseFloat(lon.toFixed(6));
+
+      pushHistory();
+      renderStopsList();
+      renderMapLayers();
+      closeEditStationModal();
+      showToast(`✓ Station "${stop.name_fr}" mise à jour !`, 'success');
+    }
+
+    function deleteCurrentlyEditingStation() {
+      if (!editingStationObj) return;
+      const { index } = editingStationObj;
+      closeEditStationModal();
+      deleteStop(index);
     }
 
     function switchSidebarTab(tab) {
@@ -1102,36 +1334,76 @@
 
     function setEditMode(mode) {
       activeEditMode = mode;
-      document.querySelectorAll('#modeBtnDrag, #modeBtnCurve, #modeBtnAddEnd, #modeBtnAddStart, #modeBtnStations').forEach(b => {
-        b.className = 'p-2 rounded-lg border border-slate-800 bg-slate-950 text-slate-400 hover:text-white flex items-center gap-2';
+      document.querySelectorAll('#modeBtnDrag, #modeBtnCurve, #modeBtnAddEnd, #modeBtnStations, #btnQuickAddStation').forEach(b => {
+        if (b) b.className = 'p-2 rounded-lg border border-slate-800 bg-slate-950 text-slate-400 hover:text-white flex items-center gap-2';
       });
 
       const activeBtn = mode === 'drag' ? document.getElementById('modeBtnDrag') :
                         mode === 'curve_select' ? document.getElementById('modeBtnCurve') :
                         mode === 'add_end' ? document.getElementById('modeBtnAddEnd') :
-                        mode === 'add_start' ? document.getElementById('modeBtnAddStart') : document.getElementById('modeBtnStations');
+                        mode === 'stations' ? document.getElementById('modeBtnStations') :
+                        mode === 'add_station_click' ? document.getElementById('btnQuickAddStation') : null;
       if (activeBtn) {
         activeBtn.className = 'p-2 rounded-lg border border-indigo-600 bg-indigo-600/20 text-indigo-300 flex items-center gap-2';
       }
 
       const instructionEl = document.getElementById('modeInstructionText');
       if (mode === 'drag') {
-        instructionEl.innerHTML = '💡 <strong>Glissez un nœud</strong> pour modifier le tracé. <strong>Double-cliquez sur la ligne</strong> pour insérer un nœud. <strong>Clic droit</strong> pour supprimer.';
+        instructionEl.innerHTML = '💡 <strong>Glissez un nœud</strong> pour modifier le tracé. <strong>Double-cliquez sur la ligne</strong> pour insérer un nœud. <strong>Glissez un arrêt</strong> pour le déplacer.';
       } else if (mode === 'curve_select') {
         instructionEl.innerHTML = '🪄 <strong>Mode Arrondi :</strong> Cliquez sur le <strong>Nœud A</strong> (début du virage), puis sur le <strong>Nœud B</strong> (fin du virage).';
       } else if (mode === 'add_end') {
         instructionEl.innerHTML = '➕ <strong>Ajouter à la Fin :</strong> Cliquez n\'importe où sur la carte pour tracer de nouveaux points à la fin de la ligne.';
-      } else if (mode === 'add_start') {
-        instructionEl.innerHTML = '⏮️ <strong>Ajouter au Début :</strong> Cliquez sur la carte pour ajouter des points au point de départ de la ligne.';
       } else if (mode === 'stations') {
         instructionEl.innerHTML = '📍 <strong>Mode Déplacer Arrêts :</strong> Glissez directement les pastilles d\'arrêts numérotées sur la carte.';
+      } else if (mode === 'add_station_click') {
+        instructionEl.innerHTML = '📍 <strong>Ajouter Arrêt au Clic :</strong> Cliquez n\'importe où sur la carte satellite pour placer un nouvel arrêt.';
       }
 
       renderMapLayers();
     }
 
     // -------------------------------------------------------------
-    // 6. CURVE SMOOTHING & ROUNDING MATHEMATICS
+    // 6. SMART GOOGLE MAPS STYLE ROUTING
+    // -------------------------------------------------------------
+    async function generateSmartRouteFromStops() {
+      if (!selectedLine) return;
+      const activeStops = getActiveStops();
+      if (!activeStops || activeStops.length < 2) {
+        showToast('La ligne doit comporter au moins 2 arrêts pour générer un itinéraire', 'warning');
+        return;
+      }
+
+      const stopCoords = activeStops.map(s => [s.lat, s.lon]);
+      const btn = document.getElementById('btnSmartRoute');
+      const originalText = btn.innerHTML;
+      btn.innerHTML = `<i data-lucide="loader-2" class="w-4 h-4 animate-spin text-cyan-300"></i> Calcul de l'itinéraire routier Google Maps...`;
+
+      try {
+        const res = await fetch('/api/route', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ points: stopCoords })
+        });
+        const data = await res.json();
+        if (data.success && data.coordinates && data.coordinates.length > 0) {
+          setActiveTrack(data.coordinates);
+          pushHistory();
+          renderMapLayers();
+          showToast(`✓ Itinéraire intelligent généré avec succès (${data.coordinates.length} points le long des routes réelles) !`, 'success');
+        } else {
+          showToast(`Erreur de routage : ${data.error || 'Impossible de calculer la route'}`, 'error');
+        }
+      } catch (err) {
+        showToast('Erreur de connexion au serveur de routage local', 'error');
+      } finally {
+        btn.innerHTML = originalText;
+        lucide.createIcons();
+      }
+    }
+
+    // -------------------------------------------------------------
+    // 7. CURVE SMOOTHING & ROUNDING MATHEMATICS
     // -------------------------------------------------------------
     function handleNodeClickForCurve(index) {
       if (curveNodeA === null) {
@@ -1147,7 +1419,6 @@
         document.getElementById('lblCurveNodeB').innerText = `#${index + 1}`;
         showToast(`Zone de virage prête : du Nœud #${Math.min(curveNodeA, curveNodeB) + 1} au Nœud #${Math.max(curveNodeA, curveNodeB) + 1}`, 'success');
       } else {
-        // Reset and select as new A
         curveNodeA = index;
         curveNodeB = null;
         document.getElementById('lblCurveNodeA').innerText = `#${index + 1}`;
@@ -1164,7 +1435,6 @@
       renderMapLayers();
     }
 
-    // Chaikin's Corner Cutting Algorithm (Standard for Rails & Roads)
     function chaikinSmooth(points, iterations = 2) {
       if (points.length < 3) return points;
       let current = points;
@@ -1184,7 +1454,6 @@
       return current.map(p => [parseFloat(p[0].toFixed(6)), parseFloat(p[1].toFixed(6))]);
     }
 
-    // Catmull-Rom Spline Interpolation
     function catmullRomSpline(points, pointsPerSegment = 5) {
       if (points.length < 3) return points;
       const result = [];
@@ -1241,7 +1510,6 @@
         smoothedSub = catmullRomSpline(subPoints, pps);
       }
 
-      // Replace the sub-range with smoothed points
       activePts.splice(start, rangeLen, ...smoothedSub);
 
       pushHistory();
@@ -1267,7 +1535,7 @@
     }
 
     // -------------------------------------------------------------
-    // 7. TRACK TRANSFORMATIONS
+    // 8. TRACK TRANSFORMATIONS
     // -------------------------------------------------------------
     function cloneAndReverseOpposite() {
       if (!selectedLine) return;
@@ -1347,7 +1615,7 @@
     }
 
     // -------------------------------------------------------------
-    // 8. HISTORY (UNDO / REDO)
+    // 9. HISTORY (UNDO / REDO)
     // -------------------------------------------------------------
     function pushHistory() {
       const snapshot = {
@@ -1404,7 +1672,7 @@
     });
 
     // -------------------------------------------------------------
-    // 9. STATS & DISTANCES
+    // 10. STATS & DISTANCES
     // -------------------------------------------------------------
     function calculateDistanceKm(pts) {
       if (!pts || pts.length < 2) return 0;
@@ -1435,7 +1703,7 @@
     }
 
     // -------------------------------------------------------------
-    // 10. SAVE & EXPORT
+    // 11. SAVE & EXPORT
     // -------------------------------------------------------------
     async function saveActiveLine() {
       if (!selectedLine) {
@@ -1454,7 +1722,7 @@
 
       const btn = document.getElementById('btnSave');
       const originalText = btn.innerHTML;
-      btn.innerHTML = `<i data-lucide="loader-2" class="w-4 h-4 animate-spin"></i> Enregistrement...`;
+      btn.innerHTML = `<i data-lucide="loader-2" class="w-4 h-4 animate-spin"></i> Enregistrement en base...`;
 
       try {
         const res = await fetch('/api/save', {
@@ -1464,7 +1732,7 @@
         });
         const data = await res.json();
         if (data.success) {
-          showToast(`✓ Ligne ${selectedLine.short_name || selectedLine.id} enregistrée dans les fichiers du projet !`, 'success');
+          showToast(`✓ Ligne ${selectedLine.short_name || selectedLine.id} et coordonnées des stations enregistrées dans staticTransit.js & transitShapes.json !`, 'success');
         } else {
           showToast(`Erreur : ${data.error}`, 'error');
         }
@@ -1514,12 +1782,12 @@
       setTimeout(() => { toast.classList.remove('opacity-0', 'translate-y-2'); }, 10);
       setTimeout(() => {
         toast.classList.add('opacity-0', 'translate-y-2');
-        setTimeout(() => toast.remove(), 300);
-      }, 3500);
+        setTimeout(() => toast.remove(), 3500);
+      }, 4000);
     }
 
     // -------------------------------------------------------------
-    // 11. START APPLICATION
+    // 12. START APPLICATION
     // -------------------------------------------------------------
     window.addEventListener('DOMContentLoaded', () => {
       loadDataAndBootstrap();
