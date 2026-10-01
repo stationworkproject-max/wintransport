@@ -24,37 +24,37 @@ Ouvrez ensuite votre navigateur à l'adresse :
 - **Filtres par réseau :** Tous, Métro Léger (1 à 6), TGM, RFR (Lignes E & D), Trains SNCFT (Grandes Lignes & Banlieue Sud), Bus Transtu (toutes les lignes urbaines).
 - **Recherche Instantanée :** Tapez le numéro ou nom de ligne (ex: `TGM`, `Métro 4`, `38B`, `RFR E`, `SNCFT 21`...).
 
-### 2. Gestion Indépendante Aller (0) & Retour (1)
-- **Choix de la voie à éditer :**
-  - 🔵 **Aller (0)** : Voie active en Cyan avec poignées de manipulation.
-  - 🟠 **Retour (1)** : Voie active en Ambre avec poignées de manipulation.
-- **Affichage simultané ou individuel :** Deux cases à cocher permettent d'afficher l'Aller seul, le Retour seul, ou **les deux voies en même temps** pour aligner les deux voies parallèles avec précision sur l'imagerie satellite.
+### 2. Gestion Ciblée Aller (0), Retour (1) & Les Deux (Simultané)
+- **Cible de Correction & Tracé :**
+  - 🔵 **Aller (0)** : Voie active en Cyan.
+  - 🟠 **Retour (1)** : Voie active en Ambre.
+  - 🟣 **Les Deux (Simultané)** : Permet de tracer et corriger les voies Aller ET Retour en parallèle en un seul clic !
+- **Affichage sur la carte :** Deux cases à cocher permettent d'afficher l'Aller seul, le Retour seul, ou les deux voies superposées sur le plan Google Maps.
 
-### 3. Édition des Nœuds & Tracés
-- **Déplacer un nœud :** Cliquez et glissez n'importe quel point rond sur la carte satellite. Le tracé s'adapte en temps réel à 60 FPS sans clignotement.
-- **Insérer un nœud :** **Double-cliquez directement sur la ligne** à l'endroit souhaité pour insérer un nouveau point.
-- **Supprimer un nœud :** **Clic droit** sur un nœud rond pour le supprimer.
-- **Mode Ajouter au Clic :** Permet de prolonger le tracé point par point en cliquant sur la carte (option *Ajouter à la Fin* ou *Ajouter au Début*).
+### 3. Fonds de Carte Haute Précision
+- 🗺️ **Plan Google (Par défaut)** : Affiche le véritable fond de carte routier de Google Maps avec le réseau des rues, numéros de routes nationales (RN, RR, R33...), ponts, giratoires et terre-pleins centraux.
+- 🛰️ **Satellite Google** : Imagerie aérienne détaillée pour positionner les voies sur les chaussées et quais physiques.
+- 🚦 **Trafic Google** : Visualisation en direct du trafic et des axes principaux.
+- 🌙 **Plan Sombre** : Mode haute visibilité nocturne.
 
-### 4. 🧭 Tracé Intelligent Directionnel & Anti-Boucle (Anti-Demi-Tour)
-Pour générer ou corriger un itinéraire qui **épouse fidèlement la route dans le bon sens de circulation**, sans faire de demi-tours farfelus ni de boucles inutiles :
-1. Rendez-vous dans l'onglet **« Routage & Outils »**.
-2. Sélectionnez le **Mode de Routage** :
-   - ⚡ **Automatique** : détecte automatiquement s'il s'agit d'une ligne ferroviaire (Métro, TGM, Train, RFR) ou de bus.
-   - 🚗 **Routier Intelligent** : force le cap directionnel (`bearings`) et interdit formellement les demi-tours (`continue_straight=true`) pour rester sur la bonne chaussée (Aller vs Retour).
-   - 🚌 **Direct & Couloirs Bus** : emprunte les couloirs de bus, voies réservées et zones piétonnes directes (Habib Bourguiba, Passage, Barcelone) sans détours autoroutiers.
-   - 🚆 **Réseau Ferré Réel** : suit strictement les rails de chemin de fer et voies de métro léger (`rail.geojson`).
-3. Options activées par défaut :
-   - ☑️ **Anti-Boucle** : détecte et élimine automatiquement les boucles et épingles à cheveux où le véhicule quitte l'avenue et revient au même endroit.
-   - ☑️ **Sens de Circulation Strict** : aligne le tracé sur la chaussée correspondant au sens Aller ou Retour.
-4. **Tracer Tout l'Itinéraire :** Cliquez sur **« 🪄 Tracer Tout l'Itinéraire entre les Arrêts »**.
-5. **Tracer / Corriger un Tronçon Spécifique :**
-   - Sélectionnez le mode **« Arrondir / Tronçon »**.
-   - Cliquez sur le **Nœud A** puis sur le **Nœud B** encadrant la zone à corriger.
-   - Cliquez sur **« 🧭 Tracer ce Tronçon sur la Route »** pour réaligner uniquement cette portion sans toucher au reste de la ligne !
-6. **Bouton « ✂️ Supprimer les Boucles & Demi-Tours du Tracé » :** Nettoie en 1 clic toute boucle ou détour parasite sur le tracé actif.
+### 4. 🧭 Tracé d'Itinéraire Tronçon (Nœud A ➔ Nœud B) style Google Maps
+Pour corriger un tronçon problématique (par exemple un virage coupé, un terre-plein franchi illégalement ou un demi-tour manqué) :
+1. Activez le mode **« Arrondir / Tronçon »**.
+2. **Cliquez sur le Nœud A** (Point de départ / point d'origine) 👉 un badge vert fluo **`A (Départ)`** s'affiche sur la carte.
+3. **Cliquez sur le Nœud B** (Point d'arrivée / prochain point à atteindre) 👉 un badge rouge **`B (Arrivée)`** s'affiche sur la carte.
+4. **Tracé Automatique :** Si l'option *« Tracer auto dès sélection du Nœud B »* est cochée, le tronçon est instantanément recalculé et plaqué sur la route selon l'itinéraire Google Maps !
+5. **Respect strict du code de la route :**
+   - L'itinéraire prend obligatoirement les ronds-points (« hip ») pour faire demi-tour.
+   - Il emprunte les bretelles et ponts légaux sans jamais couper à travers les terre-pleins ou rails.
+6. **Bouton « Inverser A ⇄ B » :** Inverse immédiatement le sens de parcours en cas de besoin.
+7. **Bouton « Tracer l'Itinéraire Google Maps (A ➔ B) » :** Déclenche le calcul manuel à la demande.
 
-### 5. 🪄 Outil d'Arrondi & Lissage de Virage (Anti-Angles)
+### 5. 🪄 Tracé Global de la Ligne & Anti-Boucles
+- Cliquez sur **« Tracer la Voie »** pour recalculer l'ensemble de l'itinéraire le long de tous les arrêts.
+- Si le mode **« Les Deux »** est sélectionné, l'Aller et le Retour sont tous les deux calculés et synchronisés en parallèle.
+- Le bouton **« Supprimer les Boucles & Demi-Tours »** élimine les petits décrochés ou fausses manœuvres.
+
+### 6. 🪄 Outil d'Arrondi & Lissage de Virage (Anti-Angles)
 Pour transformer des virages bruts ou angulaires en **courbes circulaires parfaites** :
 1. Dans l'onglet **« Routage & Outils »**, activez le mode **« 🪄 Arrondir Virage »**.
 2. Cliquez sur le **Nœud A** (début du virage) 👉 il devient vert.
@@ -66,7 +66,7 @@ Pour transformer des virages bruts ou angulaires en **courbes circulaires parfai
 6. Cliquez sur **« 🪄 Arrondir ce Virage »**.
 7. *(Optionnel)* Cliquez sur **« Lisser Tous les Angles de la Ligne »** pour adoucir toute la ligne d'un seul coup.
 
-### 6. 📍 Gestion Complète des Stations & Synchronisation Base de Données
+### 7. 📍 Gestion Complète des Stations & Synchronisation Base de Données
 - **Déplacement fluide sur la carte :** Glissez directement n'importe quelle pastille numérotée d'arrêt sur les quais ou les trottoirs.
 - **Mise à jour en cascade dans la base de données :** Lorsque vous déplacez un arrêt et cliquez sur **« Enregistrer Base »**, les nouvelles coordonnées (`lat`, `lon`) sont instantanément sauvegardées dans `src/data/staticTransit.js`. Si cet arrêt est partagé avec d'autres lignes (ex: Place de Barcelone, Passage, Bab Saadoun...), toutes les lignes du réseau sont automatiquement synchronisées !
 - **➕ Ajouter une Nouvelle Station :**
@@ -74,7 +74,7 @@ Pour transformer des virages bruts ou angulaires en **courbes circulaires parfai
   - Via le bouton **« 🖱️ Au Clic »** : cliquez directement sur l'imagerie satellite pour pré-remplir les coordonnées exactes du nouvel arrêt.
 - **✏️ Modifier ou Supprimer un Arrêt :** Cliquez sur une pastille d'arrêt ou sur l'icône crayon dans la liste des arrêts pour éditer ses noms bilingues ou le supprimer.
 
-### 7. Opérations Automatiques
+### 8. Opérations Automatiques
 - **Inverser depuis la voie opposée :** Clone le tracé opposé en l'inversant.
 - **Générer voie opposée parallèle (+3.5m) :** Crée automatiquement une voie parallèle décalée de 3.5 mètres.
 - **Annuler / Rétablir :** Raccourcis clavier `Ctrl+Z` et `Ctrl+Y`.

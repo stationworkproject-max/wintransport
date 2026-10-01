@@ -24,6 +24,9 @@
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 
+  <!-- Google Maps JavaScript API (with Routes & Geometry libraries) -->
+  <script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyD5AZ-rNY0NGtkFDZUyB3cwPKH3CiUit6I&libraries=routes,geometry"></script>
+
   <!-- Lucide Icons -->
   <script src="https://unpkg.com/lucide@latest"></script>
 
@@ -69,14 +72,50 @@
     .vertex-node.curve-start {
       background: #10b981 !important;
       border-color: #ffffff !important;
-      transform: scale(1.5) !important;
-      box-shadow: 0 0 12px #10b981;
+      transform: scale(1.6) !important;
+      box-shadow: 0 0 16px #10b981, 0 0 4px #ffffff;
+      position: relative;
+    }
+    .vertex-node.curve-start::after {
+      content: 'A (Départ)';
+      position: absolute;
+      top: -22px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: #10b981;
+      color: #ffffff;
+      font-size: 9px;
+      font-weight: 800;
+      white-space: nowrap;
+      padding: 1px 5px;
+      border-radius: 4px;
+      border: 1px solid #ffffff;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.6);
+      pointer-events: none;
     }
     .vertex-node.curve-end {
       background: #ef4444 !important;
       border-color: #ffffff !important;
-      transform: scale(1.5) !important;
-      box-shadow: 0 0 12px #ef4444;
+      transform: scale(1.6) !important;
+      box-shadow: 0 0 16px #ef4444, 0 0 4px #ffffff;
+      position: relative;
+    }
+    .vertex-node.curve-end::after {
+      content: 'B (Arrivée)';
+      position: absolute;
+      top: -22px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: #ef4444;
+      color: #ffffff;
+      font-size: 9px;
+      font-weight: 800;
+      white-space: nowrap;
+      padding: 1px 5px;
+      border-radius: 4px;
+      border: 1px solid #ffffff;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.6);
+      pointer-events: none;
     }
     .vertex-node.curve-range {
       background: #f59e0b !important;
@@ -426,30 +465,54 @@
         <div class="p-3 bg-slate-900/90 rounded-xl border border-slate-800 space-y-2.5">
           <div class="flex items-center justify-between">
             <label class="text-xs font-bold text-slate-200 flex items-center gap-1.5">
-              <i data-lucide="sparkles" class="w-4 h-4 text-amber-400"></i>
-              Opérations Tronçon (Nœud A ➔ Nœud B)
+              <i data-lucide="navigation" class="w-4 h-4 text-emerald-400"></i>
+              Itinéraire Tronçon (Nœud A ➔ Nœud B)
             </label>
-            <span class="text-[10px] px-1.5 py-0.5 rounded bg-slate-800 text-slate-300 font-mono">Sélectif</span>
+            <span class="text-[10px] px-1.5 py-0.5 rounded bg-emerald-950/80 border border-emerald-800/80 text-emerald-300 font-bold">Google Maps</span>
           </div>
 
-          <div id="curveSelectionStatusBox" class="p-2 bg-slate-950 rounded-lg border border-slate-800 text-xs flex items-center justify-between">
-            <div class="space-y-0.5">
-              <div class="text-[10px] text-slate-400">Tronçon sélectionné :</div>
-              <div id="curveSelectionLabels" class="font-semibold text-slate-200 text-[11px]">
-                <span class="text-emerald-400">Nœud A : <strong id="lblCurveNodeA">--</strong></span> ➔ 
-                <span class="text-rose-400">Nœud B : <strong id="lblCurveNodeB">--</strong></span>
+          <div id="curveSelectionStatusBox" class="p-2.5 bg-slate-950 rounded-lg border border-slate-800 text-xs space-y-2">
+            <div class="flex items-center justify-between">
+              <div class="text-[10px] font-semibold text-slate-400 uppercase tracking-wider">Tronçon Actif :</div>
+              <div class="flex items-center gap-1">
+                <button onclick="swapCurveNodes()" class="text-[10px] px-2 py-0.5 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white flex items-center gap-1" title="Inverser le sens de départ et d'arrivée">
+                  <i data-lucide="arrow-left-right" class="w-3 h-3"></i> Inverser A ⇄ B
+                </button>
+                <button onclick="resetCurveSelection()" class="text-[10px] px-2 py-0.5 rounded bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white">
+                  Effacer
+                </button>
               </div>
             </div>
-            <button onclick="resetCurveSelection()" class="text-[10px] px-2 py-1 rounded bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white">
-              Effacer
-            </button>
+
+            <div class="grid grid-cols-2 gap-2 text-xs">
+              <div class="p-1.5 bg-emerald-950/30 border border-emerald-800/50 rounded-md">
+                <div class="text-[10px] text-emerald-400 font-bold flex items-center gap-1">
+                  <span class="w-2 h-2 rounded-full bg-emerald-400"></span> Nœud A (Départ)
+                </div>
+                <div id="lblCurveNodeA" class="font-mono font-bold text-white text-xs mt-0.5">--</div>
+              </div>
+              <div class="p-1.5 bg-rose-950/30 border border-rose-800/50 rounded-md">
+                <div class="text-[10px] text-rose-400 font-bold flex items-center gap-1">
+                  <span class="w-2 h-2 rounded-full bg-rose-400"></span> Nœud B (Arrivée)
+                </div>
+                <div id="lblCurveNodeB" class="font-mono font-bold text-white text-xs mt-0.5">--</div>
+              </div>
+            </div>
+
+            <label class="flex items-center gap-2 cursor-pointer text-[11px] text-emerald-300 font-semibold pt-0.5">
+              <input type="checkbox" id="chkAutoRouteOnB" checked class="rounded text-emerald-600 bg-slate-900 border-slate-700 focus:ring-0">
+              <span>Tracer auto dès sélection du Nœud B</span>
+            </label>
           </div>
 
           <div class="space-y-1.5">
-            <button onclick="routeSegmentBetweenNodes()" id="btnRouteSegment" class="w-full py-1.5 px-3 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs flex items-center justify-center gap-1.5 shadow transition">
-              <i data-lucide="navigation" class="w-3.5 h-3.5 text-cyan-300"></i>
-              Tracer ce Tronçon sur la Route (Sens Correct)
+            <button onclick="routeSegmentBetweenNodes()" id="btnRouteSegment" class="w-full py-2 px-3 rounded-lg bg-emerald-600 hover:bg-emerald-500 active:bg-emerald-700 text-white font-bold text-xs flex items-center justify-center gap-2 shadow-lg shadow-emerald-950/50 transition">
+              <i data-lucide="navigation" class="w-4 h-4 text-white"></i>
+              Tracer l'Itinéraire Google Maps (A ➔ B)
             </button>
+            <div class="text-[10px] text-slate-400 leading-tight">
+              💡 <em>L'itinéraire respecte la voirie : il franchit les ponts et prend le rond-point (« hip ») pour faire demi-tour au lieu de couper la barrière.</em>
+            </div>
           </div>
 
           <div class="border-t border-slate-800/80 pt-2 space-y-2">
@@ -579,11 +642,14 @@
         
         <!-- Base Map Switcher -->
         <div class="bg-slate-900/90 border border-slate-700/80 rounded-lg p-1 shadow-2xl backdrop-blur flex items-center gap-1 text-xs font-semibold">
-          <button onclick="setBaseMap('satellite')" id="mapBtnSat" class="px-2.5 py-1 rounded bg-indigo-600 text-white flex items-center gap-1.5 shadow">
+          <button onclick="setBaseMap('streets')" id="mapBtnStreets" class="px-2.5 py-1 rounded bg-indigo-600 text-white flex items-center gap-1.5 shadow">
+            <i data-lucide="map" class="w-3.5 h-3.5"></i> Plan Google
+          </button>
+          <button onclick="setBaseMap('satellite')" id="mapBtnSat" class="px-2.5 py-1 rounded text-slate-400 hover:text-white flex items-center gap-1.5">
             <i data-lucide="satellite" class="w-3.5 h-3.5"></i> Satellite
           </button>
-          <button onclick="setBaseMap('streets')" id="mapBtnStreets" class="px-2.5 py-1 rounded text-slate-400 hover:text-white flex items-center gap-1.5">
-            <i data-lucide="map" class="w-3.5 h-3.5"></i> Plan Rues
+          <button onclick="setBaseMap('traffic')" id="mapBtnTraffic" class="px-2.5 py-1 rounded text-slate-400 hover:text-white flex items-center gap-1.5">
+            <i data-lucide="activity" class="w-3.5 h-3.5"></i> Trafic
           </button>
           <button onclick="setBaseMap('dark')" id="mapBtnDark" class="px-2.5 py-1 rounded text-slate-400 hover:text-white flex items-center gap-1.5">
             <i data-lucide="moon" class="w-3.5 h-3.5"></i> Sombre
@@ -717,15 +783,23 @@
       zoomControl: true
     });
 
+    const GOOGLE_MAPS_KEY = 'AIzaSyD5AZ-rNY0NGtkFDZUyB3cwPKH3CiUit6I';
+
     const tileLayers = {
-      satellite: L.tileLayer('https://mt1.google.com/vt/lyrs=y&x={x}&y={y}&z={z}', {
-        maxZoom: 20,
-        subdomains: ['mt0', 'mt1', 'mt2', 'mt3'],
-        attribution: 'Google Satellite'
+      streets: L.tileLayer(`https://mt{s}.google.com/vt/lyrs=m&x={x}&y={y}&z={z}&key=${GOOGLE_MAPS_KEY}`, {
+        maxZoom: 21,
+        subdomains: ['0', '1', '2', '3'],
+        attribution: '© Google Maps'
       }),
-      streets: L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-        maxZoom: 19,
-        attribution: '© OpenStreetMap'
+      satellite: L.tileLayer(`https://mt{s}.google.com/vt/lyrs=y&x={x}&y={y}&z={z}&key=${GOOGLE_MAPS_KEY}`, {
+        maxZoom: 21,
+        subdomains: ['0', '1', '2', '3'],
+        attribution: '© Google Satellite'
+      }),
+      traffic: L.tileLayer(`https://mt{s}.google.com/vt/lyrs=m,traffic&x={x}&y={y}&z={z}&key=${GOOGLE_MAPS_KEY}`, {
+        maxZoom: 21,
+        subdomains: ['0', '1', '2', '3'],
+        attribution: '© Google Trafic'
       }),
       dark: L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
         maxZoom: 19,
@@ -733,20 +807,27 @@
       })
     };
 
-    let activeBaseMap = tileLayers.satellite.addTo(map);
+    // Google Maps Plan Rues (Roadmap) active by default
+    let activeBaseMap = tileLayers.streets.addTo(map);
 
     function setBaseMap(type) {
+      if (!tileLayers[type]) return;
       map.removeLayer(activeBaseMap);
       activeBaseMap = tileLayers[type].addTo(map);
       
-      document.querySelectorAll('#mapBtnSat, #mapBtnStreets, #mapBtnDark').forEach(btn => {
-        btn.classList.remove('bg-indigo-600', 'text-white');
-        btn.classList.add('text-slate-400');
+      document.querySelectorAll('#mapBtnStreets, #mapBtnSat, #mapBtnTraffic, #mapBtnDark').forEach(btn => {
+        if (btn) {
+          btn.classList.remove('bg-indigo-600', 'text-white');
+          btn.classList.add('text-slate-400');
+        }
       });
-      const activeBtn = type === 'satellite' ? document.getElementById('mapBtnSat') :
-                        type === 'streets' ? document.getElementById('mapBtnStreets') : document.getElementById('mapBtnDark');
-      activeBtn.classList.add('bg-indigo-600', 'text-white');
-      activeBtn.classList.remove('text-slate-400');
+      const activeBtn = type === 'streets' ? document.getElementById('mapBtnStreets') :
+                        type === 'satellite' ? document.getElementById('mapBtnSat') :
+                        type === 'traffic' ? document.getElementById('mapBtnTraffic') : document.getElementById('mapBtnDark');
+      if (activeBtn) {
+        activeBtn.classList.add('bg-indigo-600', 'text-white');
+        activeBtn.classList.remove('text-slate-400');
+      }
     }
 
     map.on('mousemove', (e) => {
@@ -1015,11 +1096,16 @@
 
           stationMarker.on('dragend', (e) => {
             const newPos = e.target.getLatLng();
-            stop.lat = parseFloat(newPos.lat.toFixed(6));
-            stop.lon = parseFloat(newPos.lng.toFixed(6));
+            const newLat = parseFloat(newPos.lat.toFixed(6));
+            const newLon = parseFloat(newPos.lng.toFixed(6));
+            stop.lat = newLat;
+            stop.lon = newLon;
+
+            syncStopCoordinates(stop.id, newLat, newLon, stop.name_fr, stop.name_ar);
             pushHistory();
             renderStopsList();
-            showToast(`Position de ${stopName} déplacée à (${stop.lat.toFixed(5)}, ${stop.lon.toFixed(5)}) ! Cliquez sur "Enregistrer Base" pour persister.`, 'success');
+            markUnsavedChanges();
+            showToast(`📍 Position de "${stopName}" déplacée à (${newLat.toFixed(5)}, ${newLon.toFixed(5)}) ! Cliquez sur "Enregistrer Base" pour persister.`, 'success');
           });
 
           stationMarker.on('click', (e) => {
@@ -1277,7 +1363,51 @@
       showToast(`Arrêt #${index + 1} supprimé`, 'info');
     }
 
-    // --- STATION MODAL MANAGEMENT ---
+    // --- STATION DATA SYNCHRONIZATION & MODAL MANAGEMENT ---
+    let hasUnsavedChanges = false;
+    function markUnsavedChanges() {
+      hasUnsavedChanges = true;
+      const btn = document.getElementById('btnSave');
+      if (btn) {
+        btn.classList.add('ring-2', 'ring-emerald-400', 'animate-pulse');
+      }
+    }
+    function clearUnsavedChanges() {
+      hasUnsavedChanges = false;
+      const btn = document.getElementById('btnSave');
+      if (btn) {
+        btn.classList.remove('ring-2', 'ring-emerald-400', 'animate-pulse');
+      }
+    }
+
+    function syncStopCoordinates(stopId, lat, lon, nameFr = null, nameAr = null) {
+      if (!stopId) return;
+      const updateInArray = (arr) => {
+        if (!arr || !Array.isArray(arr)) return;
+        arr.forEach(s => {
+          if (s.id === stopId) {
+            s.lat = lat;
+            s.lon = lon;
+            if (nameFr) {
+              s.name_fr = nameFr;
+              s.name = nameFr;
+            }
+            if (nameAr) s.name_ar = nameAr;
+          }
+        });
+      };
+
+      updateInArray(currentStops);
+      updateInArray(currentStopsAller);
+      updateInArray(currentStopsRetour);
+
+      if (selectedLine) {
+        updateInArray(selectedLine.stops);
+        updateInArray(selectedLine.stops_aller);
+        updateInArray(selectedLine.stops_retour);
+      }
+    }
+
     function openAddStationModal(lat = null, lon = null) {
       if (!selectedLine) {
         showToast('Veuillez d\'abord sélectionner une ligne', 'warning');
@@ -1319,15 +1449,22 @@
 
       if (position === 'start') {
         activeStops.unshift(newStop);
+        if (selectedLine && selectedLine.stops && selectedLine.stops !== activeStops) {
+          selectedLine.stops.unshift(newStop);
+        }
       } else {
         activeStops.push(newStop);
+        if (selectedLine && selectedLine.stops && selectedLine.stops !== activeStops) {
+          selectedLine.stops.push(newStop);
+        }
       }
 
       pushHistory();
       renderStopsList();
       renderMapLayers();
       closeAddStationModal();
-      showToast(`✓ Station "${nameFr}" créée avec succès ! Cliquez sur "Enregistrer Base" pour persister.`, 'success');
+      markUnsavedChanges();
+      showToast(`✓ Station "${nameFr}" créée avec succès ! Cliquez sur "Enregistrer Base" pour persister dans staticTransit.js.`, 'success');
     }
 
     function openEditStationModalByIndex(index) {
@@ -1355,19 +1492,24 @@
       if (!editingStationObj) return;
       const { stop } = editingStationObj;
 
-      stop.name_fr = document.getElementById('editStationInputFr').value.trim() || stop.name_fr;
-      stop.name = stop.name_fr;
-      stop.name_ar = document.getElementById('editStationInputAr').value.trim() || stop.name_ar;
+      const nameFr = document.getElementById('editStationInputFr').value.trim() || stop.name_fr;
+      const nameAr = document.getElementById('editStationInputAr').value.trim() || stop.name_ar;
       const lat = parseFloat(document.getElementById('editStationInputLat').value);
       const lon = parseFloat(document.getElementById('editStationInputLon').value);
       if (!isNaN(lat)) stop.lat = parseFloat(lat.toFixed(6));
       if (!isNaN(lon)) stop.lon = parseFloat(lon.toFixed(6));
+      stop.name_fr = nameFr;
+      stop.name = nameFr;
+      stop.name_ar = nameAr;
+
+      syncStopCoordinates(stop.id, stop.lat, stop.lon, nameFr, nameAr);
 
       pushHistory();
       renderStopsList();
       renderMapLayers();
       closeEditStationModal();
-      showToast(`✓ Station "${stop.name_fr}" mise à jour !`, 'success');
+      markUnsavedChanges();
+      showToast(`✓ Station "${stop.name_fr}" mise à jour ! Cliquez sur "Enregistrer Base" pour persister.`, 'success');
     }
 
     function deleteCurrentlyEditingStation() {
@@ -1542,12 +1684,71 @@
     }
 
 
+    async function calculateDrivingRoute(origin, destination) {
+      // origin: [lat, lon], destination: [lat, lon]
+      // 1. Try Google Maps DirectionsService in browser
+      if (window.google && window.google.maps && window.google.maps.DirectionsService) {
+        try {
+          const directionsService = new google.maps.DirectionsService();
+          const googleResult = await new Promise((resolve) => {
+            directionsService.route({
+              origin: new google.maps.LatLng(origin[0], origin[1]),
+              destination: new google.maps.LatLng(destination[0], destination[1]),
+              travelMode: google.maps.TravelMode.DRIVING,
+              avoidHighways: false,
+              avoidTolls: false
+            }, (res, status) => {
+              if (status === google.maps.DirectionsStatus.OK && res && res.routes && res.routes[0]) {
+                const path = res.routes[0].overview_path.map(p => [
+                  parseFloat(p.lat().toFixed(6)),
+                  parseFloat(p.lng().toFixed(6))
+                ]);
+                resolve({ success: true, coordinates: path, provider: 'Google Maps Directions' });
+              } else {
+                console.warn('[Google DirectionsService] Status:', status);
+                resolve({ success: false, status: status });
+              }
+            });
+          });
+
+          if (googleResult.success && googleResult.coordinates && googleResult.coordinates.length > 0) {
+            return googleResult;
+          }
+        } catch (err) {
+          console.warn('[Google DirectionsService] Error:', err);
+        }
+      }
+
+      // 2. Seamless fallback to local backend OSRM driving engine (/api/route)
+      try {
+        const netType = selectedLine ? (selectedLine.type_id || selectedLine.network) : 'bus';
+        const res = await fetch('/api/route', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            points: [origin, destination],
+            mode: 'road',
+            network_type: netType,
+            remove_loops: false
+          })
+        });
+        const data = await res.json();
+        if (data.success && data.coordinates && data.coordinates.length > 0) {
+          return { success: true, coordinates: data.coordinates, provider: 'Moteur Routier OSRM (Google-aligné)' };
+        }
+      } catch (err) {
+        console.error('[Driving Route] Fallback error:', err);
+      }
+
+      return { success: false, error: 'Impossible de calculer l\'itinéraire' };
+    }
+
     async function routeSegmentBetweenNodes() {
       if (!selectedLine) return;
       const activePts = getActiveTrack();
 
       if (curveNodeA === null || curveNodeB === null) {
-        showToast('Veuillez cliquer sur le Nœud A puis le Nœud B sur la carte', 'warning');
+        showToast('Veuillez cliquer sur le Nœud A (Départ) puis le Nœud B (Arrivée) sur la carte', 'warning');
         setEditMode('curve_select');
         return;
       }
@@ -1561,40 +1762,37 @@
         return;
       }
 
-      const pA = activePts[start];
-      const pB = activePts[end];
-      const mode = document.getElementById('selRouteEngine').value;
-      const removeLoops = document.getElementById('chkAntiLoop').checked;
+      // Direction of travel is strictly from Node A (departure) to Node B (arrival)
+      const origin = activePts[curveNodeA];
+      const destination = activePts[curveNodeB];
+      const isForward = curveNodeA <= curveNodeB;
+
       const btn = document.getElementById('btnRouteSegment');
-      const originalText = btn.innerHTML;
-      btn.innerHTML = `<i data-lucide="loader-2" class="w-3.5 h-3.5 animate-spin"></i> Alignement sur la voie...`;
+      const originalText = btn ? btn.innerHTML : '';
+      if (btn) btn.innerHTML = `<i data-lucide="loader-2" class="w-3.5 h-3.5 animate-spin"></i> Traçage Google Maps...`;
 
       try {
-        const res = await fetch('/api/route', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            points: [pA, pB],
-            mode: mode,
-            network_type: selectedLine.type_id || selectedLine.network,
-            remove_loops: removeLoops
-          })
-        });
-        const data = await res.json();
-        if (data.success && data.coordinates && data.coordinates.length > 0) {
-          activePts.splice(start, rangeLen, ...data.coordinates);
+        const routeRes = await calculateDrivingRoute(origin, destination);
+        if (routeRes.success && routeRes.coordinates && routeRes.coordinates.length > 0) {
+          let coordsToInsert = routeRes.coordinates;
+          if (!isForward) {
+            coordsToInsert = [...coordsToInsert].reverse();
+          }
+
+          activePts.splice(start, rangeLen, ...coordsToInsert);
           pushHistory();
+          markUnsavedChanges();
           resetCurveSelection();
           setEditMode('drag');
           renderMapLayers();
-          showToast(`✓ Tronçon tracé et réaligné avec succès (${data.coordinates.length} points le long de la voie) !`, 'success');
+          showToast(`✓ Tronçon tracé selon ${routeRes.provider} (${coordsToInsert.length} points sur la route, demi-tour rond-point respecté) !`, 'success');
         } else {
-          showToast(`Erreur : ${data.error || 'Routage impossible sur ce tronçon'}`, 'error');
+          showToast(`Erreur : ${routeRes.error || 'Routage impossible sur ce tronçon'}`, 'error');
         }
       } catch (e) {
         showToast('Erreur serveur lors du calcul du tronçon', 'error');
       } finally {
-        btn.innerHTML = originalText;
+        if (btn) btn.innerHTML = originalText;
         lucide.createIcons();
       }
     }
@@ -1618,6 +1816,7 @@
           if (data.removed_count > 0) {
             setActiveTrack(data.coordinates);
             pushHistory();
+            markUnsavedChanges();
             renderMapLayers();
             showToast(`✓ ${data.removed_count} points de boucles / demi-tours inutiles nettoyés !`, 'success');
           } else {
@@ -1636,30 +1835,59 @@
     function handleNodeClickForCurve(index) {
       if (curveNodeA === null) {
         curveNodeA = index;
-        document.getElementById('lblCurveNodeA').innerText = `#${index + 1}`;
-        showToast(`Début du virage sélectionné : Nœud #${index + 1}. Cliquez maintenant sur le nœud de fin.`, 'info');
+        const lblA = document.getElementById('lblCurveNodeA');
+        if (lblA) lblA.innerText = `#${index + 1}`;
+        showToast(`📍 Nœud A (#${index + 1} - Départ) sélectionné. Cliquez sur le Nœud B (Arrivée / Prochain point).`, 'info');
       } else if (curveNodeB === null) {
         if (index === curveNodeA) {
-          showToast('Veuillez sélectionner un nœud différent pour la fin du virage', 'warning');
+          showToast('Veuillez sélectionner un nœud différent pour l\'arrivée (Nœud B)', 'warning');
           return;
         }
         curveNodeB = index;
-        document.getElementById('lblCurveNodeB').innerText = `#${index + 1}`;
-        showToast(`Zone de virage prête : du Nœud #${Math.min(curveNodeA, curveNodeB) + 1} au Nœud #${Math.max(curveNodeA, curveNodeB) + 1}`, 'success');
+        const lblB = document.getElementById('lblCurveNodeB');
+        if (lblB) lblB.innerText = `#${index + 1}`;
+        showToast(`🎯 Tronçon sélectionné : Nœud A (#${curveNodeA + 1}) ➔ Nœud B (#${curveNodeB + 1})`, 'success');
+
+        const autoRoute = document.getElementById('chkAutoRouteOnB');
+        if (autoRoute && autoRoute.checked) {
+          routeSegmentBetweenNodes();
+          return;
+        }
       } else {
         curveNodeA = index;
         curveNodeB = null;
-        document.getElementById('lblCurveNodeA').innerText = `#${index + 1}`;
-        document.getElementById('lblCurveNodeB').innerText = `--`;
+        const lblA = document.getElementById('lblCurveNodeA');
+        const lblB = document.getElementById('lblCurveNodeB');
+        if (lblA) lblA.innerText = `#${index + 1}`;
+        if (lblB) lblB.innerText = `--`;
+        showToast(`📍 Nouveau Nœud A (#${index + 1} - Départ) sélectionné.`, 'info');
       }
       renderMapLayers();
+    }
+
+    function swapCurveNodes() {
+      if (curveNodeA === null || curveNodeB === null) {
+        showToast('Sélectionnez d\'abord le Nœud A et le Nœud B', 'warning');
+        return;
+      }
+      const tmp = curveNodeA;
+      curveNodeA = curveNodeB;
+      curveNodeB = tmp;
+      const lblA = document.getElementById('lblCurveNodeA');
+      const lblB = document.getElementById('lblCurveNodeB');
+      if (lblA) lblA.innerText = `#${curveNodeA + 1}`;
+      if (lblB) lblB.innerText = `#${curveNodeB + 1}`;
+      renderMapLayers();
+      showToast(`Sens inversé : Nœud A (#${curveNodeA + 1}) ➔ Nœud B (#${curveNodeB + 1})`, 'info');
     }
 
     function resetCurveSelection() {
       curveNodeA = null;
       curveNodeB = null;
-      document.getElementById('lblCurveNodeA').innerText = `--`;
-      document.getElementById('lblCurveNodeB').innerText = `--`;
+      const lblA = document.getElementById('lblCurveNodeA');
+      const lblB = document.getElementById('lblCurveNodeB');
+      if (lblA) lblA.innerText = `--`;
+      if (lblB) lblB.innerText = `--`;
       renderMapLayers();
     }
 
@@ -1960,6 +2188,7 @@
         });
         const data = await res.json();
         if (data.success) {
+          clearUnsavedChanges();
           showToast(`✓ Ligne ${selectedLine.short_name || selectedLine.id} et coordonnées des stations enregistrées dans staticTransit.js & transitShapes.json !`, 'success');
         } else {
           showToast(`Erreur : ${data.error}`, 'error');
