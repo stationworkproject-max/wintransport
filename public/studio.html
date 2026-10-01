@@ -867,24 +867,26 @@
       zoomControl: true
     });
 
+    const BASEMAP_API_KEY = 'cb1_462m_1_66e30fd30eabfdd440e49e44';
+
     const tileLayers = {
       osm: L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
         maxZoom: 19,
         attribution: '© OpenStreetMap contributors'
       }),
-      streets: L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
+      streets: L.tileLayer(`https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png?api_key=${BASEMAP_API_KEY}`, {
         maxZoom: 20,
         subdomains: 'abcd',
-        attribution: '© CartoDB / OpenStreetMap'
+        attribution: '© CARTO Basemaps | © OpenStreetMap contributors'
       }),
       satellite: L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
         maxZoom: 19,
         attribution: '© Esri World Imagery'
       }),
-      dark: L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+      dark: L.tileLayer(`https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png?api_key=${BASEMAP_API_KEY}`, {
         maxZoom: 19,
         subdomains: 'abcd',
-        attribution: '© CartoDB / OpenStreetMap'
+        attribution: '© CARTO Basemaps | © OpenStreetMap contributors'
       })
     };
 

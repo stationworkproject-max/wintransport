@@ -51,9 +51,9 @@
     var map = L.map('map', { zoomControl: false }).setView([36.815, 10.155], 13);
     L.control.zoom({ position: 'bottomright' }).addTo(map);
 
-    L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
+    L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png?api_key=cb1_462m_1_66e30fd30eabfdd440e49e44', {
       maxZoom: 19,
-      attribution: '&copy; OpenStreetMap'
+      attribution: '&copy; CARTO Basemaps | &copy; OpenStreetMap'
     }).addTo(map);
 
     var layerGroup = L.layerGroup().addTo(map);

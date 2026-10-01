@@ -6,6 +6,7 @@ import { Users, Navigation, Clock, ShieldCheck, AlertCircle, X, LocateFixed, Lay
 import { getStationName, getLineName, getLineShortName, getDirectionLabel } from '../utils/i18n';
 
 export const GOOGLE_MAPS_API_KEY = 'AIzaSyD5AZ-rNY0NGtkFDZUyB3cwPKH3CiUit6I';
+export const CARTO_BASEMAP_API_KEY = 'cb1_462m_1_66e30fd30eabfdd440e49e44';
 
 function TransitMap({
   activeNetwork,
@@ -141,9 +142,9 @@ function TransitMap({
         ...commonTileOptions
       };
     } else {
-      url = 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png';
+      url = `https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png?api_key=${CARTO_BASEMAP_API_KEY}`;
       options = {
-        attribution: '&copy; CARTO | &copy; OpenStreetMap',
+        attribution: '&copy; CARTO Basemaps | &copy; OpenStreetMap',
         subdomains: 'abcd',
         maxZoom: 19,
         keepBuffer: 8,
