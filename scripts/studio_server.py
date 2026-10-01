@@ -177,13 +177,7 @@ class StudioRequestHandler(http.server.SimpleHTTPRequestHandler):
                 if m:
                     lines = json.loads(m.group(1))
                     
-                    # Map all modified stops by their unique stop id
-                    modified_stops_map = {}
-                    for s in (stops or []) + (stops_aller or []) + (stops_retour or []):
-                        if isinstance(s, dict) and 'id' in s:
-                            modified_stops_map[s['id']] = s
-
-                    # Update target line
+                    # Update target line only
                     for l in lines:
                         if l['id'] == line_id:
                             if stops is not None:
@@ -192,19 +186,7 @@ class StudioRequestHandler(http.server.SimpleHTTPRequestHandler):
                                 l['stops_aller'] = stops_aller
                             if stops_retour is not None:
                                 l['stops_retour'] = stops_retour
-
-                        # Update any other lines that contain these modified station coordinates
-                        for k in ['stops', 'stops_aller', 'stops_retour']:
-                            if k in l and isinstance(l[k], list):
-                                for idx, stop_item in enumerate(l[k]):
-                                    sid = stop_item.get('id')
-                                    if sid in modified_stops_map:
-                                        m_stop = modified_stops_map[sid]
-                                        stop_item['lat'] = m_stop['lat']
-                                        stop_item['lon'] = m_stop['lon']
-                                        if 'name_fr' in m_stop: stop_item['name_fr'] = m_stop['name_fr']
-                                        if 'name_ar' in m_stop: stop_item['name_ar'] = m_stop['name_ar']
-                                        if 'name' in m_stop: stop_item['name'] = m_stop['name']
+                            break
 
                     new_json = json.dumps(lines, ensure_ascii=False, indent=2)
                     st_text = st_text[:m.start(1)] + new_json + st_text[m.end(1):]
