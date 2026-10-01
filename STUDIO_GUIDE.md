@@ -38,20 +38,20 @@ Ouvrez ensuite votre navigateur à l'adresse :
 - 🚦 **Trafic Google** : Visualisation en direct du trafic et des axes principaux.
 - 🌙 **Plan Sombre** : Mode haute visibilité nocturne.
 
-### 4. 🧭 Tracé d'Itinéraire Tronçon (Nœud A ➔ Nœud B) & HUD Flottant
-Pour corriger un tronçon problématique (par exemple un virage coupé, un terre-plein franchi illégalement, un demi-tour manqué ou un rond-point à contourner) :
-1. **Sélection ultra-rapide sur la carte :**
-   - **Cliquez simplement sur le Nœud A** (Point de départ) 👉 un badge vert fluo s'affiche et s'inscrit dans la barre d'outils flottante en haut de la carte.
-   - **Cliquez sur le Nœud B** (Point d'arrivée) 👉 le tronçon est instantanément calculé et recalculé le long du réseau routier réel via OSM/OSRM (temps de réponse < 0.2s) !
-2. **Barre d'outils Flottante (HUD) en haut à gauche de la carte :**
-   - Affiche en direct les coordonnées du Nœud A et du Nœud B.
-   - Bouton **`▶ Tracer la Route`** : Déclenche le recalcul immédiat.
-   - Bouton **`⇄ A / B`** : Inverse le sens de départ et d'arrivée.
-   - Bouton **`↗ G-Maps`** : Ouvre directement l'itinéraire exact dans Google Maps dans un nouvel onglet pour vérifier le cheminement.
-   - Bouton **`✕ Réinit`** : Réinitialise la sélection pour choisir un nouveau tronçon.
-3. **Respect strict du code de la route :**
-   - L'itinéraire prend obligatoirement les ronds-points (« hip ») pour faire demi-tour au lieu de couper la barrière.
-   - Il emprunte les bretelles et ponts légaux sans jamais couper à travers les terre-pleins ou rails.
+### 4. 🧭 Action Tronçon (Nœud A ➔ Nœud B) : Arrondir la Forme OU Tracer la Route
+Vous avez l'entière liberté de choisir l'action souhaitée sur le tronçon sans rien vous imposer :
+1. **Sélection simple sur la carte :**
+   - **Cliquez sur le Nœud A** (Début du tronçon) 👉 il devient vert fluo.
+   - **Cliquez sur le Nœud B** (Fin du tronçon) 👉 il devient rouge/ambre et la section est surlignée.
+2. **Choisissez votre action dans la Barre d'Outils Flottante (HUD) ou la barre latérale :**
+   - 🪄 **`[ Arrondir Forme ]`** : Transforme le virage ou l'angle en **courbe circulaire fluide et ronde sans angles bruts** (Chaikin / Spline Catmull-Rom ou Arc tangentiel). Sélectionnez le niveau d'arrondi (*Léger*, *Moyen*, *Très Rond*).
+   - 🚗 **`[ Tracer la Route ]`** : Calque fidèlement le tronçon sur le réseau routier réel via OSM/OSRM (respect des giratoires, demi-tours autorisés et ponts).
+3. **Contrôles supplémentaires dans le HUD :**
+   - Bouton **`⇄ A / B`** : Inverse le sens de parcours.
+   - Bouton **`✕ Annuler`** : Désélectionne le tronçon en 1 clic.
+   - Bouton **`↗ G-Maps`** : Ouvre l'itinéraire exact dans Google Maps pour vérification.
+4. **Option d'action automatique :**
+   - Par défaut, l'application est configurée sur *« Attendre mon clic »* (ne force aucune action automatique). Vous pouvez aussi choisir d'arrondir ou de tracer automatiquement au clic si vous avez une série de tronçons à traiter.
 
 ### 5. 🪄 Tracé Global de la Ligne & Anti-Boucles
 - Cliquez sur **« Tracer la Voie »** pour recalculer l'ensemble de l'itinéraire le long de tous les arrêts.
