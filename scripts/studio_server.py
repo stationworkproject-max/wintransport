@@ -10,33 +10,9 @@ import urllib.request
 PORT = 5055
 CWD = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 PUBLIC_DIR = os.path.join(CWD, 'public')
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
-def smart_route_osrm(points, chunk_size=20):
-    if len(points) < 2:
-        return points
-    full_route = []
-    for i in range(0, len(points) - 1, chunk_size - 1):
-        chunk = points[i : i + chunk_size]
-        if len(chunk) < 2:
-            continue
-        coords_str = ';'.join(f'{c[1]},{c[0]}' for c in chunk)
-        url = f'https://router.project-osrm.org/route/v1/driving/{coords_str}?overview=full&geometries=geojson'
-        try:
-            req = urllib.request.Request(url, headers={'User-Agent': 'WinTransportStudio/1.0'})
-            with urllib.request.urlopen(req, timeout=12) as resp:
-                data = json.loads(resp.read().decode('utf-8'))
-                if data.get('code') == 'Ok':
-                    leg_pts = [[round(pt[1], 6), round(pt[0], 6)] for pt in data['routes'][0]['geometry']['coordinates']]
-                    if not full_route:
-                        full_route.extend(leg_pts)
-                    else:
-                        full_route.extend(leg_pts[1:])
-                else:
-                    full_route.extend(chunk if not full_route else chunk[1:])
-        except Exception as e:
-            print(f"[OSRM] Error routing chunk {i}: {e}")
-            full_route.extend(chunk if not full_route else chunk[1:])
-    return full_route if full_route else points
+from smart_router import smart_route_full, remove_hairpin_loops
 
 class StudioRequestHandler(http.server.SimpleHTTPRequestHandler):
     def __init__(self, *args, **kwargs):
@@ -97,24 +73,63 @@ class StudioRequestHandler(http.server.SimpleHTTPRequestHandler):
             try:
                 payload = json.loads(post_data.decode('utf-8'))
                 points = payload.get('points', [])
+                mode = payload.get('mode', 'auto')
+                network_type = payload.get('network_type')
+                remove_loops = payload.get('remove_loops', True)
+
                 if len(points) < 2:
                     self.send_response(400)
                     self.end_headers()
                     self.wfile.write(json.dumps({'error': 'At least 2 points required'}).encode('utf-8'))
                     return
 
-                routed_pts = smart_route_osrm(points)
+                rail_geojson = os.path.join(CWD, 'rail.geojson')
+                routed_pts = smart_route_full(
+                    points, 
+                    mode=mode, 
+                    network_type=network_type, 
+                    rail_geojson_path=rail_geojson, 
+                    remove_loops=remove_loops
+                )
                 self.send_response(200)
                 self.send_header('Content-Type', 'application/json; charset=utf-8')
                 self.end_headers()
-                response = json.dumps({'success': True, 'coordinates': routed_pts})
+                response = json.dumps({
+                    'success': True, 
+                    'coordinates': routed_pts,
+                    'input_count': len(points),
+                    'output_count': len(routed_pts)
+                })
                 self.wfile.write(response.encode('utf-8'))
-                print(f"[Studio] Smart route calculated: {len(points)} stops -> {len(routed_pts)} street points")
+                print(f"[Studio] Smart route calculated: {len(points)} pts -> {len(routed_pts)} smooth points (mode={mode}, net={network_type})")
             except Exception as e:
                 self.send_response(500)
                 self.send_header('Content-Type', 'application/json; charset=utf-8')
                 self.end_headers()
                 self.wfile.write(json.dumps({'success': False, 'error': str(e)}).encode('utf-8'))
+
+        elif self.path == '/api/clean_loops':
+            content_length = int(self.headers['Content-Length'])
+            post_data = self.rfile.read(content_length)
+            try:
+                payload = json.loads(post_data.decode('utf-8'))
+                points = payload.get('points', [])
+                cleaned_pts = remove_hairpin_loops(points)
+                self.send_response(200)
+                self.send_header('Content-Type', 'application/json; charset=utf-8')
+                self.end_headers()
+                response = json.dumps({
+                    'success': True,
+                    'coordinates': cleaned_pts,
+                    'removed_count': len(points) - len(cleaned_pts)
+                })
+                self.wfile.write(response.encode('utf-8'))
+            except Exception as e:
+                self.send_response(500)
+                self.send_header('Content-Type', 'application/json; charset=utf-8')
+                self.end_headers()
+                self.wfile.write(json.dumps({'success': False, 'error': str(e)}).encode('utf-8'))
+
 
         elif self.path == '/api/save':
             content_length = int(self.headers['Content-Length'])

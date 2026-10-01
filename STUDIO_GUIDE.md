@@ -36,11 +36,23 @@ Ouvrez ensuite votre navigateur à l'adresse :
 - **Supprimer un nœud :** **Clic droit** sur un nœud rond pour le supprimer.
 - **Mode Ajouter au Clic :** Permet de prolonger le tracé point par point en cliquant sur la carte (option *Ajouter à la Fin* ou *Ajouter au Début*).
 
-### 4. 🧭 Tracé Intelligent Style Google Maps (OSRM AI)
-Pour générer instantanément un itinéraire ultra-réaliste qui épouse parfaitement les routes, rails et carrefours :
+### 4. 🧭 Tracé Intelligent Directionnel & Anti-Boucle (Anti-Demi-Tour)
+Pour générer ou corriger un itinéraire qui **épouse fidèlement la route dans le bon sens de circulation**, sans faire de demi-tours farfelus ni de boucles inutiles :
 1. Rendez-vous dans l'onglet **« Routage & Outils »**.
-2. Cliquez sur le bouton bleu **« 🪄 Tracer Automatiquement entre les Arrêts »**.
-3. Le moteur de routage local interroge l'infrastructure cartographique et relie automatiquement tous les arrêts de la ligne en longeant les routes réelles avec des centaines de points précis, éliminant tout tracé en ligne droite.
+2. Sélectionnez le **Mode de Routage** :
+   - ⚡ **Automatique** : détecte automatiquement s'il s'agit d'une ligne ferroviaire (Métro, TGM, Train, RFR) ou de bus.
+   - 🚗 **Routier Intelligent** : force le cap directionnel (`bearings`) et interdit formellement les demi-tours (`continue_straight=true`) pour rester sur la bonne chaussée (Aller vs Retour).
+   - 🚌 **Direct & Couloirs Bus** : emprunte les couloirs de bus, voies réservées et zones piétonnes directes (Habib Bourguiba, Passage, Barcelone) sans détours autoroutiers.
+   - 🚆 **Réseau Ferré Réel** : suit strictement les rails de chemin de fer et voies de métro léger (`rail.geojson`).
+3. Options activées par défaut :
+   - ☑️ **Anti-Boucle** : détecte et élimine automatiquement les boucles et épingles à cheveux où le véhicule quitte l'avenue et revient au même endroit.
+   - ☑️ **Sens de Circulation Strict** : aligne le tracé sur la chaussée correspondant au sens Aller ou Retour.
+4. **Tracer Tout l'Itinéraire :** Cliquez sur **« 🪄 Tracer Tout l'Itinéraire entre les Arrêts »**.
+5. **Tracer / Corriger un Tronçon Spécifique :**
+   - Sélectionnez le mode **« Arrondir / Tronçon »**.
+   - Cliquez sur le **Nœud A** puis sur le **Nœud B** encadrant la zone à corriger.
+   - Cliquez sur **« 🧭 Tracer ce Tronçon sur la Route »** pour réaligner uniquement cette portion sans toucher au reste de la ligne !
+6. **Bouton « ✂️ Supprimer les Boucles & Demi-Tours du Tracé » :** Nettoie en 1 clic toute boucle ou détour parasite sur le tracé actif.
 
 ### 5. 🪄 Outil d'Arrondi & Lissage de Virage (Anti-Angles)
 Pour transformer des virages bruts ou angulaires en **courbes circulaires parfaites** :
