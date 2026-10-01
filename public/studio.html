@@ -530,18 +530,26 @@
         
         <!-- Selection of Active Track for Editing -->
         <div>
-          <label class="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1">Voie Active en Cours d'Édition</label>
-          <div class="grid grid-cols-2 gap-1.5 p-1 bg-slate-900 rounded-lg border border-slate-800 text-xs font-bold">
-            <button id="editDirBtn0" onclick="setEditingDirection(0)" class="py-1.5 px-2 rounded-md bg-cyan-600 text-white flex items-center justify-center gap-1.5 shadow">
-              <span class="w-2.5 h-2.5 rounded-full bg-white"></span>
+          <div class="flex items-center justify-between mb-1">
+            <label class="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Cible de Correction & Tracé</label>
+            <span class="text-[10px] text-cyan-400 font-semibold" id="editDirModeBadge">Aller (0)</span>
+          </div>
+          <div class="grid grid-cols-3 gap-1 p-1 bg-slate-900 rounded-lg border border-slate-800 text-xs font-bold">
+            <button id="editDirBtn0" onclick="setEditingDirection(0)" class="py-1.5 px-1.5 rounded-md bg-cyan-600 text-white flex items-center justify-center gap-1 shadow text-[11px] transition">
+              <span class="w-2 h-2 rounded-full bg-white"></span>
               <span>Aller (0)</span>
             </button>
-            <button id="editDirBtn1" onclick="setEditingDirection(1)" class="py-1.5 px-2 rounded-md text-slate-400 hover:text-white flex items-center justify-center gap-1.5">
-              <span class="w-2.5 h-2.5 rounded-full bg-amber-400"></span>
+            <button id="editDirBtn1" onclick="setEditingDirection(1)" class="py-1.5 px-1.5 rounded-md text-slate-400 hover:text-white flex items-center justify-center gap-1 text-[11px] transition">
+              <span class="w-2 h-2 rounded-full bg-amber-400"></span>
               <span>Retour (1)</span>
+            </button>
+            <button id="editDirBtnBoth" onclick="setEditingDirection('both')" class="py-1.5 px-1.5 rounded-md text-slate-400 hover:text-white flex items-center justify-center gap-1 text-[11px] transition" title="Tracer et corriger Aller ET Retour simultanément">
+              <i data-lucide="repeat" class="w-3 h-3 text-purple-400"></i>
+              <span>Les Deux</span>
             </button>
           </div>
         </div>
+
 
         <!-- Display Toggles on Map -->
         <div class="flex items-center justify-between px-1 text-[11px] text-slate-300 font-medium">
@@ -1100,20 +1108,38 @@
     function updateEditingDirectionUI() {
       const btn0 = document.getElementById('editDirBtn0');
       const btn1 = document.getElementById('editDirBtn1');
+      const btnBoth = document.getElementById('editDirBtnBoth');
       const targetNameEl = document.getElementById('targetDirName');
+      const modeBadgeEl = document.getElementById('editDirModeBadge');
+      const btnSmartRoute = document.getElementById('btnSmartRoute');
+
+      if (btn0) btn0.className = 'py-1.5 px-1.5 rounded-md text-slate-400 hover:text-white flex items-center justify-center gap-1 text-[11px] transition font-bold';
+      if (btn1) btn1.className = 'py-1.5 px-1.5 rounded-md text-slate-400 hover:text-white flex items-center justify-center gap-1 text-[11px] transition font-bold';
+      if (btnBoth) btnBoth.className = 'py-1.5 px-1.5 rounded-md text-slate-400 hover:text-white flex items-center justify-center gap-1 text-[11px] transition font-bold';
 
       if (editingDirection === 0) {
-        btn0.className = 'py-1.5 px-2 rounded-md bg-cyan-600 text-white flex items-center justify-center gap-1.5 shadow font-bold';
-        btn1.className = 'py-1.5 px-2 rounded-md text-slate-400 hover:text-white flex items-center justify-center gap-1.5 font-bold';
-        targetNameEl.innerText = 'Voie Aller (0)';
-        targetNameEl.className = 'text-cyan-400 font-bold';
+        if (btn0) btn0.className = 'py-1.5 px-1.5 rounded-md bg-cyan-600 text-white flex items-center justify-center gap-1 shadow text-[11px] font-bold';
+        if (targetNameEl) { targetNameEl.innerText = 'Voie Aller (0)'; targetNameEl.className = 'text-cyan-400 font-bold'; }
+        if (modeBadgeEl) { modeBadgeEl.innerText = 'Aller (0)'; modeBadgeEl.className = 'text-[10px] text-cyan-400 font-semibold'; }
+        if (btnSmartRoute) btnSmartRoute.innerHTML = `<i data-lucide="wand-2" class="w-4 h-4 text-cyan-300"></i> Tracer Voie Aller (0)`;
+      } else if (editingDirection === 1) {
+        if (btn1) btn1.className = 'py-1.5 px-1.5 rounded-md bg-amber-600 text-white flex items-center justify-center gap-1 shadow text-[11px] font-bold';
+        if (targetNameEl) { targetNameEl.innerText = 'Voie Retour (1)'; targetNameEl.className = 'text-amber-400 font-bold'; }
+        if (modeBadgeEl) { modeBadgeEl.innerText = 'Retour (1)'; modeBadgeEl.className = 'text-[10px] text-amber-400 font-semibold'; }
+        if (btnSmartRoute) btnSmartRoute.innerHTML = `<i data-lucide="wand-2" class="w-4 h-4 text-amber-300"></i> Tracer Voie Retour (1)`;
       } else {
-        btn1.className = 'py-1.5 px-2 rounded-md bg-amber-600 text-white flex items-center justify-center gap-1.5 shadow font-bold';
-        btn0.className = 'py-1.5 px-2 rounded-md text-slate-400 hover:text-white flex items-center justify-center gap-1.5 font-bold';
-        targetNameEl.innerText = 'Voie Retour (1)';
-        targetNameEl.className = 'text-amber-400 font-bold';
+        if (btnBoth) btnBoth.className = 'py-1.5 px-1.5 rounded-md bg-purple-600 text-white flex items-center justify-center gap-1 shadow text-[11px] font-bold';
+        if (targetNameEl) { targetNameEl.innerText = 'Voies Aller ET Retour (0 & 1)'; targetNameEl.className = 'text-purple-300 font-bold'; }
+        if (modeBadgeEl) { modeBadgeEl.innerText = 'Les Deux (Aller + Retour)'; modeBadgeEl.className = 'text-[10px] text-purple-400 font-semibold'; }
+        if (btnSmartRoute) btnSmartRoute.innerHTML = `<i data-lucide="repeat" class="w-4 h-4 text-purple-300"></i> Tracer Aller ET Retour (Simultané)`;
+        const chkA = document.getElementById('chkShowAller');
+        const chkR = document.getElementById('chkShowRetour');
+        if (chkA) chkA.checked = true;
+        if (chkR) chkR.checked = true;
       }
+      lucide.createIcons();
     }
+
 
     // -------------------------------------------------------------
     // 5. SIDEBAR & TOOLS
@@ -1410,6 +1436,73 @@
     // -------------------------------------------------------------
     async function generateSmartRouteFromStops() {
       if (!selectedLine) return;
+      const mode = document.getElementById('selRouteEngine').value;
+      const removeLoops = document.getElementById('chkAntiLoop').checked;
+      const btn = document.getElementById('btnSmartRoute');
+      const originalText = btn.innerHTML;
+
+      if (editingDirection === 'both') {
+        const stopsAller = (currentStopsAller && currentStopsAller.length >= 2) ? currentStopsAller : currentStops;
+        const stopsRetour = (currentStopsRetour && currentStopsRetour.length >= 2) ? currentStopsRetour : [...stopsAller].reverse();
+
+        if (!stopsAller || stopsAller.length < 2) {
+          showToast('La ligne doit comporter au moins 2 arrêts pour générer un itinéraire', 'warning');
+          return;
+        }
+
+        btn.innerHTML = `<i data-lucide="loader-2" class="w-4 h-4 animate-spin text-purple-300"></i> Calcul Aller & Retour (Google Maps / OSM)...`;
+
+        try {
+          const [resAller, resRetour] = await Promise.all([
+            fetch('/api/route', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                points: stopsAller.map(s => [s.lat, s.lon]),
+                mode: mode,
+                network_type: selectedLine.type_id || selectedLine.network,
+                remove_loops: removeLoops
+              })
+            }).then(r => r.json()),
+            fetch('/api/route', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                points: stopsRetour.map(s => [s.lat, s.lon]),
+                mode: mode,
+                network_type: selectedLine.type_id || selectedLine.network,
+                remove_loops: removeLoops
+              })
+            }).then(r => r.json())
+          ]);
+
+          let okCount = 0;
+          if (resAller.success && resAller.coordinates && resAller.coordinates.length > 0) {
+            currentShape0 = resAller.coordinates;
+            okCount++;
+          }
+          if (resRetour.success && resRetour.coordinates && resRetour.coordinates.length > 0) {
+            currentShape1 = resRetour.coordinates;
+            okCount++;
+          }
+
+          if (okCount > 0) {
+            pushHistory();
+            renderMapLayers();
+            showToast(`✓ Voies Aller ET Retour tracées avec succès (${currentShape0.length} pts Aller, ${currentShape1.length} pts Retour) selon les règles de circulation réelles !`, 'success');
+          } else {
+            showToast('Erreur lors du calcul des itinéraires Aller / Retour', 'error');
+          }
+        } catch (err) {
+          showToast('Erreur de connexion au serveur de routage', 'error');
+        } finally {
+          btn.innerHTML = originalText;
+          lucide.createIcons();
+        }
+        return;
+      }
+
+      // Single direction (Aller = 0 or Retour = 1)
       const activeStops = getActiveStops();
       if (!activeStops || activeStops.length < 2) {
         showToast('La ligne doit comporter au moins 2 arrêts pour générer un itinéraire', 'warning');
@@ -1417,11 +1510,8 @@
       }
 
       const stopCoords = activeStops.map(s => [s.lat, s.lon]);
-      const mode = document.getElementById('selRouteEngine').value;
-      const removeLoops = document.getElementById('chkAntiLoop').checked;
-      const btn = document.getElementById('btnSmartRoute');
-      const originalText = btn.innerHTML;
-      btn.innerHTML = `<i data-lucide="loader-2" class="w-4 h-4 animate-spin text-cyan-300"></i> Calcul intelligent dans le sens de la voie...`;
+      const dirLabel = editingDirection === 0 ? 'Aller (0)' : 'Retour (1)';
+      btn.innerHTML = `<i data-lucide="loader-2" class="w-4 h-4 animate-spin text-cyan-300"></i> Calcul ${dirLabel} (Google Maps / OSM)...`;
 
       try {
         const res = await fetch('/api/route', {
@@ -1439,7 +1529,7 @@
           setActiveTrack(data.coordinates);
           pushHistory();
           renderMapLayers();
-          showToast(`✓ Itinéraire intelligent généré (${data.coordinates.length} points alignés dans le sens de la voie, sans détours ni boucles) !`, 'success');
+          showToast(`✓ Voie ${dirLabel} générée (${data.coordinates.length} points le long de la voie) !`, 'success');
         } else {
           showToast(`Erreur de routage : ${data.error || 'Impossible de calculer la route'}`, 'error');
         }
@@ -1450,6 +1540,7 @@
         lucide.createIcons();
       }
     }
+
 
     async function routeSegmentBetweenNodes() {
       if (!selectedLine) return;

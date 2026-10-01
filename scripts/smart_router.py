@@ -131,88 +131,56 @@ def route_rail_leg(p1, p2, graph):
     path.reverse()
     return path
 
-def route_road_leg(p1, p2, prefer_transit=False):
-    # Calculate bearing from p1 to p2 to snap to the correct directional carriageway
-    b = calc_bearing(p1, p2)
-    direct_dist = haversine(p1[0], p1[1], p2[0], p2[1])
+def route_road_chunk(chunk_points):
+    """
+    Routes a sequence of waypoints through OSRM driving engine.
+    Follows real road network geometry, safe roundabouts, divided carriageways,
+    and bridges/ramps without cutting through barriers or taking illegal shortcuts.
+    """
+    if len(chunk_points) < 2:
+        return chunk_points
 
-    def query_osrm(url):
+    coords_str = ';'.join(f'{p[1]:.6f},{p[0]:.6f}' for p in chunk_points)
+    url = f"https://router.project-osrm.org/route/v1/driving/{coords_str}?overview=full&geometries=geojson"
+    
+    try:
+        req = urllib.request.Request(url, headers={'User-Agent': 'WinTransportStudio/2.0'})
+        with urllib.request.urlopen(req, timeout=12) as resp:
+            data = json.loads(resp.read().decode('utf-8'))
+            if data.get('code') == 'Ok' and data.get('routes'):
+                r = data['routes'][0]
+                pts = [[round(c[1], 6), round(c[0], 6)] for c in r['geometry']['coordinates']]
+                return pts
+    except Exception as e:
+        print(f"[OSRM] Error in road chunk: {e}")
+
+    # Fallback to leg-by-leg if multi-point query had issues
+    fallback_pts = []
+    for i in range(len(chunk_points) - 1):
+        p1 = chunk_points[i]
+        p2 = chunk_points[i+1]
+        leg_url = f"https://router.project-osrm.org/route/v1/driving/{p1[1]:.6f},{p1[0]:.6f};{p2[1]:.6f},{p2[0]:.6f}?overview=full&geometries=geojson"
         try:
-            req = urllib.request.Request(url, headers={'User-Agent': 'WinTransportStudio/2.0'})
-            with urllib.request.urlopen(req, timeout=6) as resp:
+            req = urllib.request.Request(leg_url, headers={'User-Agent': 'WinTransportStudio/2.0'})
+            with urllib.request.urlopen(req, timeout=8) as resp:
                 data = json.loads(resp.read().decode('utf-8'))
                 if data.get('code') == 'Ok' and data.get('routes'):
-                    r = data['routes'][0]
-                    pts = [[round(c[1], 6), round(c[0], 6)] for c in r['geometry']['coordinates']]
-                    return pts, r['distance']
+                    leg = [[round(c[1], 6), round(c[0], 6)] for c in data['routes'][0]['geometry']['coordinates']]
+                    if not fallback_pts:
+                        fallback_pts.extend(leg)
+                    else:
+                        fallback_pts.extend(leg[1:])
+                    continue
         except Exception:
             pass
-        return None, 0
+        if not fallback_pts:
+            fallback_pts.extend([p1, p2])
+        else:
+            fallback_pts.append(p2)
 
-    # 1. Primary: OSRM driving with strict bearing & continue_straight to forbid U-turns and wrong carriageways
-    url_driving = (
-        f"https://router.project-osrm.org/route/v1/driving/{p1[1]},{p1[0]};{p2[1]},{p2[0]}"
-        f"?overview=full&geometries=geojson&continue_straight=true&bearings={b},50;{b},50"
-    )
-    pts, dist = query_osrm(url_driving)
+    return fallback_pts if fallback_pts else chunk_points
 
-    # 2. Check if the driving route took a detour or loop ("went to the hip and turned around")
-    # A detour is detected if distance > 1.7x direct distance and difference > 200m
-    detour_detected = False
-    if pts and dist > 0:
-        ratio = dist / max(direct_dist, 30)
-        detour_m = dist - direct_dist
-        if (ratio > 1.7 and detour_m > 200) or ratio > 2.5:
-            detour_detected = True
-
-    # 3. If detour detected or prefer_transit, query transit-friendly OpenStreetMap routed-bike profile
-    # which allows bus corridors, pedestrian malls (Habib Bourguiba, Passage, Barcelone) and contraflow lanes
-    if detour_detected or prefer_transit or not pts:
-        url_transit = (
-            f"https://routing.openstreetmap.de/routed-bike/route/v1/driving/{p1[1]},{p1[0]};{p2[1]},{p2[0]}"
-            f"?overview=full&geometries=geojson"
-        )
-        pts_t, dist_t = query_osrm(url_transit)
-        if pts_t and dist_t > 0:
-            if not pts or dist_t < dist:
-                pts = pts_t
-                dist = dist_t
-
-    # 4. If still no valid route or massive detour, fallback to direct points
-    if not pts:
-        pts = [p1, p2]
-
-    return pts
-
-def remove_hairpin_loops(pts, max_loop_dist=35, min_waste=120):
-    """
-    Detects and eliminates unwanted loops, roundabouts, or hairpin U-turns
-    where the route leaves an avenue, loops around, and returns to virtually the same spot.
-    """
-    if len(pts) < 6:
-        return pts
-    result = list(pts)
-    changed = True
-    iterations = 0
-    while changed and iterations < 6:
-        changed = False
-        iterations += 1
-        n = len(result)
-        for i in range(n - 4):
-            for j in range(i + 4, min(n, i + 40)):
-                d_between = haversine(result[i][0], result[i][1], result[j][0], result[j][1])
-                if d_between < max_loop_dist:
-                    loop_len = sum(haversine(result[k][0], result[k][1], result[k+1][0], result[k+1][1]) for k in range(i, j))
-                    if loop_len > min_waste:
-                        # Found a wasteful loop / hairpin: cut it out cleanly
-                        result = result[:i+1] + result[j:]
-                        changed = True
-                        break
-            if changed:
-                break
-    return result
-
-def smart_route_full(points, mode='auto', network_type=None, rail_geojson_path='rail.geojson', remove_loops=True):
+def smart_route_full(points, mode='auto', network_type=None, rail_geojson_path='rail.geojson', remove_loops=False):
     if len(points) < 2:
         return points
 
@@ -228,39 +196,38 @@ def smart_route_full(points, mode='auto', network_type=None, rail_geojson_path='
         else:
             is_rail = False
 
-    graph = None
     if is_rail:
         graph = init_rail_graph(rail_geojson_path)
-
-    full_coords = []
-    prefer_transit = (mode == 'transit')
-
-    for i in range(len(points) - 1):
-        p1 = points[i]
-        p2 = points[i+1]
-        
-        # Check if points are identical or virtually zero distance
-        if haversine(p1[0], p1[1], p2[0], p2[1]) < 4:
-            continue
-
-        if is_rail and graph:
+        full_coords = []
+        for i in range(len(points) - 1):
+            p1 = points[i]
+            p2 = points[i+1]
+            if haversine(p1[0], p1[1], p2[0], p2[1]) < 4:
+                continue
             leg_pts = route_rail_leg(p1, p2, graph)
-        else:
-            leg_pts = route_road_leg(p1, p2, prefer_transit=prefer_transit)
+            if not full_coords:
+                full_coords.extend(leg_pts)
+            else:
+                full_coords.extend(leg_pts[1:])
+        return full_coords if len(full_coords) >= 2 else points
 
-        if not full_coords:
-            full_coords.extend(leg_pts)
+    # Road network: chunk in legs of <= 12 coordinates to preserve global road geometry and roundabout turnarounds
+    chunk_size = 12
+    full_road_pts = []
+    for i in range(0, len(points) - 1, chunk_size - 1):
+        chunk = points[i : i + chunk_size]
+        if len(chunk) < 2:
+            continue
+        chunk_routed = route_road_chunk(chunk)
+        if not full_road_pts:
+            full_road_pts.extend(chunk_routed)
         else:
-            full_coords.extend(leg_pts[1:])
+            full_road_pts.extend(chunk_routed[1:])
 
-    # Clean redundant consecutive points
+    # Clean duplicates
     cleaned = []
-    for p in full_coords:
+    for p in full_road_pts:
         if not cleaned or (cleaned[-1][0] != p[0] or cleaned[-1][1] != p[1]):
             cleaned.append(p)
 
-    if remove_loops and not is_rail:
-        cleaned = remove_hairpin_loops(cleaned)
-
     return cleaned if len(cleaned) >= 2 else points
-

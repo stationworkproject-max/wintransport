@@ -12,7 +12,7 @@ CWD = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 PUBLIC_DIR = os.path.join(CWD, 'public')
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
-from smart_router import smart_route_full, remove_hairpin_loops
+from smart_router import smart_route_full
 
 class StudioRequestHandler(http.server.SimpleHTTPRequestHandler):
     def __init__(self, *args, **kwargs):
@@ -114,7 +114,10 @@ class StudioRequestHandler(http.server.SimpleHTTPRequestHandler):
             try:
                 payload = json.loads(post_data.decode('utf-8'))
                 points = payload.get('points', [])
-                cleaned_pts = remove_hairpin_loops(points)
+                cleaned_pts = []
+                for p in points:
+                    if not cleaned_pts or (abs(cleaned_pts[-1][0] - p[0]) > 0.000005 or abs(cleaned_pts[-1][1] - p[1]) > 0.000005):
+                        cleaned_pts.append(p)
                 self.send_response(200)
                 self.send_header('Content-Type', 'application/json; charset=utf-8')
                 self.end_headers()
@@ -129,6 +132,7 @@ class StudioRequestHandler(http.server.SimpleHTTPRequestHandler):
                 self.send_header('Content-Type', 'application/json; charset=utf-8')
                 self.end_headers()
                 self.wfile.write(json.dumps({'success': False, 'error': str(e)}).encode('utf-8'))
+
 
 
         elif self.path == '/api/save':
