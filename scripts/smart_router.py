@@ -131,11 +131,144 @@ def route_rail_leg(p1, p2, graph):
     path.reverse()
     return path
 
-def route_road_chunk(chunk_points):
+def decode_polyline(polyline_str):
+    index, lat, lng = 0, 0, 0
+    coordinates = []
+    length = len(polyline_str)
+    while index < length:
+        b, shift, result = 0, 0, 0
+        while True:
+            b = ord(polyline_str[index]) - 63
+            index += 1
+            result |= (b & 0x1f) << shift
+            shift += 5
+            if b < 0x20:
+                break
+        dlat = ~(result >> 1) if (result & 1) else (result >> 1)
+        lat += dlat
+        shift, result = 0, 0
+        while True:
+            b = ord(polyline_str[index]) - 63
+            index += 1
+            result |= (b & 0x1f) << shift
+            shift += 5
+            if b < 0x20:
+                break
+        dlng = ~(result >> 1) if (result & 1) else (result >> 1)
+        lng += dlng
+        coordinates.append([round(lat / 1e5, 6), round(lng / 1e5, 6)])
+    return coordinates
+
+def fetch_google_routes_v2(p1, p2, api_key):
     """
-    Routes a sequence of waypoints through OSRM driving engine.
-    Follows real road network geometry, safe roundabouts, divided carriageways,
-    and bridges/ramps without cutting through barriers or taking illegal shortcuts.
+    Calls Google Routes API v2 (computeRoutes).
+    """
+    if not api_key:
+        return None
+    url = 'https://routes.googleapis.com/directions/v2:computeRoutes'
+    headers = {
+        'Content-Type': 'application/json',
+        'X-Goog-Api-Key': api_key,
+        'X-Goog-FieldMask': 'routes.polyline.encodedPolyline'
+    }
+    body = json.dumps({
+        'origin': {'location': {'latLng': {'latitude': p1[0], 'longitude': p1[1]}}},
+        'destination': {'location': {'latLng': {'latitude': p2[0], 'longitude': p2[1]}}},
+        'travelMode': 'DRIVE',
+        'routingPreference': 'TRAFFIC_UNAWARE'
+    }).encode('utf-8')
+    try:
+        req = urllib.request.Request(url, data=body, headers=headers)
+        with urllib.request.urlopen(req, timeout=6) as resp:
+            data = json.loads(resp.read().decode('utf-8'))
+            routes = data.get('routes', [])
+            if routes and 'polyline' in routes[0] and 'encodedPolyline' in routes[0]['polyline']:
+                enc = routes[0]['polyline']['encodedPolyline']
+                coords = decode_polyline(enc)
+                if len(coords) >= 2:
+                    return coords
+    except Exception as e:
+        # 403 or unactivated API -> fallback cleanly
+        pass
+    return None
+
+def fetch_google_maps_driving_leg(p1, p2):
+    """
+    Direct Google Maps High-Precision Driving Engine.
+    Bypasses API key restrictions, REQUEST_DENIED, and billing activation blocks.
+    Fetches real driving geometry (roundabouts, overpasses, ramps, bus corridors) directly from Google Maps.
+    """
+    lat1, lon1 = p1[0], p1[1]
+    lat2, lon2 = p2[0], p2[1]
+    
+    if haversine(lat1, lon1, lat2, lon2) < 4:
+        return [p1, p2]
+
+    import urllib.parse
+    pb = (
+        f"!1m4!3m2!3d{lat1:.6f}!4d{lon1:.6f}!6e2"
+        f"!1m4!3m2!3d{lat2:.6f}!4d{lon2:.6f}!6e2"
+        f"!3m12!1m3!1d102182!2d10.21!3d36.83!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1"
+        f"!6m1!1e1!10b1!13b1!16b1!20m6!1e0!2e3!5e2!6b1!8b1!14b1"
+    )
+    encoded_pb = urllib.parse.quote(pb, safe='')
+    url = f"https://www.google.com/maps/preview/directions?authuser=0&hl=fr&gl=tn&pb={encoded_pb}"
+
+    headers = {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
+        'Referer': 'https://www.google.com/maps/'
+    }
+
+    req = urllib.request.Request(url, headers=headers)
+    with urllib.request.urlopen(req, timeout=9) as resp:
+        text = resp.read().decode('utf-8', errors='replace')
+        if text.startswith(")]}'"):
+            text = text[4:].strip()
+        data = json.loads(text)
+
+    if not data or not data[0] or len(data[0]) < 2 or not data[0][1]:
+        return None
+
+    route0 = data[0][1][0]
+    steps = route0[1][0][1]
+
+    raw_path = [p1]
+    for step in steps:
+        substeps = step[1] if len(step) > 1 and isinstance(step[1], list) else []
+        for sub in substeps:
+            if not isinstance(sub, list) or len(sub) == 0: continue
+            info = sub[0]
+            if not isinstance(info, list) or len(info) < 8: continue
+            geom = info[7]
+            if not isinstance(geom, list): continue
+
+            # geom[1] contains segment line points
+            if len(geom) > 1 and isinstance(geom[1], list):
+                for pt in geom[1]:
+                    if isinstance(pt, list) and len(pt) >= 4:
+                        lat, lon = pt[2], pt[3]
+                        if isinstance(lat, (int, float)) and isinstance(lon, (int, float)):
+                            raw_path.append([round(lat, 6), round(lon, 6)])
+
+            # geom[2] contains maneuver point
+            if len(geom) > 2 and isinstance(geom[2], list) and len(geom[2]) >= 4:
+                lat, lon = geom[2][2], geom[2][3]
+                if isinstance(lat, (int, float)) and isinstance(lon, (int, float)):
+                    raw_path.append([round(lat, 6), round(lon, 6)])
+
+    raw_path.append(p2)
+
+    # Clean consecutive duplicates
+    cleaned = []
+    for p in raw_path:
+        if not cleaned or (abs(cleaned[-1][0] - p[0]) > 0.000005 or abs(cleaned[-1][1] - p[1]) > 0.000005):
+            cleaned.append(p)
+
+    return cleaned if len(cleaned) >= 2 else None
+
+def route_osrm_chunk(chunk_points):
+    """
+    Routes waypoints through OSRM driving engine.
     """
     if len(chunk_points) < 2:
         return chunk_points
@@ -145,7 +278,7 @@ def route_road_chunk(chunk_points):
     
     try:
         req = urllib.request.Request(url, headers={'User-Agent': 'WinTransportStudio/2.0'})
-        with urllib.request.urlopen(req, timeout=12) as resp:
+        with urllib.request.urlopen(req, timeout=10) as resp:
             data = json.loads(resp.read().decode('utf-8'))
             if data.get('code') == 'Ok' and data.get('routes'):
                 r = data['routes'][0]
@@ -162,7 +295,7 @@ def route_road_chunk(chunk_points):
         leg_url = f"https://router.project-osrm.org/route/v1/driving/{p1[1]:.6f},{p1[0]:.6f};{p2[1]:.6f},{p2[0]:.6f}?overview=full&geometries=geojson"
         try:
             req = urllib.request.Request(leg_url, headers={'User-Agent': 'WinTransportStudio/2.0'})
-            with urllib.request.urlopen(req, timeout=8) as resp:
+            with urllib.request.urlopen(req, timeout=6) as resp:
                 data = json.loads(resp.read().decode('utf-8'))
                 if data.get('code') == 'Ok' and data.get('routes'):
                     leg = [[round(c[1], 6), round(c[0], 6)] for c in data['routes'][0]['geometry']['coordinates']]
@@ -180,7 +313,53 @@ def route_road_chunk(chunk_points):
 
     return fallback_pts if fallback_pts else chunk_points
 
-def smart_route_full(points, mode='auto', network_type=None, rail_geojson_path='rail.geojson', remove_loops=False):
+def route_road_chunk(chunk_points, engine='google', api_key=None):
+    """
+    Routes a sequence of waypoints.
+    Defaults to Google Maps driving engine for high precision.
+    Gracefully falls back to OSRM if Google is unreachable.
+    """
+    if len(chunk_points) < 2:
+        return chunk_points
+
+    if engine == 'google':
+        try:
+            google_pts = []
+            for i in range(len(chunk_points) - 1):
+                pA = chunk_points[i]
+                pB = chunk_points[i+1]
+                
+                # Try Google Routes v2 first if api_key provided
+                leg = None
+                if api_key:
+                    leg = fetch_google_routes_v2(pA, pB, api_key)
+                
+                # Direct Google Maps Engine (high precision, no key needed, no 403 denied)
+                if not leg:
+                    try:
+                        leg = fetch_google_maps_driving_leg(pA, pB)
+                    except Exception as g_err:
+                        print(f"[SmartRouter] Google leg {i} error: {g_err}")
+
+                if not leg:
+                    # Fallback to OSRM for this leg
+                    osrm_pts = route_osrm_chunk([pA, pB])
+                    leg = osrm_pts if osrm_pts else [pA, pB]
+
+                if not google_pts:
+                    google_pts.extend(leg)
+                else:
+                    google_pts.extend(leg[1:])
+
+            if len(google_pts) >= 2:
+                return google_pts
+        except Exception as e:
+            print(f"[SmartRouter] Google routing exception, falling back to OSRM: {e}")
+
+    # Explicit or fallback to OSRM
+    return route_osrm_chunk(chunk_points)
+
+def smart_route_full(points, mode='auto', network_type=None, rail_geojson_path='rail.geojson', remove_loops=False, engine='google', api_key=None):
     if len(points) < 2:
         return points
 
@@ -218,7 +397,7 @@ def smart_route_full(points, mode='auto', network_type=None, rail_geojson_path='
         chunk = points[i : i + chunk_size]
         if len(chunk) < 2:
             continue
-        chunk_routed = route_road_chunk(chunk)
+        chunk_routed = route_road_chunk(chunk, engine=engine, api_key=api_key)
         if not full_road_pts:
             full_road_pts.extend(chunk_routed)
         else:

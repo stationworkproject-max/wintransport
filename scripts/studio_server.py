@@ -67,7 +67,7 @@ class StudioRequestHandler(http.server.SimpleHTTPRequestHandler):
         return ctype
 
     def do_POST(self):
-        if self.path == '/api/route':
+        if self.path in ['/api/route', '/api/google-route']:
             content_length = int(self.headers['Content-Length'])
             post_data = self.rfile.read(content_length)
             try:
@@ -76,6 +76,8 @@ class StudioRequestHandler(http.server.SimpleHTTPRequestHandler):
                 mode = payload.get('mode', 'auto')
                 network_type = payload.get('network_type')
                 remove_loops = payload.get('remove_loops', True)
+                engine = payload.get('engine', 'google')
+                api_key = payload.get('key')
 
                 if len(points) < 2:
                     self.send_response(400)
@@ -89,7 +91,9 @@ class StudioRequestHandler(http.server.SimpleHTTPRequestHandler):
                     mode=mode, 
                     network_type=network_type, 
                     rail_geojson_path=rail_geojson, 
-                    remove_loops=remove_loops
+                    remove_loops=remove_loops,
+                    engine=engine,
+                    api_key=api_key
                 )
                 self.send_response(200)
                 self.send_header('Content-Type', 'application/json; charset=utf-8')
@@ -98,10 +102,11 @@ class StudioRequestHandler(http.server.SimpleHTTPRequestHandler):
                     'success': True, 
                     'coordinates': routed_pts,
                     'input_count': len(points),
-                    'output_count': len(routed_pts)
+                    'output_count': len(routed_pts),
+                    'provider': 'Google Maps Driving (Haute Précision)' if engine == 'google' else 'OpenStreetMap (OSRM)'
                 })
                 self.wfile.write(response.encode('utf-8'))
-                print(f"[Studio] Smart route calculated: {len(points)} pts -> {len(routed_pts)} smooth points (mode={mode}, net={network_type})")
+                print(f"[Studio] Smart route calculated: {len(points)} pts -> {len(routed_pts)} points (engine={engine}, mode={mode}, net={network_type})")
             except Exception as e:
                 self.send_response(500)
                 self.send_header('Content-Type', 'application/json; charset=utf-8')
