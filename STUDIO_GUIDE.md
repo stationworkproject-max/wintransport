@@ -29,14 +29,13 @@ Ouvrez ensuite votre navigateur à l'adresse :
   - 🔵 **Aller (0)** : Voie active en Cyan.
   - 🟠 **Retour (1)** : Voie active en Ambre.
   - 🟣 **Les Deux (Simultané)** : Permet de tracer et corriger les voies Aller ET Retour en parallèle en un seul clic !
-- **Affichage sur la carte :** Deux cases à cocher permettent d'afficher l'Aller seul, le Retour seul, ou les deux voies superposées sur le plan Google Maps.
+- **Affichage sur la carte :** Deux cases à cocher permettent d'afficher l'Aller seul, le Retour seul, ou les deux voies superposées sur le plan OSM.
 
-### 3. Fonds de Carte Haute Précision
-- 🗺️ **Plan OSM (OpenStreetMap)** : Fond de carte routier OpenStreetMap précis et à jour avec toutes les voies réelles, giratoires, sens uniques et voirie.
-- 🚗 **Plan Google** : Affiche le fond de carte routier de Google Maps avec le réseau des rues, numéros de routes nationales (RN, RR, R33...), ponts et terre-pleins centraux.
-- 🛰️ **Satellite Google** : Imagerie aérienne détaillée pour positionner les voies sur les chaussées et quais physiques.
-- 🚦 **Trafic Google** : Visualisation en direct du trafic et des axes principaux.
-- 🌙 **Plan Sombre** : Mode haute visibilité nocturne.
+### 3. Fonds de Carte Haute Précision (100% Alignés OpenStreetMap)
+- 🗺️ **Plan OSM** : Fond de carte routier OpenStreetMap précis et à jour avec toutes les voies réelles, giratoires, sens uniques et voirie.
+- 🏙️ **Rues HD** : Rendu vectoriel haute visibilité CartoDB Voyager basé sur les données OpenStreetMap.
+- 🛰️ **Satellite** : Imagerie aérienne satellite haute résolution (Esri World Imagery) pour aligner les voies sur les quais physiques.
+- 🌙 **Plan Sombre** : Mode haute visibilité nocturne CartoDB Dark (OSM).
 
 ### 4. 🧭 Action Tronçon (Nœud A ➔ Nœud B) : Arrondir la Forme OU Tracer la Route
 Vous avez l'entière liberté de choisir l'action souhaitée sur le tronçon sans rien vous imposer :
@@ -49,7 +48,7 @@ Vous avez l'entière liberté de choisir l'action souhaitée sur le tronçon san
 3. **Contrôles supplémentaires dans le HUD :**
    - Bouton **`⇄ A / B`** : Inverse le sens de parcours.
    - Bouton **`✕ Annuler`** : Désélectionne le tronçon en 1 clic.
-   - Bouton **`↗ G-Maps`** : Ouvre l'itinéraire exact dans Google Maps pour vérification.
+   - Bouton **`↗ OSM`** : Ouvre l'itinéraire officiel dans le moteur OpenStreetMap pour inspection.
 4. **Option d'action automatique :**
    - Par défaut, l'application est configurée sur *« Attendre mon clic »* (ne force aucune action automatique). Vous pouvez aussi choisir d'arrondir ou de tracer automatiquement au clic si vous avez une série de tronçons à traiter.
 

@@ -24,9 +24,6 @@
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 
-  <!-- Google Maps JavaScript API (with Routes & Geometry libraries) -->
-  <script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyD5AZ-rNY0NGtkFDZUyB3cwPKH3CiUit6I&libraries=routes,geometry"></script>
-
   <!-- Lucide Icons -->
   <script src="https://unpkg.com/lucide@latest"></script>
 
@@ -393,14 +390,14 @@
       <!-- TAB 3: SMART ROUTING & TOOLS -->
       <div id="tabContentTools" class="flex-1 overflow-y-auto p-3 space-y-3.5 hidden">
         
-        <!-- SMART GOOGLE MAPS STYLE ROUTING -->
+        <!-- SMART OPENSTREETMAP ROUTING -->
         <div class="p-3 bg-gradient-to-br from-indigo-950/60 to-slate-900 rounded-xl border border-indigo-700/60 space-y-3 shadow-lg">
           <div class="flex items-center justify-between">
             <label class="text-xs font-bold text-white flex items-center gap-1.5">
               <i data-lucide="navigation-2" class="w-4 h-4 text-cyan-400"></i>
               Tracé Intelligent (Anti-Boucle & Sens de Voie)
             </label>
-            <span class="text-[10px] px-1.5 py-0.5 rounded bg-cyan-950 text-cyan-300 font-semibold border border-cyan-800">Smart AI</span>
+            <span class="text-[10px] px-1.5 py-0.5 rounded bg-cyan-950 text-cyan-300 font-semibold border border-cyan-800">OSM Réseau Réel</span>
           </div>
 
           <p class="text-[11px] text-slate-300 leading-tight">
@@ -556,7 +553,7 @@
                 <i data-lucide="navigation" class="w-3.5 h-3.5 text-emerald-400"></i>
                 2. Tracer selon Réseau Routier
               </label>
-              <span class="text-[9px] px-1 rounded bg-emerald-950 text-emerald-300 border border-emerald-800">OSM / Google</span>
+              <span class="text-[9px] px-1.5 py-0.5 rounded bg-emerald-950 text-emerald-300 font-semibold border border-emerald-800">100% OpenStreetMap</span>
             </div>
 
             <button onclick="routeSegmentBetweenNodes()" id="btnRouteSegment" class="w-full py-2 px-3 rounded-lg bg-emerald-600 hover:bg-emerald-500 active:bg-emerald-700 text-white font-bold text-xs flex items-center justify-center gap-2 shadow-lg shadow-emerald-950/50 transition">
@@ -712,8 +709,8 @@
                 <option value="2" selected>Moyen</option>
                 <option value="3">Très Rond</option>
               </select>
-              <button onclick="openExternalGoogleMapsForSegment()" class="py-1 px-2 rounded-md bg-slate-800 hover:bg-slate-700 text-cyan-400 hover:text-cyan-300 font-semibold text-[11px] flex items-center gap-1" title="Ouvrir dans Google Maps">
-                <i data-lucide="external-link" class="w-3 h-3"></i> G-Maps
+              <button onclick="openExternalOsmForSegment()" class="py-1 px-2 rounded-md bg-slate-800 hover:bg-slate-700 text-cyan-400 hover:text-cyan-300 font-semibold text-[11px] flex items-center gap-1" title="Inspecter l'itinéraire officiel OpenStreetMap">
+                <i data-lucide="external-link" class="w-3 h-3"></i> OSM
               </button>
             </div>
           </div>
@@ -727,21 +724,18 @@
       <!-- FLOATING MAP CONTROLS -->
       <div class="absolute top-3 right-3 z-[1000] flex flex-col gap-2">
         
-        <!-- Base Map Switcher -->
+        <!-- Base Map Switcher (100% OpenStreetMap Aligned) -->
         <div class="bg-slate-900/90 border border-slate-700/80 rounded-lg p-1 shadow-2xl backdrop-blur flex items-center gap-1 text-xs font-semibold">
-          <button onclick="setBaseMap('osm')" id="mapBtnOsm" class="px-2.5 py-1 rounded bg-indigo-600 text-white flex items-center gap-1.5 shadow" title="OpenStreetMap officiel">
+          <button onclick="setBaseMap('osm')" id="mapBtnOsm" class="px-2.5 py-1 rounded bg-indigo-600 text-white flex items-center gap-1.5 shadow" title="OpenStreetMap Standard">
             <i data-lucide="map" class="w-3.5 h-3.5"></i> Plan OSM
           </button>
-          <button onclick="setBaseMap('streets')" id="mapBtnStreets" class="px-2.5 py-1 rounded text-slate-400 hover:text-white flex items-center gap-1.5" title="Google Maps Plan Rues">
-            <i data-lucide="layers" class="w-3.5 h-3.5"></i> Plan Google
+          <button onclick="setBaseMap('streets')" id="mapBtnStreets" class="px-2.5 py-1 rounded text-slate-400 hover:text-white flex items-center gap-1.5" title="Plan Rues & Voirie HD (Carto Voyager / OSM)">
+            <i data-lucide="layers" class="w-3.5 h-3.5"></i> Rues HD
           </button>
-          <button onclick="setBaseMap('satellite')" id="mapBtnSat" class="px-2.5 py-1 rounded text-slate-400 hover:text-white flex items-center gap-1.5">
+          <button onclick="setBaseMap('satellite')" id="mapBtnSat" class="px-2.5 py-1 rounded text-slate-400 hover:text-white flex items-center gap-1.5" title="Imagerie Aérienne Satellite">
             <i data-lucide="satellite" class="w-3.5 h-3.5"></i> Satellite
           </button>
-          <button onclick="setBaseMap('traffic')" id="mapBtnTraffic" class="px-2.5 py-1 rounded text-slate-400 hover:text-white flex items-center gap-1.5">
-            <i data-lucide="activity" class="w-3.5 h-3.5"></i> Trafic
-          </button>
-          <button onclick="setBaseMap('dark')" id="mapBtnDark" class="px-2.5 py-1 rounded text-slate-400 hover:text-white flex items-center gap-1.5">
+          <button onclick="setBaseMap('dark')" id="mapBtnDark" class="px-2.5 py-1 rounded text-slate-400 hover:text-white flex items-center gap-1.5" title="Mode Sombre (Carto Dark / OSM)">
             <i data-lucide="moon" class="w-3.5 h-3.5"></i> Sombre
           </button>
         </div>
@@ -873,31 +867,24 @@
       zoomControl: true
     });
 
-    const GOOGLE_MAPS_KEY = 'AIzaSyD5AZ-rNY0NGtkFDZUyB3cwPKH3CiUit6I';
-
     const tileLayers = {
       osm: L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
         maxZoom: 19,
-        attribution: '© OpenStreetMap'
+        attribution: '© OpenStreetMap contributors'
       }),
-      streets: L.tileLayer(`https://mt{s}.google.com/vt/lyrs=m&x={x}&y={y}&z={z}&key=${GOOGLE_MAPS_KEY}`, {
-        maxZoom: 21,
-        subdomains: ['0', '1', '2', '3'],
-        attribution: '© Google Maps'
+      streets: L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
+        maxZoom: 20,
+        subdomains: 'abcd',
+        attribution: '© CartoDB / OpenStreetMap'
       }),
-      satellite: L.tileLayer(`https://mt{s}.google.com/vt/lyrs=y&x={x}&y={y}&z={z}&key=${GOOGLE_MAPS_KEY}`, {
-        maxZoom: 21,
-        subdomains: ['0', '1', '2', '3'],
-        attribution: '© Google Satellite'
-      }),
-      traffic: L.tileLayer(`https://mt{s}.google.com/vt/lyrs=m,traffic&x={x}&y={y}&z={z}&key=${GOOGLE_MAPS_KEY}`, {
-        maxZoom: 21,
-        subdomains: ['0', '1', '2', '3'],
-        attribution: '© Google Trafic'
+      satellite: L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+        maxZoom: 19,
+        attribution: '© Esri World Imagery'
       }),
       dark: L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
         maxZoom: 19,
-        attribution: '© CartoDB'
+        subdomains: 'abcd',
+        attribution: '© CartoDB / OpenStreetMap'
       })
     };
 
@@ -909,7 +896,7 @@
       map.removeLayer(activeBaseMap);
       activeBaseMap = tileLayers[type].addTo(map);
       
-      document.querySelectorAll('#mapBtnOsm, #mapBtnStreets, #mapBtnSat, #mapBtnTraffic, #mapBtnDark').forEach(btn => {
+      document.querySelectorAll('#mapBtnOsm, #mapBtnStreets, #mapBtnSat, #mapBtnDark').forEach(btn => {
         if (btn) {
           btn.classList.remove('bg-indigo-600', 'text-white');
           btn.classList.add('text-slate-400');
@@ -917,8 +904,7 @@
       });
       const activeBtn = type === 'osm' ? document.getElementById('mapBtnOsm') :
                         type === 'streets' ? document.getElementById('mapBtnStreets') :
-                        type === 'satellite' ? document.getElementById('mapBtnSat') :
-                        type === 'traffic' ? document.getElementById('mapBtnTraffic') : document.getElementById('mapBtnDark');
+                        type === 'satellite' ? document.getElementById('mapBtnSat') : document.getElementById('mapBtnDark');
       if (activeBtn) {
         activeBtn.classList.add('bg-indigo-600', 'text-white');
         activeBtn.classList.remove('text-slate-400');
@@ -1684,7 +1670,7 @@
           return;
         }
 
-        btn.innerHTML = `<i data-lucide="loader-2" class="w-4 h-4 animate-spin text-purple-300"></i> Calcul Aller & Retour (Google Maps / OSM)...`;
+        btn.innerHTML = `<i data-lucide="loader-2" class="w-4 h-4 animate-spin text-purple-300"></i> Calcul Aller & Retour (OpenStreetMap)...`;
 
         try {
           const [resAller, resRetour] = await Promise.all([
@@ -1745,7 +1731,7 @@
 
       const stopCoords = activeStops.map(s => [s.lat, s.lon]);
       const dirLabel = editingDirection === 0 ? 'Aller (0)' : 'Retour (1)';
-      btn.innerHTML = `<i data-lucide="loader-2" class="w-4 h-4 animate-spin text-cyan-300"></i> Calcul ${dirLabel} (Google Maps / OSM)...`;
+      btn.innerHTML = `<i data-lucide="loader-2" class="w-4 h-4 animate-spin text-cyan-300"></i> Calcul ${dirLabel} (OpenStreetMap)...`;
 
       try {
         const res = await fetch('/api/route', {
@@ -1819,40 +1805,7 @@
         console.warn('[Routing] Direct OSRM error:', err);
       }
 
-      // 3. Optional: Google Maps DirectionsService with strict 1.5s timeout (never hangs)
-      if (window.google && window.google.maps && window.google.maps.DirectionsService) {
-        try {
-          const directionsService = new google.maps.DirectionsService();
-          const googleResult = await Promise.race([
-            new Promise((resolve) => {
-              directionsService.route({
-                origin: new google.maps.LatLng(origin[0], origin[1]),
-                destination: new google.maps.LatLng(destination[0], destination[1]),
-                travelMode: google.maps.TravelMode.DRIVING
-              }, (res, status) => {
-                if (status === google.maps.DirectionsStatus.OK && res && res.routes && res.routes[0]) {
-                  const path = res.routes[0].overview_path.map(p => [
-                    parseFloat(p.lat().toFixed(6)),
-                    parseFloat(p.lng().toFixed(6))
-                  ]);
-                  resolve({ success: true, coordinates: path, provider: 'Google Maps Directions' });
-                } else {
-                  resolve({ success: false });
-                }
-              });
-            }),
-            new Promise((resolve) => setTimeout(() => resolve({ success: false, timeout: true }), 1500))
-          ]);
-
-          if (googleResult && googleResult.success && googleResult.coordinates && googleResult.coordinates.length > 0) {
-            return googleResult;
-          }
-        } catch (err) {
-          console.warn('[Routing] Google Directions error:', err);
-        }
-      }
-
-      // 4. Safe fallback: Linear interpolation (never crashes or hangs)
+      // 3. Safe fallback: Linear interpolation (never crashes or hangs)
       const fallbackPts = [];
       for (let i = 0; i <= 6; i++) {
         const t = i / 6;
@@ -1864,7 +1817,7 @@
       return { success: true, coordinates: fallbackPts, provider: 'Interpolation Directe' };
     }
 
-    function openExternalGoogleMapsForSegment() {
+    function openExternalOsmForSegment() {
       const activePts = getActiveTrack();
       let pA, pB;
       if (curveNodeA !== null && activePts && activePts[curveNodeA]) {
@@ -1886,9 +1839,10 @@
         pB = activePts[Math.min((curveNodeA || 0) + 1, activePts.length - 1)];
       }
 
-      const gmapsUrl = `https://www.google.com/maps/dir/?api=1&origin=${pA[0]},${pA[1]}&destination=${pB[0]},${pB[1]}&travelmode=driving`;
-      window.open(gmapsUrl, '_blank');
-      showToast('Itinéraire ouvert dans Google Maps !', 'info');
+      // Open on official OpenStreetMap routing inspector
+      const osmUrl = `https://www.openstreetmap.org/directions?engine=fossgis_osrm_car&route=${pA[0]}%2C${pA[1]}%3B${pB[0]}%2C${pB[1]}`;
+      window.open(osmUrl, '_blank');
+      showToast('Itinéraire ouvert dans OpenStreetMap !', 'info');
     }
 
     async function routeSegmentBetweenNodes() {
