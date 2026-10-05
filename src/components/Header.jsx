@@ -7,14 +7,17 @@ import {
   Bus, 
   Layers,
   Compass,
-  Navigation
+  Navigation,
+  Sun,
+  Moon
 } from 'lucide-react';
-import { TRANSIT_NETWORKS } from '../data/staticTransit';
-
 export default function Header({
   activeNetwork,
   setActiveNetwork,
   liveCount,
+  broadcastersCount = 0,
+  passengersCount = 0,
+  viewersCount = 1,
   onOpenBroadcast,
   isBroadcasting,
   onOpenReport,
@@ -24,19 +27,13 @@ export default function Header({
   gpsStatus,
   onOpenTripPlanner,
   language = 'fr',
-  onToggleLanguage
+  onToggleLanguage,
+  theme = 'dark',
+  onToggleTheme
 }) {
-  const getNetworkLabel = (netId, defaultName) => {
-    if (language !== 'ar') return defaultName;
-    if (netId === 'all') return 'الكل';
-    if (netId === 'bus') return 'حافلات';
-    if (netId === 'metro') return 'المترو';
-    if (netId === 'train') return 'قطارات و RFR';
-    return defaultName;
-  };
 
   return (
-    <header className="flex-shrink-0 sticky top-0 z-[1010] w-full glass-panel border-b border-slate-800/80 px-3 sm:px-6 py-2 sm:py-2.5 pointer-events-auto">
+    <header className="flex-shrink-0 sticky top-0 z-[1010] w-full glass-panel safe-top-padding px-3 sm:px-6 py-2 sm:py-2.5 pointer-events-auto transition-colors">
       <div className="max-w-7xl mx-auto flex flex-col md:flex-row items-center justify-between gap-2 sm:gap-3">
         
         {/* Brand & Live Counter */}
@@ -46,38 +43,75 @@ export default function Header({
               TN
             </div>
             <div>
-              <h1 className="font-extrabold text-base sm:text-lg tracking-tight text-white flex items-center gap-1.5 leading-none">
-                WinTransport <span className="text-blue-400 font-black">TN</span>
+              <h1 className={`font-extrabold text-base sm:text-lg tracking-tight flex items-center gap-1.5 leading-none ${
+                theme === 'light' ? 'text-slate-900' : 'text-white'
+              }`}>
+                WinTransport <span className="text-blue-500 font-black">TN</span>
               </h1>
-              <p className="text-[11px] text-slate-400 flex items-center gap-1.5 mt-1 leading-none">
-                <span className="relative flex h-2 w-2">
-                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-                  <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+              <div className={`text-[11px] flex items-center gap-2 mt-1 leading-none flex-wrap ${
+                theme === 'light' ? 'text-slate-500' : 'text-slate-400'
+              }`}>
+                {/* Active Broadcasters */}
+                <span className="flex items-center gap-1.5 text-emerald-500 font-semibold" title={language === 'ar' ? 'مركبات تبث GPS مباشرة' : 'Véhicules diffusant leur position GPS'}>
+                  <span className="relative flex h-2 w-2">
+                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                    <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+                  </span>
+                  <span>{(broadcastersCount || liveCount || 0).toLocaleString()} {language === 'ar' ? 'مركبة' : 'véhicules'}</span>
                 </span>
-                {language === 'ar' ? (
-                  <>
-                    <span className="text-emerald-400 font-semibold">{liveCount} مركبة</span> مباشرة
-                  </>
-                ) : (
-                  <>
-                    <span className="text-emerald-400 font-semibold">{liveCount} véhicules</span> en direct
-                  </>
-                )}
-              </p>
+
+                <span className={theme === 'light' ? 'text-slate-300' : 'text-slate-700'}>•</span>
+
+                {/* Hold users / passengers on board */}
+                <span className={`flex items-center gap-1 font-semibold ${
+                  theme === 'light' ? 'text-blue-600' : 'text-blue-400'
+                }`} title={language === 'ar' ? 'ركاب متصلون على متن المركبات' : 'Voyageurs connectés à bord'}>
+                  <span>👤 {(passengersCount || 0).toLocaleString()}</span>
+                  <span className="text-[10px] font-normal opacity-90">{language === 'ar' ? 'على المتن' : 'à bord'}</span>
+                </span>
+
+                <span className={theme === 'light' ? 'text-slate-300' : 'text-slate-700'}>•</span>
+
+                {/* Live Viewers */}
+                <span className={`flex items-center gap-1 font-semibold ${
+                  theme === 'light' ? 'text-indigo-600' : 'text-indigo-400'
+                }`} title={language === 'ar' ? 'مستخدمون يتابعون الخريطة مباشرة' : 'Personnes connectées sur l\'application'}>
+                  <span>👥 {(viewersCount || 1).toLocaleString()}</span>
+                  <span className="text-[10px] font-normal opacity-90">{language === 'ar' ? 'متصل' : 'en ligne'}</span>
+                </span>
+              </div>
             </div>
           </div>
 
           {/* Mobile Action Buttons */}
           <div className="flex items-center gap-1.5 md:hidden">
+            {/* Theme Switcher Mobile */}
+            <button
+              onClick={onToggleTheme}
+              className={`p-2 rounded-xl border flex items-center justify-center transition-all ${
+                theme === 'light'
+                  ? 'bg-slate-100 border-slate-300 text-indigo-600 hover:bg-slate-200'
+                  : 'bg-slate-800/90 border-slate-700 text-amber-400 hover:bg-slate-700'
+              }`}
+              title={theme === 'light' ? 'Mode sombre' : 'Mode clair'}
+            >
+              {theme === 'light' ? <Moon className="w-4 h-4" /> : <Sun className="w-4 h-4" />}
+            </button>
+
             {/* Language Switcher Mobile */}
             <button
               onClick={onToggleLanguage}
-              className="px-2.5 py-1.5 rounded-xl bg-blue-600/20 border border-blue-500/50 text-blue-300 text-xs font-bold hover:bg-blue-600/30 transition-all"
+              className={`px-2.5 py-1.5 rounded-xl border text-xs font-bold transition-all ${
+                theme === 'light'
+                  ? 'bg-blue-50 border-blue-200 text-blue-600 hover:bg-blue-100'
+                  : 'bg-blue-600/20 border-blue-500/50 text-blue-300 hover:bg-blue-600/30'
+              }`}
               title="Changer de langue / تغيير اللغة"
             >
               {language === 'ar' ? 'FR' : 'عربي'}
             </button>
 
+            {/* Broadcast GPS Button */}
             <button
               onClick={onOpenBroadcast}
               className={`p-2 rounded-xl border flex items-center justify-center transition-all ${
@@ -89,72 +123,76 @@ export default function Header({
             >
               <Radio className="w-4 h-4" />
             </button>
-            <button
-              onClick={onOpenReport}
-              className="p-2 rounded-xl bg-slate-800/90 border border-slate-700 text-amber-400 relative"
-              title={language === 'ar' ? 'إبلاغ عن مشكل' : 'Signaler un problème'}
-            >
-              <AlertTriangle className="w-4 h-4" />
-              {recentReportCount > 0 && (
-                <span className="absolute -top-1 -right-1 w-4 h-4 bg-amber-500 text-slate-950 text-[10px] font-bold rounded-full flex items-center justify-center">
-                  {recentReportCount}
-                </span>
-              )}
-            </button>
           </div>
         </div>
 
-        {/* Network Filter Tabs */}
-        <div className="flex items-center gap-1.5 overflow-x-auto max-w-full pb-0.5 md:pb-0 scrollbar-none w-full md:w-auto justify-start md:justify-center">
-          {TRANSIT_NETWORKS.map((net) => {
-            const isActive = activeNetwork === net.id;
-            const netLabel = getNetworkLabel(net.id, net.name);
-            return (
-              <button
-                key={net.id}
-                onClick={() => setActiveNetwork(net.id)}
-                className={`px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition-all flex items-center gap-1.5 border ${
-                  isActive
-                    ? 'bg-blue-600 border-blue-500 text-white shadow-md shadow-blue-600/25'
-                    : 'bg-slate-800/50 border-slate-700/60 text-slate-400 hover:text-slate-200 hover:bg-slate-800'
-                }`}
-              >
-                <span>{netLabel}</span>
-              </button>
-            );
-          })}
-        </div>
+
 
         {/* Desktop Action Buttons */}
         <div className="hidden md:flex items-center gap-2.5">
+          {/* Theme Switcher Desktop */}
+          <button
+            onClick={onToggleTheme}
+            className={`p-2 rounded-xl border flex items-center gap-1.5 transition-all text-xs font-semibold ${
+              theme === 'light'
+                ? 'bg-slate-100 hover:bg-slate-200 border-slate-300 text-slate-700'
+                : 'bg-slate-800/90 hover:bg-slate-700/90 border-slate-700 text-slate-300'
+            }`}
+            title={theme === 'light' ? 'Mode sombre' : 'Mode clair'}
+          >
+            {theme === 'light' ? (
+              <>
+                <Moon className="w-3.5 h-3.5 text-indigo-600" />
+                <span className="hidden lg:inline">{language === 'ar' ? 'ليلي' : 'Sombre'}</span>
+              </>
+            ) : (
+              <>
+                <Sun className="w-3.5 h-3.5 text-amber-400" />
+                <span className="hidden lg:inline">{language === 'ar' ? 'نهاري' : 'Clair'}</span>
+              </>
+            )}
+          </button>
+
           {/* Language Switcher Desktop */}
           <button
             onClick={onToggleLanguage}
-            className="px-3 py-1.5 rounded-xl bg-slate-800/90 hover:bg-slate-700/90 border border-slate-700 text-xs font-bold text-blue-400 flex items-center gap-1.5 transition-all shadow-sm"
+            className={`px-3 py-1.5 rounded-xl border text-xs font-bold flex items-center gap-1.5 transition-all shadow-sm ${
+              theme === 'light'
+                ? 'bg-slate-100 hover:bg-slate-200 border-slate-300 text-blue-600'
+                : 'bg-slate-800/90 hover:bg-slate-700/90 border-slate-700 text-blue-400'
+            }`}
             title="Changer de langue / تغيير اللغة"
           >
-            <span className="text-[10px] text-slate-400">{language === 'ar' ? 'اللغة:' : 'Lang:'}</span>
-            <span className="font-extrabold text-blue-300">{language === 'ar' ? 'العربية (FR)' : 'FR (عربي)'}</span>
+            <span className={`text-[10px] ${theme === 'light' ? 'text-slate-500' : 'text-slate-400'}`}>
+              {language === 'ar' ? 'اللغة:' : 'Lang:'}
+            </span>
+            <span className="font-extrabold">{language === 'ar' ? 'العربية (FR)' : 'FR (عربي)'}</span>
           </button>
 
           {/* Real Live Community Tracking Status / GPS Indicator */}
           {userLocation ? (
-            <div className="hidden lg:flex items-center gap-2 px-3 py-1.5 rounded-xl bg-slate-800/60 border border-emerald-500/40 text-xs text-slate-300">
+            <div className={`hidden lg:flex items-center gap-2 px-3 py-1.5 rounded-xl border text-xs ${
+              theme === 'light'
+                ? 'bg-emerald-50 border-emerald-300 text-slate-700'
+                : 'bg-slate-800/60 border-emerald-500/40 text-slate-300'
+            }`}>
               <span className="relative flex h-2 w-2">
                 <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
                 <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
               </span>
-              <span className="font-semibold text-white">{language === 'ar' ? 'GPS دقيق' : 'GPS Précis'}</span>
-              <span className="text-slate-500">•</span>
-              <span className="text-emerald-400 font-medium">±{Math.round(userLocation.accuracy || 10)}m</span>
+              <span className={`font-semibold ${theme === 'light' ? 'text-slate-900' : 'text-white'}`}>
+                {language === 'ar' ? 'GPS دقيق' : 'GPS Précis'}
+              </span>
+              <span className={theme === 'light' ? 'text-slate-400' : 'text-slate-500'}>•</span>
+              <span className="text-emerald-600 dark:text-emerald-400 font-medium">±{Math.round(userLocation.accuracy || 10)}m</span>
             </div>
           ) : (
             <button
               onClick={onRequestGps}
-              className="hidden lg:flex items-center gap-2 px-3 py-1.5 rounded-xl bg-blue-600/20 hover:bg-blue-600/30 border border-blue-500/50 text-xs text-blue-300 font-semibold transition-all"
+              className="hidden lg:flex items-center gap-2 px-3 py-1.5 rounded-xl bg-blue-600/20 hover:bg-blue-600/30 border border-blue-500/50 text-xs text-blue-500 dark:text-blue-300 font-semibold transition-all"
               title="Activer la géolocalisation GPS"
             >
-              <Navigation className="w-3.5 h-3.5 text-blue-400" />
+              <Navigation className="w-3.5 h-3.5 text-blue-500" />
               <span>{language === 'ar' ? 'تفعيل الـ GPS' : 'Activer mon GPS'}</span>
             </button>
           )}
@@ -163,9 +201,13 @@ export default function Header({
           {onOpenTripPlanner && (
             <button
               onClick={onOpenTripPlanner}
-              className="px-3 py-1.5 rounded-xl bg-indigo-600/20 hover:bg-indigo-600/30 border border-indigo-500/40 text-xs font-semibold text-indigo-300 flex items-center gap-1.5 transition-all"
+              className={`px-3 py-1.5 rounded-xl border text-xs font-semibold flex items-center gap-1.5 transition-all ${
+                theme === 'light'
+                  ? 'bg-indigo-50 hover:bg-indigo-100 border-indigo-200 text-indigo-700'
+                  : 'bg-indigo-600/20 hover:bg-indigo-600/30 border-indigo-500/40 text-indigo-300'
+              }`}
             >
-              <Compass className="w-3.5 h-3.5 text-indigo-400" />
+              <Compass className="w-3.5 h-3.5 text-indigo-500" />
               <span>{language === 'ar' ? 'دليل المسار' : 'Guide Trajet'}</span>
             </button>
           )}
@@ -173,7 +215,11 @@ export default function Header({
           {/* Report Button */}
           <button
             onClick={onOpenReport}
-            className="px-3 py-1.5 rounded-xl bg-slate-800/80 hover:bg-slate-700/80 border border-slate-700 text-xs font-semibold text-amber-400 flex items-center gap-1.5 transition-all"
+            className={`px-3 py-1.5 rounded-xl border text-xs font-semibold text-amber-500 flex items-center gap-1.5 transition-all ${
+              theme === 'light'
+                ? 'bg-slate-100 hover:bg-slate-200 border-slate-300'
+                : 'bg-slate-800/80 hover:bg-slate-700/80 border-slate-700'
+            }`}
           >
             <AlertTriangle className="w-3.5 h-3.5" />
             <span>{language === 'ar' ? 'إبلاغ' : 'Signaler'}</span>
@@ -202,3 +248,4 @@ export default function Header({
     </header>
   );
 }
+

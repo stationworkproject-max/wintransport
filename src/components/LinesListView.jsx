@@ -7,9 +7,11 @@ export default function LinesListView({
   activeNetwork,
   liveLocations,
   onSelectLine,
-  language = 'fr'
+  language = 'fr',
+  theme = 'dark'
 }) {
   const [searchQuery, setSearchQuery] = useState('');
+  const isLight = theme === 'light';
 
   const filteredLines = STATIC_LINES.filter(line => {
     if (activeNetwork !== 'all' && line.type_id !== activeNetwork) return false;
@@ -36,13 +38,17 @@ export default function LinesListView({
     <div className="w-full max-w-xl mx-auto p-4 space-y-3">
       {/* Search Input */}
       <div className="relative">
-        <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+        <Search className={`absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 ${isLight ? 'text-slate-400' : 'text-slate-400'}`} />
         <input
           type="text"
           value={searchQuery}
           onChange={(e) => setSearchQuery(e.target.value)}
           placeholder={language === 'ar' ? 'بحث عن خط أو محطة (مثال: 36، 1، TGM، برشلونة...)' : 'Rechercher une ligne ou un arrêt (ex : 1, TGM, Barcelone...)'}
-          className="w-full bg-slate-800/80 border border-slate-700/80 rounded-xl pl-10 pr-4 py-2.5 text-xs text-white placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500"
+          className={`w-full rounded-xl pl-10 pr-4 py-2.5 text-xs focus:outline-none focus:ring-2 focus:ring-blue-500 border transition ${
+            isLight
+              ? 'bg-white border-slate-200 text-slate-900 placeholder:text-slate-400 shadow-sm'
+              : 'bg-slate-800/80 border-slate-700/80 text-white placeholder:text-slate-500'
+          }`}
         />
       </div>
 
@@ -57,7 +63,11 @@ export default function LinesListView({
             <div
               key={line.id}
               onClick={() => onSelectLine(line)}
-              className="bg-slate-800/40 hover:bg-slate-800/80 border border-slate-700/60 rounded-xl p-3 cursor-pointer transition-all flex items-center justify-between group"
+              className={`border rounded-xl p-3 cursor-pointer transition-all flex items-center justify-between group ${
+                isLight
+                  ? 'bg-white hover:bg-slate-50 border-slate-200 text-slate-800 shadow-sm'
+                  : 'bg-slate-800/40 hover:bg-slate-800/80 border-slate-700/60 text-slate-100'
+              }`}
             >
               <div className="flex items-center gap-3">
                 <div
@@ -67,10 +77,14 @@ export default function LinesListView({
                   {dispShort}
                 </div>
                 <div>
-                  <div className="font-bold text-xs text-white group-hover:text-blue-400 transition-colors">
+                  <div className={`font-bold text-xs transition-colors ${
+                    isLight ? 'text-slate-900 group-hover:text-blue-600' : 'text-white group-hover:text-blue-400'
+                  }`}>
                     {dispLong}
                   </div>
-                  <div className="text-[11px] text-slate-400 mt-0.5 flex items-center gap-2">
+                  <div className={`text-[11px] mt-0.5 flex items-center gap-2 ${
+                    isLight ? 'text-slate-500' : 'text-slate-400'
+                  }`}>
                     <span>{line.stops.length} {language === 'ar' ? 'محطة' : 'arrêts'}</span>
                     <span>•</span>
                     <span>{language === 'ar' ? `كل ~${line.frequency_mins || 10} دقيقة` : `Toutes les ~${line.frequency_mins || 10} min`}</span>
@@ -80,12 +94,14 @@ export default function LinesListView({
 
               <div className="flex items-center gap-2">
                 {liveVehiclesCount > 0 && (
-                  <div className="flex items-center gap-1 bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 px-2 py-0.5 rounded-full text-[10px] font-bold">
-                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
+                  <div className="flex items-center gap-1 bg-emerald-500/20 text-emerald-500 border border-emerald-500/30 px-2 py-0.5 rounded-full text-[10px] font-bold">
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
                     <span>{liveVehiclesCount} {language === 'ar' ? 'مباشرة' : 'en direct'}</span>
                   </div>
                 )}
-                <ChevronRight className="w-4 h-4 text-slate-500 group-hover:text-blue-400 transition-colors" />
+                <ChevronRight className={`w-4 h-4 transition-colors ${
+                  isLight ? 'text-slate-400 group-hover:text-blue-600' : 'text-slate-500 group-hover:text-blue-400'
+                }`} />
               </div>
             </div>
           );

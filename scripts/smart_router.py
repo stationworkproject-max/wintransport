@@ -159,23 +159,32 @@ def decode_polyline(polyline_str):
         coordinates.append([round(lat / 1e5, 6), round(lng / 1e5, 6)])
     return coordinates
 
-def fetch_google_routes_v2(p1, p2, api_key):
+def fetch_google_routes_v2(p1, p2, api_key=None):
     """
     Calls Google Routes API v2 (computeRoutes).
     """
+    try:
+        import google_routes
+        api_key = google_routes.get_api_key(api_key)
+    except Exception:
+        pass
+
     if not api_key:
         return None
     url = 'https://routes.googleapis.com/directions/v2:computeRoutes'
     headers = {
         'Content-Type': 'application/json',
         'X-Goog-Api-Key': api_key,
-        'X-Goog-FieldMask': 'routes.polyline.encodedPolyline'
+        'X-Goog-FieldMask': 'routes.polyline.encodedPolyline',
+        'X-Goog-Maps-Solution-ID': 'gmp_git_agentskills_v1'
     }
     body = json.dumps({
         'origin': {'location': {'latLng': {'latitude': p1[0], 'longitude': p1[1]}}},
         'destination': {'location': {'latLng': {'latitude': p2[0], 'longitude': p2[1]}}},
         'travelMode': 'DRIVE',
-        'routingPreference': 'TRAFFIC_UNAWARE'
+        'routingPreference': 'TRAFFIC_UNAWARE',
+        'polylineQuality': 'HIGH_QUALITY',
+        'polylineEncoding': 'ENCODED_POLYLINE'
     }).encode('utf-8')
     try:
         req = urllib.request.Request(url, data=body, headers=headers)
@@ -329,10 +338,8 @@ def route_road_chunk(chunk_points, engine='google', api_key=None):
                 pA = chunk_points[i]
                 pB = chunk_points[i+1]
                 
-                # Try Google Routes v2 first if api_key provided
-                leg = None
-                if api_key:
-                    leg = fetch_google_routes_v2(pA, pB, api_key)
+                # Try Google Routes v2 first (using configured or passed API key)
+                leg = fetch_google_routes_v2(pA, pB, api_key)
                 
                 # Direct Google Maps Engine (high precision, no key needed, no 403 denied)
                 if not leg:

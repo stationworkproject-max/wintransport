@@ -1,12 +1,84 @@
 import React, { useState, useEffect, useRef, useMemo, memo } from 'react';
 import L from 'leaflet';
 import { STATIC_LINES } from '../data/staticTransit';
-import TRANSIT_SHAPES from '../data/transitShapes.json';
-import { Users, Navigation, Clock, ShieldCheck, AlertCircle, X, LocateFixed, Layers, Search, Compass, MapPin } from 'lucide-react';
+import { Users, Navigation, Clock, ShieldCheck, AlertCircle, X, LocateFixed, Layers, Search, Compass, MapPin, Radio } from 'lucide-react';
 import { getStationName, getLineName, getLineShortName, getDirectionLabel } from '../utils/i18n';
 
 export const GOOGLE_MAPS_API_KEY = 'AIzaSyD5AZ-rNY0NGtkFDZUyB3cwPKH3CiUit6I';
-export const CARTO_BASEMAP_API_KEY = 'cb1_462m_1_66e30fd30eabfdd440e49e44';
+
+/**
+ * Distance in meters between two lat/lon coordinates
+ */
+export function getDistanceMeters(lat1, lon1, lat2, lon2) {
+  if (!lat1 || !lon1 || !lat2 || !lon2) return 999999;
+  const R = 6371e3;
+  const dLat = (lat2 - lat1) * Math.PI / 180;
+  const dLon = (lon2 - lon1) * Math.PI / 180;
+  const a =
+    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+    Math.sin(dLon / 2) * Math.sin(dLon / 2);
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  return Math.round(R * c);
+}
+
+/**
+ * Offsets a polyline perpendicularly to the RIGHT-HAND side of its travel heading.
+ * This spaces the "Aller" (going) and "Retour" (backing) tracks into separate driving lanes
+ * so they are never drawn directly on top of each other.
+ */
+export function offsetPolylineRight(points, offsetMeters = 2.5) {
+  if (!points || points.length < 2) return points || [];
+  const len = points.length;
+  let sumLat = 0;
+  for (let i = 0; i < len; i++) sumLat += points[i][0];
+  const meanLat = (sumLat / len) * (Math.PI / 180.0);
+  const cosLat = Math.cos(meanLat);
+  const lat0 = points[0][0];
+  const lon0 = points[0][1];
+
+  const ptsM = new Array(len);
+  for (let i = 0; i < len; i++) {
+    ptsM[i] = [
+      (points[i][1] - lon0) * cosLat * 111320.0,
+      (points[i][0] - lat0) * 111320.0
+    ];
+  }
+
+  const result = new Array(len);
+  for (let i = 0; i < len; i++) {
+    let dx, dy;
+    if (i === 0) {
+      dx = ptsM[1][0] - ptsM[0][0];
+      dy = ptsM[1][1] - ptsM[0][1];
+    } else if (i === len - 1) {
+      dx = ptsM[len - 1][0] - ptsM[len - 2][0];
+      dy = ptsM[len - 1][1] - ptsM[len - 2][1];
+    } else {
+      const dx1 = ptsM[i][0] - ptsM[i - 1][0];
+      const dy1 = ptsM[i][1] - ptsM[i - 1][1];
+      const l1 = Math.hypot(dx1, dy1) || 1.0;
+      const dx2 = ptsM[i + 1][0] - ptsM[i][0];
+      const dy2 = ptsM[i + 1][1] - ptsM[i][1];
+      const l2 = Math.hypot(dx2, dy2) || 1.0;
+      dx = (dx1 / l1) + (dx2 / l2);
+      dy = (dy1 / l1) + (dy2 / l2);
+    }
+    const hyp = Math.hypot(dx, dy) || 1.0;
+    const tx = dx / hyp;
+    const ty = dy / hyp;
+    const nx = ty;
+    const ny = -tx;
+
+    const ox = ptsM[i][0] + nx * offsetMeters;
+    const oy = ptsM[i][1] + ny * offsetMeters;
+
+    const oLat = lat0 + (oy / 111320.0);
+    const oLon = lon0 + (ox / (111320.0 * cosLat));
+    result[i] = [parseFloat(oLat.toFixed(6)), parseFloat(oLon.toFixed(6))];
+  }
+  return result;
+}
 
 function TransitMap({
   activeNetwork,
@@ -23,28 +95,155 @@ function TransitMap({
   gpsErrorMsg,
   onDismissGpsError,
   onOpenTripPlanner,
-  language = 'fr'
+  radarRadiusKm = 1.5,
+  onUpdateRadarRadius,
+  language = 'fr',
+  theme = 'dark'
 }) {
+  const isAr = language === 'ar';
   const mapContainerRef = useRef(null);
   const mapInstanceRef = useRef(null);
   const tileLayerRef = useRef(null);
   const lineLayersRef = useRef({});
   const stationLayersRef = useRef({});
   const vehicleMarkersRef = useRef({});
+  const vehicleAnimRef = useRef({});
+  const animFrameIdRef = useRef(null);
   const userMarkerRef = useRef(null);
   const userAccuracyCircleRef = useRef(null);
-  // Keep latest liveLocations in a ref so the vehicle interval can read it
-  // without needing a re-render of the component
+  const radarCircleRef = useRef(null);
+
+  // Dropdown Refs for outside click handling
+  const radarDropdownRef = useRef(null);
+  const radarButtonRef = useRef(null);
+  const layerDropdownRef = useRef(null);
+  const layerButtonRef = useRef(null);
+  const searchDropdownRef = useRef(null);
+
+  // Excess vehicles count (when > 15 vehicles near user)
+  const [excessVehiclesCount, setExcessVehiclesCount] = useState(0);
+
+  // Asynchronously load high-density route geometries to keep main JS bundle tiny and load fast
+  const [transitShapes, setTransitShapes] = useState({});
+  useEffect(() => {
+    import('../data/transitShapes.json')
+      .then((mod) => {
+        setTransitShapes(mod.default || mod);
+      })
+      .catch((err) => {
+        console.warn('Transit shapes deferred load warning:', err);
+      });
+  }, []);
+
+  // Keep latest liveLocations, userLocation and radarRadius in refs for high-frequency render interval
   const liveLocationsRef = useRef(liveLocations);
   const activeNetworkRef = useRef(activeNetwork);
   const selectedLineRef = useRef(selectedLine);
+  const userLocationRef = useRef(userLocation);
+  const radarRadiusKmRef = useRef(radarRadiusKm);
+
   useEffect(() => { liveLocationsRef.current = liveLocations; }, [liveLocations]);
   useEffect(() => { activeNetworkRef.current = activeNetwork; }, [activeNetwork]);
   useEffect(() => { selectedLineRef.current = selectedLine; }, [selectedLine]);
+  useEffect(() => { userLocationRef.current = userLocation; }, [userLocation]);
+  useEffect(() => { radarRadiusKmRef.current = radarRadiusKm; }, [radarRadiusKm]);
 
+  // Radar Proximity Settings Dropdown State
+  const [isRadarSettingsOpen, setIsRadarSettingsOpen] = useState(false);
 
-  // Map layer style: Google Streets (default) with API key, Google Satellite, Google Traffic, or Dark
-  const [mapStyle, setMapStyle] = useState('google_streets');
+  // Global Outside Click Listener: closes dropdowns when clicking anywhere outside
+  useEffect(() => {
+    const handleOutsideClick = (e) => {
+      if (
+        radarDropdownRef.current &&
+        !radarDropdownRef.current.contains(e.target) &&
+        (!radarButtonRef.current || !radarButtonRef.current.contains(e.target))
+      ) {
+        setIsRadarSettingsOpen(false);
+      }
+      if (
+        layerDropdownRef.current &&
+        !layerDropdownRef.current.contains(e.target) &&
+        (!layerButtonRef.current || !layerButtonRef.current.contains(e.target))
+      ) {
+        setIsLayerSelectorOpen(false);
+      }
+      if (
+        searchDropdownRef.current &&
+        !searchDropdownRef.current.contains(e.target)
+      ) {
+        setIsSearchDropdownOpen(false);
+      }
+    };
+
+    document.addEventListener('pointerdown', handleOutsideClick);
+    return () => {
+      document.removeEventListener('pointerdown', handleOutsideClick);
+    };
+  }, []);
+
+  // Direction filter for selected line: 'all' | '0' (Aller) | '1' (Retour)
+  const [selectedDirectionFilter, setSelectedDirectionFilter] = useState('all');
+  const selectedDirectionFilterRef = useRef(selectedDirectionFilter);
+  useEffect(() => { selectedDirectionFilterRef.current = selectedDirectionFilter; }, [selectedDirectionFilter]);
+  useEffect(() => { setSelectedDirectionFilter('all'); }, [selectedLine]);
+
+  // Compute live vehicles for selected line (broken down into Aller & Retour)
+  const selectedLineVehicles = useMemo(() => {
+    if (!selectedLine) return [];
+    const cutoffTime = Date.now() - 30 * 1000;
+    return (liveLocations || []).filter(v => {
+      const t = new Date(v.updated_at).getTime();
+      if (!isNaN(t) && t < cutoffTime) return false;
+      return v.line_id === selectedLine.id;
+    });
+  }, [selectedLine, liveLocations]);
+
+  const selectedLineLiveCount = selectedLineVehicles.length;
+  const selectedLineAllerCount = selectedLineVehicles.filter(v => Number(v.direction) === 0).length;
+  const selectedLineRetourCount = selectedLineVehicles.filter(v => Number(v.direction) === 1).length;
+
+  // Compute total active vehicles within the radar radius (when no line is selected)
+  const nearbyVehiclesCount = useMemo(() => {
+    const cutoffTime = Date.now() - 30 * 1000;
+    const center = userLocation || null;
+    const isRadarActive = Number(radarRadiusKm) > 0;
+    const radiusM = (Number(radarRadiusKm) || 1.5) * 1000;
+
+    return (liveLocations || []).filter(v => {
+      const t = new Date(v.updated_at).getTime();
+      if (!isNaN(t) && t < cutoffTime) return false;
+      if (activeNetwork !== 'all') {
+        const matchingLine = STATIC_LINES.find(l => l.id === v.line_id);
+        const netType = v.network_type || matchingLine?.type_id;
+        if (netType !== activeNetwork) return false;
+      }
+      if (isRadarActive && center && center.lat && center.lon) {
+        return getDistanceMeters(center.lat, center.lon, v.latitude, v.longitude) <= radiusM;
+      }
+      return true;
+    }).length;
+  }, [liveLocations, userLocation, activeNetwork, radarRadiusKm]);
+
+  // Map layer style: Strictly Official Google Maps (google_streets, google_satellite, google_traffic)
+  const [mapStyle, setMapStyle] = useState(() => {
+    try {
+      const saved = localStorage.getItem('transit_map_style');
+      if (['google_streets', 'google_satellite', 'google_traffic'].includes(saved)) {
+        return saved;
+      }
+    } catch (e) {}
+    return 'google_streets';
+  });
+
+  const handleSelectMapStyle = (style) => {
+    setMapStyle(style);
+    try {
+      localStorage.setItem('transit_map_style', style);
+    } catch (e) {}
+    setIsLayerSelectorOpen(false);
+  };
+
   const [isLayerSelectorOpen, setIsLayerSelectorOpen] = useState(false);
   
   // Floating line search bar on the map
@@ -83,10 +282,12 @@ function TransitMap({
 
     L.control.zoom({ position: 'bottomleft' }).addTo(map);
 
-    // Clicking on empty map area deselects active line/station
+    // Clicking on empty map area deselects active line/station and closes popups
     map.on('click', () => {
-      if (Date.now() < ignoreMapClickUntilRef.current) return;
+      setIsRadarSettingsOpen(false);
+      setIsLayerSelectorOpen(false);
       setIsSearchDropdownOpen(false);
+      if (Date.now() < ignoreMapClickUntilRef.current) return;
       if (onSelectLineRef.current) onSelectLineRef.current(null);
       if (onSelectStationRef.current) onSelectStationRef.current(null, null);
     });
@@ -117,39 +318,28 @@ function TransitMap({
       keepBuffer: 8,
       updateWhenIdle: false,
       updateWhenZooming: false,
-      crossOrigin: true
+      crossOrigin: true,
+      subdomains: ['0', '1', '2', '3']
     };
 
-    if (mapStyle === 'google_streets') {
-      url = `https://mt{s}.google.com/vt/lyrs=m&x={x}&y={y}&z={z}&key=${GOOGLE_MAPS_API_KEY}`;
-      options = {
-        attribution: '&copy; Google Maps',
-        subdomains: ['0', '1', '2', '3'],
-        ...commonTileOptions
-      };
-    } else if (mapStyle === 'google_satellite') {
+    if (mapStyle === 'google_satellite') {
       url = `https://mt{s}.google.com/vt/lyrs=y&x={x}&y={y}&z={z}&key=${GOOGLE_MAPS_API_KEY}`;
       options = {
         attribution: '&copy; Google Maps Satellite',
-        subdomains: ['0', '1', '2', '3'],
         ...commonTileOptions
       };
     } else if (mapStyle === 'google_traffic') {
       url = `https://mt{s}.google.com/vt/lyrs=m,traffic&x={x}&y={y}&z={z}&key=${GOOGLE_MAPS_API_KEY}`;
       options = {
         attribution: '&copy; Google Maps Trafic',
-        subdomains: ['0', '1', '2', '3'],
         ...commonTileOptions
       };
     } else {
-      url = `https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png?api_key=${CARTO_BASEMAP_API_KEY}`;
+      // Default: Official Google Maps Plan (Streets)
+      url = `https://mt{s}.google.com/vt/lyrs=m&x={x}&y={y}&z={z}&key=${GOOGLE_MAPS_API_KEY}`;
       options = {
-        attribution: '&copy; CARTO Basemaps | &copy; OpenStreetMap',
-        subdomains: 'abcd',
-        maxZoom: 19,
-        keepBuffer: 8,
-        updateWhenIdle: false,
-        updateWhenZooming: false
+        attribution: '&copy; Google Maps',
+        ...commonTileOptions
       };
     }
 
@@ -176,12 +366,12 @@ function TransitMap({
       const dirShapeKey = `${selectedLine.id}_${activeDir}`;
 
       let latlngs = null;
-      if (TRANSIT_SHAPES[dirShapeKey] && TRANSIT_SHAPES[dirShapeKey].length > 1) {
-        latlngs = TRANSIT_SHAPES[dirShapeKey];
-      } else if (TRANSIT_SHAPES[selectedLine.id] && TRANSIT_SHAPES[selectedLine.id].length > 1) {
+      if (transitShapes[dirShapeKey] && transitShapes[dirShapeKey].length > 1) {
+        latlngs = transitShapes[dirShapeKey];
+      } else if (transitShapes[selectedLine.id] && transitShapes[selectedLine.id].length > 1) {
         latlngs = activeDir === 1
-          ? [...TRANSIT_SHAPES[selectedLine.id]].reverse()
-          : TRANSIT_SHAPES[selectedLine.id];
+          ? [...transitShapes[selectedLine.id]].reverse()
+          : transitShapes[selectedLine.id];
       } else {
         const retourStops = (selectedLine.stops_retour && selectedLine.stops_retour.length > 0)
           ? selectedLine.stops_retour
@@ -198,17 +388,18 @@ function TransitMap({
         : (selectedLine.stops_aller || selectedLine.stops);
       const activeDirLabel = getDirectionLabel(selectedLine, activeDir, language);
       
-      // 1. Draw glowing background casing + crisp colored route line
+      // 1. Draw glowing background casing + crisp colored route line directly on road
       if (latlngs && latlngs.length >= 2) {
         // Draw complementary return/going rail so both rails are clearly visible line by line
         const otherDir = activeDir === 0 ? 1 : 0;
         const otherDirShapeKey = `${selectedLine.id}_${otherDir}`;
-        const otherLatlngs = TRANSIT_SHAPES[otherDirShapeKey];
+        const otherLatlngs = transitShapes[otherDirShapeKey];
         if (otherLatlngs && otherLatlngs.length >= 2 && otherLatlngs !== latlngs) {
           const companionPolyline = L.polyline(otherLatlngs, {
             color: selectedLine.color,
-            weight: 3.5,
-            opacity: 0.8,
+            weight: 5.5,
+            opacity: 0.75,
+            dashArray: '5, 5',
             lineJoin: 'round',
             lineCap: 'round',
           }).addTo(map);
@@ -218,15 +409,15 @@ function TransitMap({
 
         const casing = L.polyline(latlngs, {
           color: '#ffffff',
-          weight: 8,
-          opacity: 0.65,
+          weight: 12.5,
+          opacity: 0.85,
           lineJoin: 'round',
           lineCap: 'round',
         }).addTo(map);
 
         const mainPolyline = L.polyline(latlngs, {
           color: selectedLine.color,
-          weight: 5,
+          weight: 8.5,
           opacity: 1,
           lineJoin: 'round',
           lineCap: 'round',
@@ -301,22 +492,20 @@ function TransitMap({
     }
 
     // SCENARIO 2: Overview Mode (NO single line selected)
-    // Heavy rail lines (Metro 1-6, TGM, RFR, Trains) are drawn as the clean city backbone.
-    // Bus lines are drawn when selected by user ("see just one line like bus 104 only not all the map").
+    // By default, ONLY draw the rapid transit backbone: RFR, Trains SNCFT, Métro Léger (1-6), and TGM.
+    // All other lines (including all buses) are drawn strictly when selected by the user!
     const linesToProcess = STATIC_LINES.filter(line => {
-      if (line.type_id === 'bus') return false;
-      if (activeNetwork === 'all') return true;
-      return line.type_id === activeNetwork;
+      return ['rfr', 'train', 'metro', 'tgm'].includes(line.type_id);
     });
 
     linesToProcess.forEach(line => {
-      const shape0 = TRANSIT_SHAPES[`${line.id}_0`];
-      const shape1 = TRANSIT_SHAPES[`${line.id}_1`];
+      const shape0 = transitShapes[`${line.id}_0`];
+      const shape1 = transitShapes[`${line.id}_1`];
       const hasDualRails = shape0 && shape1 && shape0.length > 1 && shape1.length > 1;
-      const hasShape = TRANSIT_SHAPES[line.id] && TRANSIT_SHAPES[line.id].length > 1;
+      const hasShape = transitShapes[line.id] && transitShapes[line.id].length > 1;
       const latlngs = hasDualRails
         ? [shape0, shape1]
-        : (hasShape ? TRANSIT_SHAPES[line.id] : line.stops.map(s => [s.lat, s.lon]));
+        : (hasShape ? transitShapes[line.id] : line.stops.map(s => [s.lat, s.lon]));
 
       const lineShort = getLineShortName(line, language);
       const lineName = getLineName(line, language);
@@ -385,9 +574,68 @@ function TransitMap({
         stationLayersRef.current[key] = stationMarker;
       });
     });
-  }, [activeNetwork, selectedLine, selectedDirection, language]);
+  }, [activeNetwork, selectedLine, selectedDirection, language, transitShapes]);
 
-  // ── Vehicle marker updater — runs on interval, reads from refs (NO re-render) ──
+  // ── High-Scale 60 FPS Lerp (Linear Interpolation) Animation Loop ──
+  // Glides vehicle markers continuously across animation frames without snapping or jumps
+  useEffect(() => {
+    const animateVehicles = (now) => {
+      // Pause completely when tab or phone screen is inactive/hidden to save battery and CPU
+      if (document.hidden) {
+        animFrameIdRef.current = requestAnimationFrame(animateVehicles);
+        return;
+      }
+
+      const markers = vehicleMarkersRef.current;
+      const anims = vehicleAnimRef.current;
+
+      Object.keys(anims).forEach(id => {
+        const anim = anims[id];
+        const marker = markers[id];
+        if (!anim || !marker || anim.completed) return;
+
+        const elapsed = now - anim.startTime;
+        const progress = Math.min(1, Math.max(0, elapsed / anim.duration));
+
+        // Smooth linear progression
+        const curLat = anim.startLat + (anim.targetLat - anim.startLat) * progress;
+        const curLon = anim.startLon + (anim.targetLon - anim.startLon) * progress;
+
+        marker.setLatLng([curLat, curLon]);
+
+        if (progress >= 1) {
+          anim.completed = true;
+        }
+
+        // Smooth angular bearing rotation
+        if (anim.startBearing !== undefined && anim.targetBearing !== undefined) {
+          let diff = (anim.targetBearing - anim.startBearing) % 360;
+          if (diff > 180) diff -= 360;
+          if (diff < -180) diff += 360;
+          const curBearing = anim.startBearing + diff * progress;
+          const el = marker.getElement();
+          if (el) {
+            const rotEl = el.querySelector('.vehicle-bearing-rotate');
+            if (rotEl) {
+              rotEl.style.transform = `rotate(${Math.round(curBearing)}deg)`;
+            }
+          }
+        }
+      });
+
+      animFrameIdRef.current = requestAnimationFrame(animateVehicles);
+    };
+
+    animFrameIdRef.current = requestAnimationFrame(animateVehicles);
+
+    return () => {
+      if (animFrameIdRef.current) {
+        cancelAnimationFrame(animFrameIdRef.current);
+      }
+    };
+  }, []);
+
+  // ── Vehicle marker updater — syncs edge data and establishes 4000ms Lerp targets ──
   useEffect(() => {
     function updateVehicleMarkers() {
       const map = mapInstanceRef.current;
@@ -396,74 +644,159 @@ function TransitMap({
       const liveLocations = liveLocationsRef.current || [];
       const activeNetwork = activeNetworkRef.current;
       const selectedLine = selectedLineRef.current;
+      const now = performance.now();
+      const cutoffTime = Date.now() - 30 * 1000; // 30-second ghost eviction
 
       const currentVehicleIds = new Set();
 
-      const activeVehicles = liveLocations.filter(loc => {
-        if (selectedLine) return loc.line_id === selectedLine.id;
-        if (activeNetwork === 'all') return true;
-        const matchingLine = STATIC_LINES.find(l => l.id === loc.line_id);
-        return matchingLine?.type_id === activeNetwork;
+      const userLoc = userLocationRef.current;
+      const radarRadius = Number(radarRadiusKmRef.current) || 0;
+      const isRadarActive = radarRadius > 0;
+      const dirFilter = selectedDirectionFilterRef.current;
+      const center = userLoc || (map ? { lat: map.getCenter().lat, lon: map.getCenter().lng } : null);
+
+      const candidates = liveLocations.filter(loc => {
+        // Ghost check (30-second eviction)
+        const t = new Date(loc.updated_at).getTime();
+        if (!isNaN(t) && t < cutoffTime) return false;
+
+        // RULE 1: If user selected a specific line -> SHOW ALL VEHICLES OF THIS LINE ACROSS THE WHOLE MAP!
+        // No proximity boundary restriction!
+        if (selectedLine) {
+          if (loc.line_id !== selectedLine.id) return false;
+          if (dirFilter !== 'all') {
+            return Number(loc.direction) === Number(dirFilter);
+          }
+          return true;
+        }
+
+        // Network filter ('all', 'bus', 'metro', 'train', 'tgm', 'rfr')
+        if (activeNetwork !== 'all') {
+          const matchingLine = STATIC_LINES.find(l => l.id === loc.line_id);
+          const netType = loc.network_type || matchingLine?.type_id;
+          if (netType !== activeNetwork) return false;
+        }
+
+        // RULE 2: Proximity Radar Filter (0.5 km to 2.5 km) around user position
+        if (isRadarActive && center && center.lat && center.lon) {
+          const distM = getDistanceMeters(center.lat, center.lon, loc.latitude, loc.longitude);
+          if (distM > radarRadius * 1000) return false;
+        }
+
+        return true;
       });
+
+      let activeVehicles = candidates;
+      if (!selectedLine) {
+        // Sort closest to user / center
+        if (center && center.lat && center.lon) {
+          candidates.sort((a, b) => {
+            const distA = getDistanceMeters(center.lat, center.lon, a.latitude, a.longitude);
+            const distB = getDistanceMeters(center.lat, center.lon, b.latitude, b.longitude);
+            return distA - distB;
+          });
+        }
+        // Cap to max 15 closest vehicles for optimal mobile performance
+        const excess = Math.max(0, candidates.length - 15);
+        setExcessVehiclesCount(excess);
+        activeVehicles = candidates.slice(0, 15);
+      } else {
+        setExcessVehiclesCount(0);
+      }
 
       activeVehicles.forEach(loc => {
         currentVehicleIds.add(loc.id);
         const line = STATIC_LINES.find(l => l.id === loc.line_id) || loc.transit_lines;
         const lineColor = line?.color || '#0071e3';
         const lineShort = line?.short_name || 'Direct';
+        const networkType = loc.network_type || line?.type_id || 'bus';
         const passengerCount = loc.passenger_count || 1;
+        const isAr = language === 'ar';
+
+        // Multi-modal transit icon emoji
+        let typeEmoji = '🚌';
+        let typeLabel = 'Bus Transtu';
+        if (networkType === 'metro') { typeEmoji = '🚇'; typeLabel = 'Métro Léger'; }
+        else if (networkType === 'train') { typeEmoji = '🚆'; typeLabel = 'Train SNCFT'; }
+        else if (networkType === 'rfr') { typeEmoji = '🚄'; typeLabel = 'RFR Rapide'; }
+        else if (networkType === 'tgm') { typeEmoji = '🚊'; typeLabel = 'TGM'; }
+
+        // Direction display: Aller (0) vs Retour (1)
+        const isRetour = Number(loc.direction) === 1;
+        const dirName = loc.direction_name || (line?.directions ? (line.directions[isRetour ? 1 : 0] || '') : '');
+        const dirBadge = isRetour ? 'Retour ⬅️' : 'Aller ➡️';
 
         const iconHtml = `
-          <div class="relative flex items-center justify-center cursor-pointer group" style="width: 44px; height: 44px;">
-            <div class="radar-ring absolute w-10 h-10 rounded-full" style="background-color: ${lineColor};"></div>
-            <div class="relative flex items-center justify-center w-8 h-8 rounded-full shadow-lg border-2 border-white text-white font-extrabold text-[11px] transition-transform duration-300 group-hover:scale-110" style="background-color: ${lineColor};">
+          <div class="relative flex items-center justify-center cursor-pointer group" style="width: 46px; height: 46px;">
+            <div class="radar-ring absolute w-11 h-11 rounded-full opacity-60" style="background-color: ${lineColor};"></div>
+            <div class="relative flex items-center justify-center w-8 h-8 rounded-full shadow-lg border-2 border-white text-white font-black text-[11px] transition-transform duration-300 group-hover:scale-110" style="background-color: ${lineColor};">
               ${lineShort}
-              <div class="absolute -top-1 right-0 w-2.5 h-2.5 rounded-full bg-emerald-400 border border-slate-900 shadow"></div>
+              <div class="absolute -top-1 -right-1 text-[10px] bg-slate-900 rounded-full w-4 h-4 flex items-center justify-center border border-slate-700 shadow">${typeEmoji}</div>
             </div>
-            <div class="absolute -bottom-1 bg-slate-900/90 text-emerald-400 font-bold text-[9px] px-1.5 py-0.2 rounded-full border border-slate-700 shadow flex items-center gap-0.5">
-              👤${passengerCount}
+            <div class="absolute -bottom-1 bg-slate-900/95 text-emerald-400 font-bold text-[9px] px-1.5 py-0.2 rounded-full border border-slate-700 shadow flex items-center gap-0.5">
+              <span>${loc.speed_kmh || 0} km/h</span>
             </div>
           </div>
         `;
 
         const popupContent = `
-          <div class="p-3 min-w-[210px] text-slate-100">
+          <div class="p-3 min-w-[220px] text-slate-100">
             <div class="flex items-center justify-between border-b border-slate-700/60 pb-2 mb-2">
               <div class="flex items-center gap-2">
-                <span class="px-2 py-0.5 rounded font-bold text-xs text-white" style="background-color: ${lineColor};">${lineShort}</span>
-                <span class="font-bold text-sm text-white">${loc.vehicle_label || 'Véhicule en direct'}</span>
+                <span class="px-2 py-0.5 rounded font-extrabold text-xs text-white" style="background-color: ${lineColor};">${lineShort}</span>
+                <span class="font-bold text-sm text-white">${typeLabel}</span>
               </div>
               <span class="text-[10px] bg-emerald-500/20 text-emerald-400 font-bold px-1.5 py-0.5 rounded border border-emerald-500/40">GPS Direct</span>
             </div>
             <div class="space-y-1.5 text-xs">
               <div class="flex items-center justify-between text-slate-300">
                 <span class="text-slate-400">Direction :</span>
-                <span class="font-semibold text-white truncate max-w-[120px]">${loc.direction || 'En service'}</span>
+                <span class="font-semibold text-white truncate max-w-[130px]">${dirName || 'En service'} <span class="text-[10px] text-blue-400">(${dirBadge})</span></span>
               </div>
               <div class="flex items-center justify-between text-slate-300">
                 <span class="text-slate-400">Vitesse réelle :</span>
                 <span class="font-bold text-emerald-400">${loc.speed_kmh || 0} km/h</span>
               </div>
               <div class="flex items-center justify-between text-slate-300">
-                <span class="text-slate-400">Voyageurs à bord :</span>
-                <span class="font-semibold">${passengerCount} personne(s)</span>
+                <span class="text-slate-400">${isAr ? 'على المتن :' : 'Voyageurs à bord :'}</span>
+                <span class="font-semibold text-slate-200">👤 ${passengerCount > 1 ? `${passengerCount} (${isAr ? '1 يبث + ' + (passengerCount - 1) + ' في الانتظار' : '1 diffuseur + ' + (passengerCount - 1) + ' en attente'})` : (isAr ? '1 (يبث)' : '1 (diffuseur)')}</span>
               </div>
             </div>
           </div>
         `;
 
         if (vehicleMarkersRef.current[loc.id]) {
-          // Smooth position update — no DOM flicker
+          // Existing marker: update target position and reset Lerp only if vehicle moved
           const marker = vehicleMarkersRef.current[loc.id];
-          marker.setLatLng([loc.latitude, loc.longitude]);
+          const curPos = marker.getLatLng();
+          const prevAnim = vehicleAnimRef.current[loc.id];
+          const prevBearing = prevAnim ? prevAnim.targetBearing : (loc.heading || 0);
+
+          const distMoved = getDistanceMeters(curPos.lat, curPos.lng, loc.latitude, loc.longitude);
+          const bearingMoved = Math.abs((prevBearing || 0) - (loc.heading || 0));
+
+          if (distMoved > 0.5 || bearingMoved > 1 || !prevAnim) {
+            vehicleAnimRef.current[loc.id] = {
+              startLat: curPos.lat,
+              startLon: curPos.lng,
+              targetLat: loc.latitude,
+              targetLon: loc.longitude,
+              startBearing: prevBearing,
+              targetBearing: loc.heading || 0,
+              startTime: now,
+              duration: 4000,
+              completed: false,
+            };
+          }
           marker.setPopupContent(popupContent);
         } else {
+          // New vehicle marker
           const vehicleIcon = L.divIcon({
             html: iconHtml,
             className: 'vehicle-marker',
-            iconSize: [44, 44],
-            iconAnchor: [22, 22],
-            popupAnchor: [0, -22],
+            iconSize: [46, 46],
+            iconAnchor: [23, 23],
+            popupAnchor: [0, -23],
           });
           const marker = L.marker([loc.latitude, loc.longitude], {
             icon: vehicleIcon,
@@ -471,23 +804,64 @@ function TransitMap({
           }).bindPopup(popupContent, { className: 'custom-popup' });
           marker.addTo(map);
           vehicleMarkersRef.current[loc.id] = marker;
+
+          vehicleAnimRef.current[loc.id] = {
+            startLat: loc.latitude,
+            startLon: loc.longitude,
+            targetLat: loc.latitude,
+            targetLon: loc.longitude,
+            startBearing: loc.heading || 0,
+            targetBearing: loc.heading || 0,
+            startTime: now,
+            duration: 4000,
+            completed: true,
+          };
         }
       });
 
-      // Remove stale vehicles
+      // 30s Ghost Eviction: Remove stale or disappeared vehicles
       Object.keys(vehicleMarkersRef.current).forEach(id => {
         if (!currentVehicleIds.has(id)) {
           map.removeLayer(vehicleMarkersRef.current[id]);
           delete vehicleMarkersRef.current[id];
+          delete vehicleAnimRef.current[id];
         }
       });
+
+      // Update or clear Radar Visual Perimeter Circle
+      if (!selectedLine && isRadarActive && userLoc && userLoc.lat && userLoc.lon && map) {
+        const radiusM = radarRadius * 1000;
+        if (!radarCircleRef.current) {
+          radarCircleRef.current = L.circle([userLoc.lat, userLoc.lon], {
+            radius: radiusM,
+            color: '#10b981',
+            weight: 1.5,
+            dashArray: '5, 8',
+            fillColor: '#10b981',
+            fillOpacity: 0.02,
+            interactive: false,
+          }).addTo(map);
+        } else {
+          radarCircleRef.current.setLatLng([userLoc.lat, userLoc.lon]);
+          radarCircleRef.current.setRadius(radiusM);
+        }
+      } else if (radarCircleRef.current && map) {
+        map.removeLayer(radarCircleRef.current);
+        radarCircleRef.current = null;
+      }
     }
 
-    // Run immediately, then every 5 seconds — no React re-render needed
+    // Run whenever liveLocations updates, and every 4s fallback
     updateVehicleMarkers();
-    const interval = setInterval(updateVehicleMarkers, 5000);
-    return () => clearInterval(interval);
-  }, []); // empty deps: reads from refs, never causes re-render
+    const interval = setInterval(updateVehicleMarkers, 4000);
+    return () => {
+      clearInterval(interval);
+      if (radarCircleRef.current && mapInstanceRef.current) {
+        mapInstanceRef.current.removeLayer(radarCircleRef.current);
+        radarCircleRef.current = null;
+      }
+    };
+  }, [liveLocations, activeNetwork, selectedLine, selectedDirectionFilter, radarRadiusKm, userLocation]);
 
 
   // User Real GPS Location Marker & Accuracy Circle
@@ -553,15 +927,18 @@ function TransitMap({
 
   return (
     <div className="relative w-full h-full min-h-[500px]">
-      <div ref={mapContainerRef} className="w-full h-full" />
+      <div ref={mapContainerRef} className="w-full h-full bg-[#e5e3df]" />
 
       {/* Floating Top Bar: Single Line Isolation & Quick Line Search & Guide Trajet */}
-      <div className="absolute top-4 left-4 right-4 z-[1003] flex items-center justify-between gap-2 pointer-events-auto">
+      <div className="absolute top-3.5 left-3 sm:left-4 right-3 sm:right-4 z-[1003] flex items-center justify-between gap-2 pointer-events-auto">
         
         {/* Single Line Isolation Badge or Quick Line Search */}
-        {/* Single Line Isolation Badge & Directional Switcher */}
         {selectedLine ? (
-          <div className="flex flex-col bg-slate-900/95 border border-slate-700/90 rounded-2xl shadow-2xl p-2.5 backdrop-blur-xl max-w-sm sm:max-w-md animate-fade-in">
+          <div className={`flex flex-col border rounded-2xl shadow-xl p-2.5 backdrop-blur-xl max-w-sm sm:max-w-md animate-fade-in transition-colors ${
+            theme === 'light'
+              ? 'bg-white/95 border-slate-200/90 text-slate-800'
+              : 'bg-slate-900/95 border-slate-700/90 text-white shadow-2xl'
+          }`}>
             <div className="flex items-center gap-2.5">
               <span
                 className="w-8 h-8 rounded-xl flex items-center justify-center font-extrabold text-xs text-white shadow flex-shrink-0"
@@ -570,17 +947,30 @@ function TransitMap({
                 {getLineShortName(selectedLine, language)}
               </span>
               <div className="min-w-0 flex-1 pr-1">
-                <div className="font-bold text-xs text-white truncate max-w-[140px] sm:max-w-xs">
+                <div className={`font-bold text-xs truncate max-w-[140px] sm:max-w-xs ${
+                  theme === 'light' ? 'text-slate-900' : 'text-white'
+                }`}>
                   {getLineName(selectedLine, language)}
                 </div>
-                <div className="text-[10px] text-slate-400 flex items-center gap-1">
+                <div className={`text-[10px] flex items-center gap-1.5 flex-wrap ${
+                  theme === 'light' ? 'text-slate-500' : 'text-slate-400'
+                }`}>
                   <span>
                     {((selectedDirection === 1 && selectedLine.stops_retour?.length)
                       ? selectedLine.stops_retour.length
                       : (selectedLine.stops_aller?.length || selectedLine.stops.length))} {language === 'ar' ? 'محطة' : 'arrêts'}
                   </span>
                   <span>•</span>
-                  <span className="text-emerald-400 font-semibold">{language === 'ar' ? 'مسار معزول' : 'Ligne isolée'}</span>
+                  <span className="text-emerald-500 font-bold flex items-center gap-1">
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
+                    {selectedLineLiveCount > 0 ? (
+                      language === 'ar'
+                        ? `${selectedLineLiveCount} مركبة مباشرة على كامل المسار`
+                        : `${selectedLineLiveCount} en direct sur toute la carte`
+                    ) : (
+                      language === 'ar' ? 'مسار كامل معزول' : 'Ligne isolée (toute la carte)'
+                    )}
+                  </span>
                 </div>
               </div>
               <div className="flex items-center gap-1.5 flex-shrink-0">
@@ -596,7 +986,11 @@ function TransitMap({
                 )}
                 <button
                   onClick={() => onSelectLine(null)}
-                  className="p-1.5 px-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 hover:text-white text-xs font-bold flex items-center gap-1 transition shadow border border-slate-600/60"
+                  className={`p-1.5 px-2 rounded-xl text-xs font-bold flex items-center gap-1 transition shadow border ${
+                    theme === 'light'
+                      ? 'bg-slate-100 hover:bg-slate-200 text-slate-700 border-slate-300'
+                      : 'bg-slate-800 hover:bg-slate-700 text-slate-200 hover:text-white border-slate-600/60'
+                  }`}
                   title={language === 'ar' ? 'إلغاء وعرض كامل الشبكة' : 'Afficher tout le réseau'}
                 >
                   <X className="w-3.5 h-3.5" />
@@ -607,7 +1001,9 @@ function TransitMap({
 
             {/* Direction Switcher (Sens Aller / Sens Retour) */}
             {selectedLine.directions && selectedLine.directions.length > 1 && (
-              <div className="flex items-center gap-1.5 mt-2 pt-2 border-t border-slate-800/80">
+              <div className={`flex items-center gap-1.5 mt-2 pt-2 border-t ${
+                theme === 'light' ? 'border-slate-200' : 'border-slate-800/80'
+              }`}>
                 {selectedLine.directions.map((dir, idx) => {
                   const dirText = getDirectionLabel(selectedLine, idx, language);
                   return (
@@ -617,7 +1013,9 @@ function TransitMap({
                       className={`flex-1 py-1 px-2 rounded-xl text-[11px] font-bold transition flex items-center justify-center gap-1 truncate ${
                         (selectedDirection || 0) === idx
                           ? 'bg-blue-600 text-white shadow-md ring-1 ring-blue-400'
-                          : 'bg-slate-800/80 text-slate-400 hover:bg-slate-800 hover:text-slate-200'
+                          : theme === 'light'
+                            ? 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                            : 'bg-slate-800/80 text-slate-400 hover:bg-slate-800 hover:text-slate-200'
                       }`}
                     >
                       <span className="text-[9px] uppercase tracking-wider opacity-75">
@@ -629,11 +1027,66 @@ function TransitMap({
                 })}
               </div>
             )}
+
+            {/* Live Vehicles Breakdown & Filter on this line */}
+            {selectedLineLiveCount > 0 && (
+              <div className={`flex items-center gap-1.5 mt-2 pt-2 border-t flex-wrap ${
+                theme === 'light' ? 'border-slate-200' : 'border-slate-800/80'
+              }`}>
+                <span className={`text-[10px] font-bold uppercase tracking-wider pl-0.5 ${
+                  theme === 'light' ? 'text-slate-500' : 'text-slate-400'
+                }`}>
+                  {language === 'ar' ? 'المركبات :' : 'Véhicules :'}
+                </span>
+                <button
+                  onClick={() => setSelectedDirectionFilter('all')}
+                  className={`px-2 py-0.5 rounded-lg text-[10px] font-bold transition ${
+                    selectedDirectionFilter === 'all'
+                      ? 'bg-blue-600 text-white shadow'
+                      : theme === 'light'
+                        ? 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                        : 'bg-slate-800 text-slate-400 hover:text-white'
+                  }`}
+                >
+                  {language === 'ar' ? 'الكل' : 'Tous'} ({selectedLineLiveCount})
+                </button>
+                <button
+                  onClick={() => setSelectedDirectionFilter('0')}
+                  className={`px-2 py-0.5 rounded-lg text-[10px] font-bold transition flex items-center gap-0.5 ${
+                    selectedDirectionFilter === '0'
+                      ? 'bg-blue-600 text-white shadow'
+                      : theme === 'light'
+                        ? 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                        : 'bg-slate-800 text-slate-400 hover:text-white'
+                  }`}
+                >
+                  <span>Aller ➡️</span>
+                  <span>({selectedLineAllerCount})</span>
+                </button>
+                <button
+                  onClick={() => setSelectedDirectionFilter('1')}
+                  className={`px-2 py-0.5 rounded-lg text-[10px] font-bold transition flex items-center gap-0.5 ${
+                    selectedDirectionFilter === '1'
+                      ? 'bg-blue-600 text-white shadow'
+                      : theme === 'light'
+                        ? 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                        : 'bg-slate-800 text-slate-400 hover:text-white'
+                  }`}
+                >
+                  <span>Retour ⬅️</span>
+                  <span>({selectedLineRetourCount})</span>
+                </button>
+              </div>
+            )}
           </div>
         ) : (
           <div className="flex flex-col gap-1.5 flex-1 max-w-xs sm:max-w-md">
-            <div className="relative">
-              <div className="flex items-center gap-2 bg-slate-900/95 border border-slate-700/80 rounded-2xl shadow-2xl p-2 px-3 backdrop-blur-xl">
+            <div ref={searchDropdownRef} className="relative">
+              <div className={`flex items-center gap-2 border rounded-2xl shadow-xl p-2 px-3 backdrop-blur-xl transition-colors ${
+                theme === 'light'
+                  ? 'bg-white/95 border-slate-200/90 text-slate-900 shadow-slate-200/50'
+                  : 'bg-slate-900/95 border-slate-700/80 text-white shadow-2xl'
+              }`}>
                 <Search className="w-4 h-4 text-slate-400 flex-shrink-0" />
                 <input
                   type="text"
@@ -644,7 +1097,9 @@ function TransitMap({
                   }}
                   onFocus={() => setIsSearchDropdownOpen(true)}
                   placeholder={language === 'ar' ? 'ابحث عن خط أو حافلة أو قطار...' : 'Isoler une ligne (ex: Bus 36B, Métro 1...)'}
-                  className="bg-transparent text-xs text-white placeholder:text-slate-500 focus:outline-none w-full font-medium"
+                  className={`bg-transparent text-xs focus:outline-none w-full font-medium ${
+                    theme === 'light' ? 'text-slate-900 placeholder:text-slate-400' : 'text-white placeholder:text-slate-500'
+                  }`}
                 />
                 {lineFilterSearch && (
                   <button
@@ -652,7 +1107,7 @@ function TransitMap({
                       setLineFilterSearch('');
                       setIsSearchDropdownOpen(false);
                     }}
-                    className="text-slate-400 hover:text-white text-xs p-0.5"
+                    className={`text-xs p-0.5 ${theme === 'light' ? 'text-slate-400 hover:text-slate-700' : 'text-slate-400 hover:text-white'}`}
                   >
                     ✕
                   </button>
@@ -665,7 +1120,11 @@ function TransitMap({
                   onMouseDown={(e) => e.stopPropagation()}
                   onTouchStart={(e) => e.stopPropagation()}
                   onClick={(e) => e.stopPropagation()}
-                  className="absolute top-full left-0 right-0 mt-1.5 max-h-60 overflow-y-auto bg-slate-900/95 border border-slate-700/90 rounded-2xl shadow-2xl divide-y divide-slate-800/80 backdrop-blur-xl z-[1030]"
+                  className={`absolute top-full left-0 right-0 mt-1.5 max-h-60 overflow-y-auto border rounded-2xl shadow-2xl backdrop-blur-xl z-[1030] ${
+                    theme === 'light'
+                      ? 'bg-white/95 border-slate-200 divide-y divide-slate-100 text-slate-800'
+                      : 'bg-slate-900/95 border-slate-700/90 divide-y divide-slate-800/80 text-white'
+                  }`}
                 >
                   {searchResults.slice(0, 25).map(line => (
                     <button
@@ -679,7 +1138,9 @@ function TransitMap({
                         setIsSearchDropdownOpen(false);
                         setLineFilterSearch('');
                       }}
-                      className="w-full p-2.5 text-left flex items-center justify-between text-xs hover:bg-slate-800/80 active:bg-slate-700 transition"
+                      className={`w-full p-2.5 text-left flex items-center justify-between text-xs transition ${
+                        theme === 'light' ? 'hover:bg-slate-100 active:bg-slate-200' : 'hover:bg-slate-800/80 active:bg-slate-700'
+                      }`}
                     >
                       <div className="flex items-center gap-2 min-w-0">
                         <span
@@ -688,13 +1149,58 @@ function TransitMap({
                         >
                           {getLineShortName(line, language)}
                         </span>
-                        <span className="text-white font-medium truncate">{getLineName(line, language)}</span>
+                        <span className={`font-medium truncate ${theme === 'light' ? 'text-slate-900' : 'text-white'}`}>
+                          {getLineName(line, language)}
+                        </span>
                       </div>
-                      <span className="text-[10px] text-slate-400 flex-shrink-0 ml-1">
+                      <span className={`text-[10px] flex-shrink-0 ml-1 ${theme === 'light' ? 'text-slate-400' : 'text-slate-500'}`}>
                         {line.stops.length} {language === 'ar' ? 'محطة' : 'arrêts'}
                       </span>
                     </button>
                   ))}
+                </div>
+              )}
+            </div>
+
+            {/* Nearby vehicles within radar indicator */}
+            <div className={`flex flex-col gap-1 backdrop-blur-xl shadow-lg border rounded-2xl p-2 px-3 text-[11px] self-start transition-colors max-w-xs ${
+              theme === 'light'
+                ? 'bg-white/95 border-slate-200 text-slate-700'
+                : 'bg-slate-900/90 border-slate-700/80 text-slate-300'
+            }`}>
+              <div className="flex items-center gap-1.5 flex-wrap">
+                <span className="relative flex h-2 w-2">
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                  <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+                </span>
+                <span className="font-semibold">
+                  {radarRadiusKm === 0 ? (
+                    language === 'ar' ? 'الرادار معطل' : 'Radar désactivé'
+                  ) : (
+                    language === 'ar'
+                      ? `رادار ${radarRadiusKm} كم : ${Math.min(nearbyVehiclesCount, 15)} معروضة`
+                      : `Radar ${radarRadiusKm} km : ${Math.min(nearbyVehiclesCount, 15)} affiché(s)`
+                  )}
+                </span>
+                {excessVehiclesCount > 0 && (
+                  <span className="text-[10px] font-bold text-amber-500">
+                    (+{excessVehiclesCount} {language === 'ar' ? 'أخرى' : 'autres'})
+                  </span>
+                )}
+                <button
+                  type="button"
+                  onClick={() => setIsRadarSettingsOpen(true)}
+                  className="text-emerald-500 underline font-semibold ml-auto hover:opacity-80"
+                >
+                  {language === 'ar' ? 'تعديل' : 'Modifier'}
+                </button>
+              </div>
+
+              {excessVehiclesCount > 0 && (
+                <div className="text-[10px] text-amber-600 dark:text-amber-400 font-medium leading-tight pt-0.5 border-t border-slate-200/60 dark:border-slate-800/60">
+                  {language === 'ar'
+                    ? `⚠️ أكثر من 15 مركبة قريبة — ابحث عن خطك لعزله ورؤية موقعه.`
+                    : `⚠️ Plus de 15 véhicules proches — recherchez une ligne pour l'isoler.`}
                 </div>
               )}
             </div>
@@ -715,60 +1221,195 @@ function TransitMap({
 
       </div>
 
-      {/* Floating Controls: GPS Center & Google Maps Layer Selector */}
-      <div className="absolute bottom-20 sm:bottom-8 right-3 sm:right-6 z-[1002] flex flex-col items-end gap-2.5 pointer-events-auto">
+      {/* Floating Controls: GPS Center & Google Maps Layer Selector (Guaranteed Safe Area Clearance) */}
+      <div className="absolute bottom-[calc(env(safe-area-inset-bottom,0px)+5.2rem)] sm:bottom-8 right-3 sm:right-6 z-[1002] flex flex-col items-end gap-2.5 pointer-events-auto">
+        {/* Radar Settings Dropdown */}
+        {isRadarSettingsOpen && (
+          <div ref={radarDropdownRef} className={`border rounded-2xl shadow-2xl p-3 flex flex-col gap-2.5 backdrop-blur-xl animate-fade-in text-xs w-64 sm:w-72 mb-1 ${
+            theme === 'light'
+              ? 'bg-white/95 border-slate-200 text-slate-800 shadow-slate-300/50'
+              : 'bg-slate-900/95 border-slate-700/80 text-white'
+          }`}>
+            <div className={`flex items-center justify-between border-b pb-2 ${
+              theme === 'light' ? 'border-slate-200' : 'border-slate-800'
+            }`}>
+              <div className={`flex items-center gap-1.5 font-bold ${theme === 'light' ? 'text-slate-900' : 'text-white'}`}>
+                <Radio className="w-4 h-4 text-emerald-500" />
+                <span>{language === 'ar' ? 'نطاق الرادار' : 'Rayon du Radar'}</span>
+              </div>
+              <span className={`px-2 py-0.5 rounded-full font-extrabold text-[11px] border ${
+                radarRadiusKm === 0
+                  ? 'bg-rose-500/20 text-rose-400 border-rose-500/30'
+                  : 'bg-emerald-500/20 text-emerald-500 border-emerald-500/30'
+              }`}>
+                {radarRadiusKm === 0 ? (language === 'ar' ? 'معطل' : 'Désactivé') : `${radarRadiusKm} km`}
+              </span>
+            </div>
+
+            <p className={`text-[11px] leading-tight ${theme === 'light' ? 'text-slate-500' : 'text-slate-400'}`}>
+              {language === 'ar'
+                ? 'عرض المركبات القريبة منك فقط (حد أقصى 15 مركبة لضمان خفة التطبيق).'
+                : 'Affiche les véhicules proches (max 15 véhicules pour une fluidité maximale).'}
+            </p>
+
+            {/* Slider 0.5 to 2.5 km */}
+            <div className="flex flex-col gap-1">
+              <input
+                type="range"
+                min="0.5"
+                max="2.5"
+                step="0.25"
+                value={radarRadiusKm === 0 ? 0.5 : radarRadiusKm}
+                onChange={(e) => onUpdateRadarRadius && onUpdateRadarRadius(Number(e.target.value))}
+                className={`w-full accent-emerald-500 cursor-pointer h-1.5 rounded-lg appearance-none ${
+                  theme === 'light' ? 'bg-slate-200' : 'bg-slate-800'
+                }`}
+              />
+              <div className={`flex justify-between text-[10px] font-semibold px-0.5 ${
+                theme === 'light' ? 'text-slate-400' : 'text-slate-500'
+              }`}>
+                <span>0.5 km</span>
+                <span>1.0 km</span>
+                <span>1.5 km</span>
+                <span>2.0 km</span>
+                <span>2.5 km</span>
+              </div>
+            </div>
+
+            {/* Quick Presets */}
+            <div className="grid grid-cols-5 gap-1 pt-1">
+              {[0.5, 1, 1.5, 2.5].map(val => (
+                <button
+                  key={val}
+                  type="button"
+                  onClick={() => onUpdateRadarRadius && onUpdateRadarRadius(val)}
+                  className={`py-1 rounded-xl text-[10px] font-bold transition text-center ${
+                    radarRadiusKm === val
+                      ? 'bg-emerald-600 text-white shadow-md'
+                      : theme === 'light'
+                        ? 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+                        : 'bg-slate-800 text-slate-300 hover:bg-slate-700'
+                  }`}
+                >
+                  {val} km
+                </button>
+              ))}
+              <button
+                type="button"
+                onClick={() => onUpdateRadarRadius && onUpdateRadarRadius(0)}
+                className={`py-1 rounded-xl text-[10px] font-bold transition text-center ${
+                  radarRadiusKm === 0
+                    ? 'bg-rose-600 text-white shadow-md'
+                    : theme === 'light'
+                      ? 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+                      : 'bg-slate-800 text-slate-300 hover:bg-slate-700'
+                }`}
+                title={language === 'ar' ? 'تعطيل الرادار' : 'Désactiver le radar'}
+              >
+                {language === 'ar' ? 'تعطيل' : 'Off'}
+              </button>
+            </div>
+
+            <div className={`text-[10px] p-2 rounded-xl border leading-normal ${
+              theme === 'light'
+                ? 'bg-slate-50 text-slate-600 border-slate-200'
+                : 'bg-slate-950/60 text-slate-400 border-slate-800/80'
+            }`}>
+              💡 <span className={theme === 'light' ? 'text-slate-700 font-medium' : 'text-slate-300 font-medium'}>
+                {language === 'ar'
+                  ? 'عند اختيار خط محدد (مثل حافلة 104)، يتم إظهار جميع مركباته على كامل الخريطة تلقائياً.'
+                  : 'Sélectionner une ligne isolée affiche tous ses véhicules sur toute la carte, sans limite de distance.'}
+              </span>
+            </div>
+          </div>
+        )}
+
         {/* Layer Selector Dropdown */}
         {isLayerSelectorOpen && (
-          <div className="bg-slate-900/95 border border-slate-700/80 rounded-2xl shadow-2xl p-2 flex flex-col gap-1 backdrop-blur-xl animate-fade-in text-xs min-w-[170px] mb-1">
-            <span className="text-[10px] uppercase font-bold text-slate-400 px-2 py-1">
+          <div ref={layerDropdownRef} className={`border rounded-2xl shadow-2xl p-2 flex flex-col gap-1 backdrop-blur-xl animate-fade-in text-xs min-w-[170px] mb-1 ${
+            theme === 'light'
+              ? 'bg-white/95 border-slate-200 text-slate-800 shadow-slate-300/50'
+              : 'bg-slate-900/95 border-slate-700/80 text-white'
+          }`}>
+            <span className={`text-[10px] uppercase font-bold px-2 py-1 ${
+              theme === 'light' ? 'text-slate-500' : 'text-slate-400'
+            }`}>
               {language === 'ar' ? 'نمط الخريطة' : 'Fond de Carte'}
             </span>
             <button
-              onClick={() => { setMapStyle('google_streets'); setIsLayerSelectorOpen(false); }}
+              onClick={() => handleSelectMapStyle('google_streets')}
               className={`px-3 py-1.5 rounded-xl text-left flex items-center justify-between transition-all ${
-                mapStyle === 'google_streets' ? 'bg-blue-600 text-white font-bold' : 'text-slate-300 hover:bg-slate-800'
+                mapStyle === 'google_streets'
+                  ? 'bg-blue-600 text-white font-bold'
+                  : theme === 'light' ? 'text-slate-700 hover:bg-slate-100' : 'text-slate-300 hover:bg-slate-800'
               }`}
             >
               <span>{language === 'ar' ? '🗺️ خريطة عادية' : '🗺️ Google Plan'}</span>
               {mapStyle === 'google_streets' && <span className="text-[10px]">✓</span>}
             </button>
             <button
-              onClick={() => { setMapStyle('google_satellite'); setIsLayerSelectorOpen(false); }}
+              onClick={() => handleSelectMapStyle('google_satellite')}
               className={`px-3 py-1.5 rounded-xl text-left flex items-center justify-between transition-all ${
-                mapStyle === 'google_satellite' ? 'bg-blue-600 text-white font-bold' : 'text-slate-300 hover:bg-slate-800'
+                mapStyle === 'google_satellite'
+                  ? 'bg-blue-600 text-white font-bold'
+                  : theme === 'light' ? 'text-slate-700 hover:bg-slate-100' : 'text-slate-300 hover:bg-slate-800'
               }`}
             >
               <span>{language === 'ar' ? '🛰️ قمر صناعي' : '🛰️ Google Satellite'}</span>
               {mapStyle === 'google_satellite' && <span className="text-[10px]">✓</span>}
             </button>
             <button
-              onClick={() => { setMapStyle('google_traffic'); setIsLayerSelectorOpen(false); }}
+              onClick={() => handleSelectMapStyle('google_traffic')}
               className={`px-3 py-1.5 rounded-xl text-left flex items-center justify-between transition-all ${
-                mapStyle === 'google_traffic' ? 'bg-blue-600 text-white font-bold' : 'text-slate-300 hover:bg-slate-800'
+                mapStyle === 'google_traffic'
+                  ? 'bg-blue-600 text-white font-bold'
+                  : theme === 'light' ? 'text-slate-700 hover:bg-slate-100' : 'text-slate-300 hover:bg-slate-800'
               }`}
             >
               <span>{language === 'ar' ? '🚦 حركة المرور' : '🚦 Google Trafic'}</span>
               {mapStyle === 'google_traffic' && <span className="text-[10px]">✓</span>}
             </button>
-            <button
-              onClick={() => { setMapStyle('dark'); setIsLayerSelectorOpen(false); }}
-              className={`px-3 py-1.5 rounded-xl text-left flex items-center justify-between transition-all ${
-                mapStyle === 'dark' ? 'bg-blue-600 text-white font-bold' : 'text-slate-300 hover:bg-slate-800'
-              }`}
-            >
-              <span>{language === 'ar' ? '🌙 الوضع الليلي' : '🌙 Mode Sombre'}</span>
-              {mapStyle === 'dark' && <span className="text-[10px]">✓</span>}
-            </button>
           </div>
         )}
 
+        {/* Toggle Radar Settings Button */}
+        <button
+          ref={radarButtonRef}
+          onClick={(e) => {
+            e.stopPropagation();
+            setIsRadarSettingsOpen(prev => !prev);
+            setIsLayerSelectorOpen(false);
+          }}
+          className={`p-3 sm:p-3.5 rounded-2xl shadow-xl border transition-all flex items-center justify-center active:scale-95 ${
+            isRadarSettingsOpen
+              ? 'bg-emerald-600 border-emerald-400 text-white shadow-emerald-500/30'
+              : theme === 'light'
+                ? 'bg-white/95 border-slate-200 text-slate-700 hover:bg-slate-100 shadow-md'
+                : 'bg-slate-900/95 border-slate-700 text-slate-300 hover:text-white hover:bg-slate-800'
+          }`}
+          title={language === 'ar' ? 'ضبط نطاق الرادار' : 'Régler le rayon du radar (0.5 - 2.5 km)'}
+        >
+          <Radio className="w-5 h-5 text-emerald-500" />
+        </button>
+
         {/* Toggle Layer Button */}
         <button
-          onClick={() => setIsLayerSelectorOpen(!isLayerSelectorOpen)}
-          className="p-3 sm:p-3.5 rounded-2xl shadow-xl border bg-slate-900/95 border-slate-700 text-slate-300 hover:text-white hover:bg-slate-800 transition-all flex items-center justify-center active:scale-95"
+          ref={layerButtonRef}
+          onClick={(e) => {
+            e.stopPropagation();
+            setIsLayerSelectorOpen(prev => !prev);
+            setIsRadarSettingsOpen(false);
+          }}
+          className={`p-3 sm:p-3.5 rounded-2xl shadow-xl border transition-all flex items-center justify-center active:scale-95 ${
+            isLayerSelectorOpen
+              ? 'bg-blue-600 border-blue-400 text-white shadow-blue-500/30'
+              : theme === 'light'
+                ? 'bg-white/95 border-slate-200 text-slate-700 hover:bg-slate-100 shadow-md'
+                : 'bg-slate-900/95 border-slate-700 text-slate-300 hover:text-white hover:bg-slate-800'
+          }`}
           title={language === 'ar' ? 'تغيير نمط الخريطة' : 'Changer le style de carte'}
         >
-          <Layers className="w-5 h-5 text-blue-400" />
+          <Layers className="w-5 h-5 text-blue-500" />
         </button>
 
         {/* Center on GPS Target Button */}
@@ -782,18 +1423,24 @@ function TransitMap({
           }}
           className={`p-3 sm:p-3.5 rounded-2xl shadow-2xl border flex items-center justify-center transition-all active:scale-95 ${
             userLocation
-              ? 'bg-slate-900/95 border-blue-500/80 text-blue-400 hover:bg-slate-800 hover:scale-105 ring-2 ring-blue-500/20'
+              ? theme === 'light'
+                ? 'bg-white/95 border-blue-500/80 text-blue-600 hover:bg-slate-100 ring-2 ring-blue-500/20 shadow-md'
+                : 'bg-slate-900/95 border-blue-500/80 text-blue-400 hover:bg-slate-800 ring-2 ring-blue-500/20'
               : 'bg-blue-600 border-blue-400 text-white shadow-blue-500/30 animate-pulse hover:bg-blue-500'
           }`}
           title={userLocation ? (language === 'ar' ? `موقعي الحالي (±${Math.round(userLocation.accuracy || 10)}م)` : `Ma position GPS (±${Math.round(userLocation.accuracy || 10)}m)`) : (language === 'ar' ? 'تحديد موقعي' : 'Activer mon GPS')}
         >
-          <LocateFixed className={`w-5 h-5 ${userLocation ? 'text-blue-400' : 'text-white'}`} />
+          <LocateFixed className={`w-5 h-5 ${userLocation ? (theme === 'light' ? 'text-blue-600' : 'text-blue-400') : 'text-white'}`} />
         </button>
       </div>
 
       {/* GPS Status & Satellite Search Pill */}
       {gpsErrorMsg && gpsStatus !== 'insecure' && (
-        <div className="absolute top-20 sm:top-20 left-1/2 -translate-x-1/2 z-[1050] max-w-md w-[calc(100%-2rem)] sm:w-auto p-2 px-3.5 rounded-2xl bg-slate-900/95 border border-blue-500/50 shadow-2xl backdrop-blur-xl flex items-center justify-between gap-3 text-xs text-slate-100 pointer-events-auto animate-fade-in">
+        <div className={`absolute top-20 sm:top-20 left-1/2 -translate-x-1/2 z-[1050] max-w-md w-[calc(100%-2rem)] sm:w-auto p-2 px-3.5 rounded-2xl border shadow-2xl backdrop-blur-xl flex items-center justify-between gap-3 text-xs pointer-events-auto animate-fade-in ${
+          theme === 'light'
+            ? 'bg-white/95 border-blue-300 text-slate-800'
+            : 'bg-slate-900/95 border-blue-500/50 text-slate-100'
+        }`}>
           <div className="flex items-center gap-2.5 min-w-0">
             <span className="relative flex h-2.5 w-2.5 flex-shrink-0">
               <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-blue-400 opacity-75"></span>

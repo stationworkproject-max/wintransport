@@ -27,6 +27,7 @@ scripts/*token*.txt
 scripts/*session*.json
 scripts/*session*.bin
 scripts/*api_keys*.json
+scripts/studio_config.json
 
 # Python caches
 __pycache__/

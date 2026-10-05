@@ -278,6 +278,79 @@
     </div>
   </div>
 
+  <!-- GOOGLE CLOUD ROUTES API SETTINGS MODAL -->
+  <div id="modalGoogleRoutesSettings" class="fixed inset-0 bg-slate-950/80 backdrop-blur z-[9990] hidden flex items-center justify-center p-4">
+    <div class="bg-slate-900 border border-slate-700/80 rounded-2xl w-full max-w-lg p-5 shadow-2xl space-y-4">
+      <div class="flex items-center justify-between border-b border-slate-800 pb-3">
+        <div class="flex items-center gap-2.5">
+          <div class="w-8 h-8 rounded-lg bg-indigo-600/30 border border-indigo-500/50 flex items-center justify-center text-indigo-400">
+            <i data-lucide="navigation" class="w-4 h-4"></i>
+          </div>
+          <div>
+            <h3 class="text-sm font-bold text-white flex items-center gap-2">
+              Google Cloud Routes API
+              <span class="text-[9px] px-1.5 py-0.5 rounded bg-emerald-950 text-emerald-300 font-semibold border border-emerald-800">Routes v2</span>
+            </h3>
+            <p class="text-[11px] text-slate-400">Projet Cloud : <strong class="text-indigo-300">workstation-14152005</strong></p>
+          </div>
+        </div>
+        <button onclick="closeGoogleRoutesModal()" class="text-slate-400 hover:text-white p-1 rounded-lg hover:bg-slate-800">
+          <i data-lucide="x" class="w-4 h-4"></i>
+        </button>
+      </div>
+
+      <div class="space-y-3 text-xs">
+        <p class="text-slate-300 leading-relaxed">
+          Le service <strong>Routes API (computeRoutes v2)</strong> calcule les tracés haute fidélité (High Quality Polyline), explore automatiquement plusieurs variantes d'itinéraires alternatifs et respecte les ronds-points et voies réservées aux bus.
+        </p>
+
+        <div class="p-3 bg-slate-950 border border-slate-800 rounded-xl space-y-2">
+          <label class="block text-slate-300 font-semibold flex items-center justify-between">
+            <span>Clé API Google Cloud (Routes API)</span>
+            <span id="googleModalKeyBadge" class="text-[10px] text-slate-500 font-mono">Non configurée</span>
+          </label>
+          <div class="relative">
+            <input type="password" id="inputGoogleApiKey" placeholder="AIzaSy..." 
+                   class="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 pr-10 text-white font-mono text-xs focus:outline-none focus:border-indigo-500">
+            <button type="button" onclick="toggleApiKeyVisibility()" class="absolute right-2.5 top-2 text-slate-400 hover:text-white" title="Afficher/Masquer">
+              <i data-lucide="eye" id="iconEyeKey" class="w-4 h-4"></i>
+            </button>
+          </div>
+          <div class="flex items-center justify-between text-[11px] text-slate-400 pt-1">
+            <span>Console Google Cloud du projet :</span>
+            <a href="https://console.cloud.google.com/apis/library/routes.googleapis.com?authuser=0&project=workstation-14152005" 
+               target="_blank" class="text-indigo-400 hover:text-indigo-300 font-semibold flex items-center gap-1">
+              <span>Ouvrir Routes API (workstation-14152005)</span>
+              <i data-lucide="external-link" class="w-3 h-3"></i>
+            </a>
+          </div>
+        </div>
+
+        <div id="googleKeyStatusBox" class="p-3 rounded-xl border text-xs hidden"></div>
+
+        <div class="text-[11px] text-slate-400 bg-slate-950/60 p-2.5 rounded-lg border border-slate-800/80 leading-relaxed">
+          💡 <strong>Mode Secours Automatique :</strong> Si vous n'avez pas encore activé la clé dans Google Cloud, le Studio bascule automatiquement sur le moteur Google Direct ou OpenStreetMap pour que vos tracés ne soient jamais bloqués.
+        </div>
+      </div>
+
+      <div class="flex items-center justify-between pt-2 border-t border-slate-800">
+        <button onclick="testCurrentGoogleKey()" id="btnTestGoogleKey" class="px-3 py-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 font-semibold text-xs flex items-center gap-1.5 transition">
+          <i data-lucide="activity" class="w-3.5 h-3.5"></i>
+          <span>Tester la Clé</span>
+        </button>
+        <div class="flex items-center gap-2">
+          <button onclick="closeGoogleRoutesModal()" class="px-4 py-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 font-semibold text-xs transition">
+            Fermer
+          </button>
+          <button onclick="saveGoogleApiKey()" id="btnSaveGoogleKey" class="px-4 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs flex items-center gap-1.5 shadow transition">
+            <i data-lucide="check" class="w-4 h-4"></i>
+            <span>Enregistrer</span>
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <!-- TOP APP HEADER -->
   <header class="bg-slate-900 border-b border-slate-800 px-4 py-2.5 flex items-center justify-between z-30 shrink-0">
     <div class="flex items-center gap-3">
@@ -294,7 +367,12 @@
     </div>
 
     <!-- Active Line Stats & Save Buttons -->
-    <div class="flex items-center gap-3">
+    <div class="flex items-center gap-2.5">
+      <button id="btnGoogleRoutesStatus" onclick="openGoogleRoutesModal()" class="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-slate-800/90 hover:bg-slate-700/90 border border-slate-700 text-slate-300 font-semibold text-xs transition shadow-sm" title="Configurer Google Cloud Routes API (workstation-14152005)">
+        <span id="googleRoutesStatusDot" class="w-2 h-2 rounded-full bg-amber-400 animate-pulse"></span>
+        <span id="googleRoutesStatusLabel">Routes API</span>
+      </button>
+
       <div id="activeStatsBadge" class="hidden items-center gap-2 bg-slate-800/80 border border-slate-700/60 px-3 py-1.5 rounded-lg text-xs">
         <span class="flex items-center gap-1.5 font-semibold text-slate-200">
           <span id="statLineBadge" class="px-2 py-0.5 rounded text-white font-bold bg-slate-700">--</span>
@@ -529,6 +607,8 @@
               <div>
                 <label class="text-[10px] text-slate-400 block mb-0.5">Méthode</label>
                 <select id="selCurveMethod" class="w-full bg-slate-900 border border-slate-700 rounded px-2 py-1 text-slate-200 text-xs focus:outline-none">
+                  <option value="circle_arc">Cercle / Rond-point Parfait (Arc 3 pts)</option>
+                  <option value="uturn_180">Boucle U-Turn (Demi-Cercle 180°)</option>
                   <option value="chaikin">Chaikin (Naturel / Rails)</option>
                   <option value="spline">Spline (Ultra Lisse)</option>
                 </select>
@@ -619,6 +699,10 @@
               <span class="flex items-center gap-2"><i data-lucide="git-fork" class="w-4 h-4 text-amber-400"></i> Générer voie opposée parallèle (+3.5m)</span>
               <i data-lucide="chevron-right" class="w-3.5 h-3.5 text-slate-600"></i>
             </button>
+            <button onclick="applyPhysicalLaneSpacing(3.0)" class="w-full p-2 rounded-lg bg-indigo-950/40 hover:bg-indigo-900/60 border border-indigo-800/60 flex items-center justify-between text-left text-indigo-200 hover:text-white" title="Décale les deux sens de circulation chacun vers sa voie de droite pour séparer définitivement les coordonnées Aller et Retour">
+              <span class="flex items-center gap-2"><i data-lucide="split" class="w-4 h-4 text-indigo-400"></i> Espacer Aller &amp; Retour en 2 voies (+3m)</span>
+              <i data-lucide="chevron-right" class="w-3.5 h-3.5 text-slate-600"></i>
+            </button>
             <button onclick="removeLastPoint()" class="w-full p-2 rounded-lg bg-slate-950 hover:bg-slate-800 border border-slate-800 flex items-center justify-between text-left text-slate-300 hover:text-white">
               <span class="flex items-center gap-2"><i data-lucide="delete" class="w-4 h-4 text-rose-400"></i> Supprimer le dernier point (Fin)</span>
             </button>
@@ -684,6 +768,7 @@
           </label>
         </div>
 
+
         <div id="dirTerminusLabel" class="text-[11px] text-slate-400 truncate text-center font-medium bg-slate-900/60 py-1 rounded border border-slate-800/80">
           Édition : <span id="targetDirName" class="text-cyan-300 font-semibold">Aller</span>
         </div>
@@ -695,75 +780,145 @@
     <main class="flex-1 relative h-full">
       <div id="map"></div>
 
-      <!-- FLOATING HUD TOOLBAR FOR A -> B (ROUND SHAPE OR ROAD ROUTING) -->
-      <div id="floatingRouteHud" class="absolute top-3 left-3 z-[1000] bg-slate-900/95 border border-slate-700/80 rounded-xl p-3 shadow-2xl backdrop-blur max-w-sm space-y-2 pointer-events-auto">
-        <div class="flex items-center justify-between gap-2 border-b border-slate-800 pb-2">
-          <div class="flex items-center gap-2">
-            <span class="w-2.5 h-2.5 rounded-full bg-amber-400 animate-pulse"></span>
-            <span class="text-xs font-bold text-white flex items-center gap-1.5">
-              <i data-lucide="sparkles" class="w-4 h-4 text-amber-400"></i>
-              Action Tronçon (Nœud A ➔ B)
+      <!-- FLOATING HUD TOOLBAR FOR A -> B (ADVANCED GOOGLE ROUTES / VIA / ALTERNATIVES) -->
+      <div id="floatingRouteHud" class="absolute top-3 left-3 z-[1000] bg-slate-900/95 border border-slate-700/80 rounded-xl p-3 shadow-2xl backdrop-blur max-w-sm w-96 space-y-2 pointer-events-auto transition-[width,height]">
+        <!-- Draggable Header Bar -->
+        <div id="floatingRouteHudHeader" class="flex items-center justify-between gap-2 border-b border-slate-800 pb-2 cursor-move select-none" title="Glisser pour déplacer le panneau sur la carte">
+          <div class="flex items-center gap-2 min-w-0">
+            <span class="w-2.5 h-2.5 rounded-full bg-cyan-400 animate-pulse shrink-0"></span>
+            <span class="text-xs font-bold text-white flex items-center gap-1.5 truncate">
+              <i data-lucide="navigation" class="w-4 h-4 text-cyan-400 shrink-0"></i>
+              <span id="hudHeaderTitle" class="truncate">Tronçon A ➔ B (Google Routes)</span>
             </span>
           </div>
-          <span class="text-[10px] px-2 py-0.5 rounded-full bg-slate-800 text-slate-300 font-bold border border-slate-700">Libre Choix</span>
-        </div>
-
-        <div class="grid grid-cols-2 gap-2 text-xs">
-          <div class="p-2 bg-emerald-950/40 border border-emerald-700/60 rounded-lg">
-            <div class="text-[10px] text-emerald-400 font-bold uppercase tracking-wider flex items-center gap-1">
-              <span class="w-2 h-2 rounded-full bg-emerald-400"></span> Nœud A (Début)
-            </div>
-            <div id="hudRouteNodeA" class="font-mono font-bold text-white text-[11px] mt-0.5 truncate">Cliquez sur un nœud</div>
-          </div>
-          <div class="p-2 bg-rose-950/40 border border-rose-700/60 rounded-lg">
-            <div class="text-[10px] text-rose-400 font-bold uppercase tracking-wider flex items-center gap-1">
-              <span class="w-2 h-2 rounded-full bg-rose-400"></span> Nœud B (Fin)
-            </div>
-            <div id="hudRouteNodeB" class="font-mono font-bold text-white text-[11px] mt-0.5 truncate">Cliquez sur un nœud</div>
+          <div class="flex items-center gap-1.5 shrink-0">
+            <span id="hudProviderBadge" class="text-[9px] px-2 py-0.5 rounded-full bg-indigo-950 text-indigo-300 font-bold border border-indigo-700">Routes API v2</span>
+            <!-- Collapse / Expand Button -->
+            <button id="btnToggleCollapseHud" onclick="toggleCollapseRouteHud()" class="p-1 rounded hover:bg-slate-800 text-slate-400 hover:text-white transition" title="Réduire / Agrandir le panneau pour voir la carte">
+              <i data-lucide="minimize-2" id="iconCollapseHud" class="w-3.5 h-3.5"></i>
+            </button>
           </div>
         </div>
 
-        <!-- 3 PRIMARY ACTION BUTTONS: ARRONDIE, GOOGLE MAPS, OPENSTREETMAP (OSM) -->
-        <div class="space-y-1.5 pt-0.5">
-          <div class="grid grid-cols-3 gap-1.5">
-            <button onclick="applyCurveSmoothingOnRange()" id="btnHudCurve" class="py-2 px-1 rounded-lg bg-amber-600 hover:bg-amber-500 active:bg-amber-700 text-white font-bold text-xs flex items-center justify-center gap-1 shadow-lg shadow-amber-950/50 transition" title="Arrondit le virage en arc régulier sans angles bruts">
-              <i data-lucide="sparkles" class="w-3.5 h-3.5 text-white"></i> Arrondir
+        <!-- Collapsible Body Container -->
+        <div id="floatingRouteHudBody" class="space-y-2">
+          <!-- Node A & Node B Indicators -->
+          <div class="grid grid-cols-2 gap-2 text-xs">
+            <div class="p-2 bg-emerald-950/40 border border-emerald-700/60 rounded-lg">
+              <div class="text-[10px] text-emerald-400 font-bold uppercase tracking-wider flex items-center gap-1">
+                <span class="w-2 h-2 rounded-full bg-emerald-400"></span> Nœud A (Départ)
+              </div>
+              <div id="hudRouteNodeA" class="font-mono font-bold text-white text-[11px] mt-0.5 truncate">Cliquez sur un nœud</div>
+            </div>
+            <div class="p-2 bg-rose-950/40 border border-rose-700/60 rounded-lg">
+              <div class="text-[10px] text-rose-400 font-bold uppercase tracking-wider flex items-center gap-1">
+                <span class="w-2 h-2 rounded-full bg-rose-400"></span> Nœud B (Arrivée)
+              </div>
+              <div id="hudRouteNodeB" class="font-mono font-bold text-white text-[11px] mt-0.5 truncate">Cliquez sur un nœud</div>
+            </div>
+          </div>
+
+          <!-- Tools: Reverse, Add Via Point, Clear -->
+          <div class="flex items-center justify-between gap-1 text-[11px]">
+            <button onclick="swapCurveNodes()" class="py-1 px-2 rounded-md bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white font-semibold flex items-center gap-1" title="Inverser Départ et Arrivée">
+              <i data-lucide="arrow-left-right" class="w-3 h-3 text-cyan-400"></i> A ⇄ B
             </button>
-            <button onclick="routeSegmentBetweenNodes('google')" id="btnHudRouteGoogle" class="py-2 px-1 rounded-lg bg-emerald-600 hover:bg-emerald-500 active:bg-emerald-700 text-white font-bold text-xs flex items-center justify-center gap-1 shadow-lg shadow-emerald-950/50 transition" title="Calque le tracé sur l'itinéraire Google Maps (voies réelles, ronds-points)">
-              <i data-lucide="navigation" class="w-3.5 h-3.5 fill-current"></i> Tracer Google
+            
+            <button id="btnHudAddVia" onclick="toggleAddViaPoint()" class="py-1 px-2 rounded-md bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white font-semibold flex items-center gap-1" title="Ajouter un ou plusieurs points de passage obligatoires (reste actif jusqu'à annulation)">
+              <i data-lucide="plus-circle" class="w-3 h-3 text-indigo-400"></i> <span id="lblAddViaBtn">+ Point Via</span>
             </button>
-            <button onclick="routeSegmentBetweenNodes('osrm')" id="btnHudRouteOsm" class="py-2 px-1 rounded-lg bg-cyan-600 hover:bg-cyan-500 active:bg-cyan-700 text-white font-bold text-xs flex items-center justify-center gap-1 shadow-lg shadow-cyan-950/50 transition" title="Calque le tracé sur OpenStreetMap (OSM / OSRM)">
-              <i data-lucide="globe" class="w-3.5 h-3.5"></i> Tracer OSM
+
+            <button onclick="resetCurveSelection()" class="py-1 px-2 rounded-md bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-rose-400 font-semibold flex items-center gap-1" title="Effacer la sélection">
+              ✕ Annuler
             </button>
           </div>
 
-          <div class="flex items-center justify-between gap-1 pt-0.5">
-            <div class="flex items-center gap-1">
-              <button onclick="swapCurveNodes()" class="py-1 px-1.5 rounded-md bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white font-semibold text-[11px] flex items-center gap-1" title="Inverser Départ et Arrivée">
-                <i data-lucide="arrow-left-right" class="w-3 h-3"></i> A ⇄ B
-              </button>
-              <button onclick="resetCurveSelection()" class="py-1 px-1.5 rounded-md bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white font-semibold text-[11px]" title="Effacer la sélection">
-                ✕ Annuler
-              </button>
-            </div>
-            <div class="flex items-center gap-1">
-              <select id="hudCurveLevel" onchange="syncCurveLevel(this.value)" class="bg-slate-800 border border-slate-700 text-[10px] text-amber-300 font-semibold rounded px-1.5 py-1" title="Niveau d'arrondi">
-                <option value="1">Léger</option>
-                <option value="2" selected>Moyen</option>
-                <option value="3">Très Rond</option>
-              </select>
-              <button onclick="openExternalGoogleMapsForSegment()" class="py-1 px-1.5 rounded-md bg-slate-800 hover:bg-slate-700 text-blue-400 hover:text-blue-300 font-semibold text-[10px] flex items-center gap-0.5" title="Inspecter sur Google Maps">
-                <i data-lucide="external-link" class="w-3 h-3"></i> Google
-              </button>
-              <button onclick="openExternalOsmForSegment()" class="py-1 px-1.5 rounded-md bg-slate-800 hover:bg-slate-700 text-cyan-400 hover:text-cyan-300 font-semibold text-[10px] flex items-center gap-0.5" title="Inspecter sur OpenStreetMap">
-                <i data-lucide="external-link" class="w-3 h-3"></i> OSM
-              </button>
-            </div>
+          <!-- Automatic Bus Stations Follow Box -->
+          <div id="hudStationsFollowBox" class="hidden text-[10px] p-2 rounded-lg bg-indigo-950/40 border border-indigo-800/60 text-indigo-200 flex items-center justify-between gap-1">
+            <label class="flex items-center gap-1.5 cursor-pointer select-none">
+              <input type="checkbox" id="chkFollowStations" checked onchange="computeAndPreviewGoogleRoutes()" class="rounded text-indigo-500 bg-slate-950 border-slate-700">
+              <span id="lblFollowStationsText" class="font-semibold text-indigo-300">Suit 0 station(s) de la ligne</span>
+            </label>
+            <span class="text-[9px] px-1.5 py-0.5 rounded bg-indigo-900/60 text-indigo-300 font-bold border border-indigo-700/50">Ligne Bus</span>
           </div>
-        </div>
 
-        <div class="text-[10px] text-slate-400 leading-tight pt-1 border-t border-slate-800/80">
-          💡 <em>Cliquez Nœud A puis B : choisissez <strong>Arrondir</strong> pour une courbe fluide, <strong>Tracer Google</strong> pour Google Maps, ou <strong>Tracer OSM</strong> pour OpenStreetMap.</em>
+          <!-- Active Via Points List (if any) -->
+          <div id="hudViaPointsList" class="hidden p-2 bg-slate-950/80 rounded-lg border border-slate-800 space-y-1.5 text-[11px]">
+            <div class="text-slate-400 font-semibold flex items-center justify-between">
+              <span class="flex items-center gap-1"><i data-lucide="map-pin" class="w-3 h-3 text-indigo-400"></i> Points de passage (Via) :</span>
+              <span id="hudViaCount" class="text-indigo-400 font-mono font-bold">0</span>
+            </div>
+            <div id="hudViaPointsContainer" class="flex flex-wrap gap-1"></div>
+          </div>
+
+          <!-- Calculated Routes / Alternatives Selector -->
+          <div id="hudRouteAlternativesSection" class="hidden space-y-1.5 border-t border-slate-800/80 pt-2">
+            <div class="flex items-center justify-between text-[10px] text-slate-400">
+              <span class="font-bold uppercase tracking-wider text-slate-300 flex items-center gap-1">
+                <i data-lucide="split" class="w-3 h-3 text-cyan-400"></i> Itinéraires Calculés :
+              </span>
+              <span id="hudRouteDistanceTime" class="font-bold text-cyan-300 font-mono"></span>
+            </div>
+            <div id="hudRouteChipsContainer" class="grid grid-cols-1 gap-1 max-h-32 overflow-y-auto"></div>
+          </div>
+
+          <!-- Route Modifiers: Avoid highways & Avoid tolls -->
+          <div class="flex items-center justify-between text-[10px] text-slate-400 px-1 pt-0.5">
+            <label class="flex items-center gap-1 cursor-pointer">
+              <input type="checkbox" id="chkAvoidHighways" onchange="onRouteModifierChange()" class="rounded text-indigo-500 bg-slate-950 border-slate-700">
+              <span>Éviter autoroutes</span>
+            </label>
+            <label class="flex items-center gap-1 cursor-pointer">
+              <input type="checkbox" id="chkAvoidTolls" onchange="onRouteModifierChange()" class="rounded text-indigo-500 bg-slate-950 border-slate-700">
+              <span>Éviter péages</span>
+            </label>
+          </div>
+
+          <!-- Warning / Fallback Notice (if any) -->
+          <div id="hudRouteWarningBox" class="hidden text-[10px] p-2 rounded-lg bg-amber-950/40 border border-amber-800/60 text-amber-300 flex items-center justify-between gap-1">
+            <span id="hudRouteWarningText" class="truncate"></span>
+            <button onclick="openGoogleRoutesModal()" class="underline text-amber-200 shrink-0 font-bold">Clé API</button>
+          </div>
+
+          <!-- Primary Action Buttons: Apply Route, Curve Smoothing, OSM -->
+          <div class="space-y-1.5 pt-1">
+            <button onclick="applyComputedRouteToTrack()" id="btnHudApplyRoute" class="w-full py-2 px-2 rounded-lg bg-emerald-600 hover:bg-emerald-500 active:bg-emerald-700 text-white font-bold text-xs flex items-center justify-center gap-1.5 shadow-lg shadow-emerald-950/50 transition">
+              <i data-lucide="check-circle" class="w-4 h-4"></i>
+              <span id="btnHudApplyRouteText">Appliquer ce Tronçon (Entrée)</span>
+            </button>
+
+            <div class="grid grid-cols-2 gap-1.5">
+              <button onclick="applyCurveSmoothingOnRange()" id="btnHudCurve" class="py-1.5 px-1 rounded-lg bg-amber-600 hover:bg-amber-500 text-white font-bold text-xs flex items-center justify-center gap-1 transition" title="Arrondit manuellement un virage ou angle brut">
+                <i data-lucide="sparkles" class="w-3.5 h-3.5 text-white"></i> Arrondir (Retouche)
+              </button>
+              <button onclick="routeSegmentViaOsmDirect()" id="btnHudRouteOsm" class="py-1.5 px-1 rounded-lg bg-cyan-600 hover:bg-cyan-500 text-white font-bold text-xs flex items-center justify-center gap-1 transition" title="Calque le tracé sur OpenStreetMap (OSM / OSRM)">
+                <i data-lucide="globe" class="w-3.5 h-3.5"></i> Tracer OSM
+              </button>
+            </div>
+
+            <div class="flex items-center justify-between text-[10px] text-slate-400 pt-1 border-t border-slate-800/80">
+              <button onclick="toggleRouteStepsAccordion()" id="btnToggleSteps" class="text-indigo-400 hover:text-indigo-300 font-semibold flex items-center gap-1">
+                <i data-lucide="list" class="w-3 h-3"></i>
+                <span id="lblStepsCount">Étapes de guidage (0)</span>
+              </button>
+              <div class="flex items-center gap-2">
+                <button onclick="openExternalGoogleMapsForSegment()" class="text-blue-400 hover:text-blue-300 font-semibold flex items-center gap-0.5" title="Inspecter sur Google Maps">
+                  <i data-lucide="external-link" class="w-3 h-3"></i> Google
+                </button>
+                <button onclick="openExternalOsmForSegment()" class="text-cyan-400 hover:text-cyan-300 font-semibold flex items-center gap-0.5" title="Inspecter sur OpenStreetMap">
+                  <i data-lucide="external-link" class="w-3 h-3"></i> OSM
+                </button>
+              </div>
+            </div>
+
+            <!-- Collapsible Steps List -->
+            <div id="hudRouteStepsList" class="hidden max-h-28 overflow-y-auto space-y-1 p-1.5 bg-slate-950 rounded-lg border border-slate-800 text-[10px] text-slate-300 font-mono"></div>
+          </div>
+
+          <div class="text-[10px] text-slate-400 leading-tight pt-1 border-t border-slate-800/80 flex items-center gap-1">
+            <i data-lucide="sparkles" class="w-3.5 h-3.5 text-amber-400 shrink-0"></i>
+            <span><em>Tracé intelligent : lignes droites nettes (sans zigzags) et virages/boucles (hips) arrondis automatiquement.</em></span>
+          </div>
         </div>
       </div>
 
@@ -854,6 +1009,7 @@
     let historyIndex = -1;
 
     async function loadDataAndBootstrap() {
+      initGoogleRoutesConfig();
       const statusText = document.getElementById('loadingStatusText');
       try {
         const res = await fetch('/api/data');
@@ -904,6 +1060,7 @@
         const defaultLine = lines.find(l => l.id === 'metro_56') || lines.find(l => l.id === 'metro_53') || lines[0];
         selectLine(defaultLine);
       }
+      initDraggableRouteHud();
       lucide.createIcons();
     }
 
@@ -915,6 +1072,7 @@
       zoom: 13,
       zoomControl: true
     });
+    window.map = map;
 
     const BASEMAP_API_KEY = 'cb1_462m_1_66e30fd30eabfdd440e49e44';
 
@@ -988,9 +1146,15 @@
       document.getElementById('hudZoom').innerText = map.getZoom();
     });
 
-    // Map Click Handler (for Adding Points or Dropping Stations)
+    // Map Click Handler (for Adding Points, Dropping Stations, or Placing Via Points)
     map.on('click', (e) => {
       if (!selectedLine) return;
+
+      if (isPickingViaPoint) {
+        const viaPt = [parseFloat(e.latlng.lat.toFixed(6)), parseFloat(e.latlng.lng.toFixed(6))];
+        addViaPoint(viaPt);
+        return;
+      }
 
       if (activeEditMode === 'add_station_click') {
         openAddStationModal(e.latlng.lat, e.latlng.lng);
@@ -1017,16 +1181,25 @@
     // -------------------------------------------------------------
     // 3. PERSISTENT MAP LAYERS
     // -------------------------------------------------------------
-    const allerCasingPolyline = L.polyline([], { color: '#ffffff', weight: 8, opacity: 0.85, lineCap: 'round', lineJoin: 'round' }).addTo(map);
-    const allerMainPolyline = L.polyline([], { color: '#06b6d4', weight: 5, opacity: 1, lineCap: 'round', lineJoin: 'round' }).addTo(map);
+    const allerCasingPolyline = L.polyline([], { color: '#ffffff', weight: 12.5, opacity: 0.9, lineCap: 'round', lineJoin: 'round' }).addTo(map);
+    const allerMainPolyline = L.polyline([], { color: '#06b6d4', weight: 8.5, opacity: 1, lineCap: 'round', lineJoin: 'round' }).addTo(map);
 
-    const retourCasingPolyline = L.polyline([], { color: '#ffffff', weight: 8, opacity: 0.85, lineCap: 'round', lineJoin: 'round' }).addTo(map);
-    const retourMainPolyline = L.polyline([], { color: '#f59e0b', weight: 5, opacity: 1, lineCap: 'round', lineJoin: 'round' }).addTo(map);
+    const retourCasingPolyline = L.polyline([], { color: '#ffffff', weight: 12.5, opacity: 0.9, lineCap: 'round', lineJoin: 'round' }).addTo(map);
+    const retourMainPolyline = L.polyline([], { color: '#f59e0b', weight: 8.5, opacity: 1, lineCap: 'round', lineJoin: 'round' }).addTo(map);
 
-    const curvePreviewPolyline = L.polyline([], { color: '#f59e0b', weight: 6, opacity: 0.9, dashArray: '6, 6', lineCap: 'round' }).addTo(map);
+    const curvePreviewPolyline = L.polyline([], { color: '#f59e0b', weight: 8.5, opacity: 0.9, dashArray: '6, 6', lineCap: 'round', lineJoin: 'round' }).addTo(map);
 
     const vertexMarkersGroup = L.layerGroup().addTo(map);
     const stationMarkersGroup = L.layerGroup().addTo(map);
+    const routesPreviewGroup = L.layerGroup().addTo(map);
+    const viaMarkersGroup = L.layerGroup().addTo(map);
+
+    // Google Routes Advanced Routing State
+    let computedRoutes = [];
+    let selectedRouteIndex = 0;
+    let routeIntermediates = [];
+    let isPickingViaPoint = false;
+    let googleConfigData = { has_google_key: false, google_key_preview: '', project_id: 'workstation-14152005' };
 
     function getActiveTrack() {
       return editingDirection === 0 ? currentShape0 : currentShape1;
@@ -1075,6 +1248,159 @@
       return Math.hypot(p[0] - projLat, p[1] - projLon);
     }
 
+    // -------------------------------------------------------------
+    // PARALLEL LANE OFFSET & CIRCULAR GEOMETRY ENGINES
+    // -------------------------------------------------------------
+
+    function offsetPolylineRight(points, offsetMeters = 2.5) {
+      if (!points || points.length < 2) return points || [];
+      const len = points.length;
+      let sumLat = 0;
+      for (let i = 0; i < len; i++) sumLat += points[i][0];
+      const meanLat = (sumLat / len) * (Math.PI / 180.0);
+      const cosLat = Math.cos(meanLat);
+      const lat0 = points[0][0];
+      const lon0 = points[0][1];
+
+      const ptsM = new Array(len);
+      for (let i = 0; i < len; i++) {
+        ptsM[i] = [
+          (points[i][1] - lon0) * cosLat * 111320.0,
+          (points[i][0] - lat0) * 111320.0
+        ];
+      }
+
+      const result = new Array(len);
+      for (let i = 0; i < len; i++) {
+        let dx, dy;
+        if (i === 0) {
+          dx = ptsM[1][0] - ptsM[0][0];
+          dy = ptsM[1][1] - ptsM[0][1];
+        } else if (i === len - 1) {
+          dx = ptsM[len - 1][0] - ptsM[len - 2][0];
+          dy = ptsM[len - 1][1] - ptsM[len - 2][1];
+        } else {
+          const dx1 = ptsM[i][0] - ptsM[i - 1][0];
+          const dy1 = ptsM[i][1] - ptsM[i - 1][1];
+          const l1 = Math.hypot(dx1, dy1) || 1.0;
+          const dx2 = ptsM[i + 1][0] - ptsM[i][0];
+          const dy2 = ptsM[i + 1][1] - ptsM[i][1];
+          const l2 = Math.hypot(dx2, dy2) || 1.0;
+          dx = (dx1 / l1) + (dx2 / l2);
+          dy = (dy1 / l1) + (dy2 / l2);
+        }
+        const hyp = Math.hypot(dx, dy) || 1.0;
+        const tx = dx / hyp;
+        const ty = dy / hyp;
+        const nx = ty;
+        const ny = -tx;
+
+        const ox = ptsM[i][0] + nx * offsetMeters;
+        const oy = ptsM[i][1] + ny * offsetMeters;
+
+        const oLat = lat0 + (oy / 111320.0);
+        const oLon = lon0 + (ox / (111320.0 * cosLat));
+        result[i] = [parseFloat(oLat.toFixed(6)), parseFloat(oLon.toFixed(6))];
+      }
+      return result;
+    }
+
+    function generate3PointCircularArc(pA, pVia, pB, nPoints = 5) {
+      const lat1 = pA[0], lon1 = pA[1];
+      const lat2 = pVia[0], lon2 = pVia[1];
+      const lat3 = pB[0], lon3 = pB[1];
+      const meanLat = ((lat1 + lat2 + lat3) / 3.0) * (Math.PI / 180.0);
+      const cosLat = Math.cos(meanLat);
+
+      const x1 = 0, y1 = 0;
+      const x2 = (lon2 - lon1) * cosLat * 111320.0;
+      const y2 = (lat2 - lat1) * 111320.0;
+      const x3 = (lon3 - lon1) * cosLat * 111320.0;
+      const y3 = (lat3 - lat1) * 111320.0;
+
+      const D = 2.0 * (x2 * y3 - y2 * x3);
+      if (Math.abs(D) < 1e-5) {
+        return [pA, pVia, pB];
+      }
+
+      const cx = (y3 * (x2*x2 + y2*y2) - y2 * (x3*x3 + y3*y3)) / D;
+      const cy = (x2 * (x3*x3 + y3*y3) - x3 * (x2*x2 + y2*y2)) / D;
+      const R = Math.hypot(cx, cy);
+
+      const a1 = Math.atan2(-cy, -cx);
+      const a2 = Math.atan2(y2 - cy, x2 - cx);
+      const a3 = Math.atan2(y3 - cy, x3 - cx);
+
+      const TWO_PI = 2.0 * Math.PI;
+      const isCCW = D > 0;
+      const d12_ccw = (a2 - a1 + TWO_PI * 10) % TWO_PI;
+      const d23_ccw = (a3 - a2 + TWO_PI * 10) % TWO_PI;
+      const d12_cw = (a1 - a2 + TWO_PI * 10) % TWO_PI;
+      const d23_cw = (a2 - a3 + TWO_PI * 10) % TWO_PI;
+      const sweep = isCCW ? (d12_ccw + d23_ccw) : -(d12_cw + d23_cw);
+
+      const arc = [];
+      for (let i = 0; i <= nPoints; i++) {
+        const t = i / nPoints;
+        const theta = a1 + t * sweep;
+        const px = cx + R * Math.cos(theta);
+        const py = cy + R * Math.sin(theta);
+        const plat = lat1 + py / 111320.0;
+        const plon = lon1 + px / (111320.0 * cosLat);
+        arc.push([parseFloat(plat.toFixed(6)), parseFloat(plon.toFixed(6))]);
+      }
+      arc[0] = [parseFloat(lat1.toFixed(6)), parseFloat(lon1.toFixed(6))];
+      arc[arc.length - 1] = [parseFloat(lat3.toFixed(6)), parseFloat(lon3.toFixed(6))];
+      return arc;
+    }
+
+    function generateBulgeArc(pA, pB, bulge = 1.0, nPoints = 5) {
+      if (Math.abs(bulge) < 1e-4) return [pA, pB];
+      const lat1 = pA[0], lon1 = pA[1];
+      const lat2 = pB[0], lon2 = pB[1];
+      const meanLat = ((lat1 + lat2) / 2.0) * (Math.PI / 180.0);
+      const cosLat = Math.cos(meanLat);
+
+      const dx = (lon2 - lon1) * cosLat * 111320.0;
+      const dy = (lat2 - lat1) * 111320.0;
+      const L = Math.hypot(dx, dy);
+      if (L < 0.5) return [pA, pB];
+
+      const mx = dx / 2.0;
+      const my = dy / 2.0;
+
+      const tx = dx / L;
+      const ty = dy / L;
+      const nx = -ty * Math.sign(bulge);
+      const ny = tx * Math.sign(bulge);
+
+      const absB = Math.abs(bulge);
+      const R = (L * (1.0 + absB * absB)) / (4.0 * absB);
+      const sagitta = (L / 2.0) * absB;
+      const distCenter = R - sagitta;
+
+      const cx = mx - nx * distCenter;
+      const cy = my - ny * distCenter;
+
+      const a1 = Math.atan2(0 - cy, 0 - cx);
+      const theta = 4.0 * Math.atan(absB);
+      const sweep = (bulge >= 0) ? theta : -theta;
+
+      const pts = [];
+      for (let i = 0; i <= nPoints; i++) {
+        const t = i / nPoints;
+        const ang = a1 + t * sweep;
+        const px = cx + R * Math.cos(ang);
+        const py = cy + R * Math.sin(ang);
+        const plat = lat1 + py / 111320.0;
+        const plon = lon1 + px / (111320.0 * cosLat);
+        pts.push([parseFloat(plat.toFixed(6)), parseFloat(plon.toFixed(6))]);
+      }
+      pts[0] = [parseFloat(lat1.toFixed(6)), parseFloat(lon1.toFixed(6))];
+      pts[pts.length - 1] = [parseFloat(lat2.toFixed(6)), parseFloat(lon2.toFixed(6))];
+      return pts;
+    }
+
     // Main map render
     function renderMapLayers() {
       if (!selectedLine) {
@@ -1085,22 +1411,34 @@
         curvePreviewPolyline.setLatLngs([]);
         vertexMarkersGroup.clearLayers();
         stationMarkersGroup.clearLayers();
+        routesPreviewGroup.clearLayers();
+        viaMarkersGroup.clearLayers();
         return;
       }
 
       const showAller = document.getElementById('chkShowAller').checked;
       const showRetour = document.getElementById('chkShowRetour').checked;
       const showStations = document.getElementById('chkShowStations').checked;
+      const useVisualOffset = document.getElementById('chkVisualLaneSpacing') ? document.getElementById('chkVisualLaneSpacing').checked : true;
 
       // 1. Update Aller Route
       if (showAller && currentShape0 && currentShape0.length >= 2) {
         allerCasingPolyline.setLatLngs(currentShape0);
+        allerCasingPolyline.setStyle({
+          color: '#ffffff',
+          weight: editingDirection === 0 ? 13 : 9,
+          opacity: 0.9,
+          lineCap: 'round',
+          lineJoin: 'round'
+        });
         allerMainPolyline.setLatLngs(currentShape0);
         allerMainPolyline.setStyle({
           color: editingDirection === 0 ? '#06b6d4' : '#0284c7',
-          weight: editingDirection === 0 ? 5.5 : 3.5,
-          opacity: editingDirection === 0 ? 1 : 0.6,
-          dashArray: editingDirection === 0 ? null : '4, 4'
+          weight: editingDirection === 0 ? 8.5 : 5.5,
+          opacity: editingDirection === 0 ? 1 : 0.7,
+          dashArray: editingDirection === 0 ? null : '4, 4',
+          lineCap: 'round',
+          lineJoin: 'round'
         });
       } else {
         allerCasingPolyline.setLatLngs([]);
@@ -1110,12 +1448,21 @@
       // 2. Update Retour Route
       if (showRetour && currentShape1 && currentShape1.length >= 2) {
         retourCasingPolyline.setLatLngs(currentShape1);
+        retourCasingPolyline.setStyle({
+          color: '#ffffff',
+          weight: editingDirection === 1 ? 13 : 9,
+          opacity: 0.9,
+          lineCap: 'round',
+          lineJoin: 'round'
+        });
         retourMainPolyline.setLatLngs(currentShape1);
         retourMainPolyline.setStyle({
           color: editingDirection === 1 ? '#f59e0b' : '#d97706',
-          weight: editingDirection === 1 ? 5.5 : 3.5,
-          opacity: editingDirection === 1 ? 1 : 0.6,
-          dashArray: editingDirection === 1 ? null : '4, 4'
+          weight: editingDirection === 1 ? 8.5 : 5.5,
+          opacity: editingDirection === 1 ? 1 : 0.7,
+          dashArray: editingDirection === 1 ? null : '4, 4',
+          lineCap: 'round',
+          lineJoin: 'round'
         });
       } else {
         retourCasingPolyline.setLatLngs([]);
@@ -1941,6 +2288,153 @@
       window.open(osmUrl, '_blank');
     }
 
+    // -------------------------------------------------------------
+    // GOOGLE CLOUD ROUTES API (V2) & ADVANCED SEGMENT ROUTING
+    // -------------------------------------------------------------
+
+    async function initGoogleRoutesConfig() {
+      try {
+        const res = await fetch('/api/config');
+        if (res.ok) {
+          googleConfigData = await res.json();
+          updateGoogleRoutesHeaderBadge();
+        }
+      } catch (err) {
+        console.warn('Failed to load Google Routes config:', err);
+      }
+    }
+
+    function updateGoogleRoutesHeaderBadge() {
+      const dot = document.getElementById('googleRoutesStatusDot');
+      const label = document.getElementById('googleRoutesStatusLabel');
+      const modalBadge = document.getElementById('googleModalKeyBadge');
+      if (googleConfigData && googleConfigData.has_google_key) {
+        if (dot) dot.className = 'w-2 h-2 rounded-full bg-emerald-400';
+        if (label) label.innerText = 'Google Routes v2 (Actif)';
+        if (modalBadge) {
+          modalBadge.innerText = `Connecté : ${googleConfigData.google_key_preview || 'Actif'}`;
+          modalBadge.className = 'text-[10px] text-emerald-400 font-mono font-bold';
+        }
+      } else {
+        if (dot) dot.className = 'w-2 h-2 rounded-full bg-amber-400 animate-pulse';
+        if (label) label.innerText = 'Routes API (Secours Direct)';
+        if (modalBadge) {
+          modalBadge.innerText = 'Non configurée (Moteur direct)';
+          modalBadge.className = 'text-[10px] text-slate-500 font-mono';
+        }
+      }
+    }
+
+    function openGoogleRoutesModal() {
+      const modal = document.getElementById('modalGoogleRoutesSettings');
+      if (modal) modal.classList.remove('hidden');
+      updateGoogleRoutesHeaderBadge();
+      lucide.createIcons();
+    }
+
+    function closeGoogleRoutesModal() {
+      const modal = document.getElementById('modalGoogleRoutesSettings');
+      if (modal) modal.classList.add('hidden');
+    }
+
+    function toggleApiKeyVisibility() {
+      const input = document.getElementById('inputGoogleApiKey');
+      const icon = document.getElementById('iconEyeKey');
+      if (!input) return;
+      if (input.type === 'password') {
+        input.type = 'text';
+        if (icon) icon.setAttribute('data-lucide', 'eye-off');
+      } else {
+        input.type = 'password';
+        if (icon) icon.setAttribute('data-lucide', 'eye');
+      }
+      lucide.createIcons();
+    }
+
+    async function testCurrentGoogleKey() {
+      const input = document.getElementById('inputGoogleApiKey');
+      const keyVal = input ? input.value.trim() : '';
+      const box = document.getElementById('googleKeyStatusBox');
+      const btn = document.getElementById('btnTestGoogleKey');
+      if (!box) return;
+
+      if (!keyVal) {
+        box.classList.remove('hidden');
+        box.className = 'p-3 rounded-xl border text-xs bg-amber-950/40 border-amber-800 text-amber-300';
+        box.innerHTML = '⚠️ Veuillez entrer une clé API Google Cloud pour la tester.';
+        return;
+      }
+
+      if (btn) btn.innerHTML = `<i data-lucide="loader-2" class="w-3.5 h-3.5 animate-spin"></i> Test en cours...`;
+      lucide.createIcons();
+
+      try {
+        const res = await fetch('/api/test-google-key', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ key: keyVal })
+        });
+        const data = await res.json();
+        box.classList.remove('hidden');
+
+        if (data.valid) {
+          box.className = 'p-3 rounded-xl border text-xs bg-emerald-950/40 border-emerald-800 text-emerald-300';
+          box.innerHTML = `<strong>✓ Succès :</strong> ${data.message || 'Clé Google Routes API valide et fonctionnelle !'}`;
+        } else {
+          box.className = 'p-3 rounded-xl border text-xs bg-rose-950/40 border-rose-800 text-rose-300 space-y-1';
+          box.innerHTML = `
+            <div class="font-bold">❌ Erreur Google Routes :</div>
+            <div>${data.error || 'Clé invalide ou refusée'}</div>
+            <div class="pt-1 text-[11px] text-slate-300">
+              Assurez-vous que l'API <strong>Routes API</strong> est bien activée sur votre projet <strong>workstation-14152005</strong> dans Google Cloud Console.
+            </div>
+          `;
+        }
+      } catch (err) {
+        box.classList.remove('hidden');
+        box.className = 'p-3 rounded-xl border text-xs bg-rose-950/40 border-rose-800 text-rose-300';
+        box.innerHTML = `Erreur réseau : ${err.message}`;
+      } finally {
+        if (btn) btn.innerHTML = `<i data-lucide="activity" class="w-3.5 h-3.5"></i> <span>Tester la Clé</span>`;
+        lucide.createIcons();
+      }
+    }
+
+    async function saveGoogleApiKey() {
+      const input = document.getElementById('inputGoogleApiKey');
+      const keyVal = input ? input.value.trim() : '';
+      const btn = document.getElementById('btnSaveGoogleKey');
+
+      if (btn) btn.innerHTML = `<i data-lucide="loader-2" class="w-4 h-4 animate-spin"></i> Enregistrement...`;
+      lucide.createIcons();
+
+      try {
+        const res = await fetch('/api/config', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ google_api_key: keyVal })
+        });
+        const data = await res.json();
+        if (data.success) {
+          googleConfigData.has_google_key = Boolean(keyVal);
+          googleConfigData.google_key_preview = data.key_preview || '';
+          updateGoogleRoutesHeaderBadge();
+          showToast('✓ Clé Google Cloud Routes enregistrée avec succès !', 'success');
+          closeGoogleRoutesModal();
+          if (curveNodeA !== null && curveNodeB !== null) {
+            computeAndPreviewGoogleRoutes();
+          }
+        } else {
+          showToast(`Erreur : ${data.error || 'Impossible d\'enregistrer'}`, 'error');
+        }
+      } catch (err) {
+        showToast('Erreur serveur lors de l\'enregistrement', 'error');
+      } finally {
+        if (btn) btn.innerHTML = `<i data-lucide="check" class="w-4 h-4"></i> <span>Enregistrer</span>`;
+        lucide.createIcons();
+      }
+    }
+
     let currentSegmentEngine = 'google';
     function setSegmentEngine(engine) {
       currentSegmentEngine = engine;
@@ -1955,74 +2449,781 @@
           btnGoogle.className = 'py-1.5 px-2 rounded-md text-slate-400 hover:text-white flex items-center justify-center gap-1.5 text-[11px] font-bold transition';
         }
       }
+      if (curveNodeA !== null && curveNodeB !== null) {
+        computeAndPreviewGoogleRoutes();
+      }
     }
 
-    async function routeSegmentBetweenNodes(overrideEngine) {
+    let isHudCollapsed = false;
+    function toggleCollapseRouteHud() {
+      isHudCollapsed = !isHudCollapsed;
+      const body = document.getElementById('floatingRouteHudBody');
+      const icon = document.getElementById('iconCollapseHud');
+      const title = document.getElementById('hudHeaderTitle');
+      const hud = document.getElementById('floatingRouteHud');
+      if (!body || !icon) return;
+
+      if (isHudCollapsed) {
+        body.classList.add('hidden');
+        icon.setAttribute('data-lucide', 'maximize-2');
+        if (hud) {
+          hud.classList.remove('w-96');
+          hud.classList.add('w-auto', 'min-w-[240px]');
+        }
+        if (title && curveNodeA !== null && curveNodeB !== null) {
+          title.innerText = `#${curveNodeA + 1} ➔ #${curveNodeB + 1}`;
+        }
+      } else {
+        body.classList.remove('hidden');
+        icon.setAttribute('data-lucide', 'minimize-2');
+        if (hud) {
+          hud.classList.remove('w-auto', 'min-w-[240px]');
+          hud.classList.add('w-96');
+        }
+        if (title) {
+          if (curveNodeA !== null && curveNodeB !== null) {
+            title.innerText = `Tronçon #${curveNodeA + 1} ➔ #${curveNodeB + 1}`;
+          } else {
+            title.innerText = 'Tronçon A ➔ B (Google Routes)';
+          }
+        }
+      }
+      lucide.createIcons();
+    }
+
+    function initDraggableRouteHud() {
+      const hud = document.getElementById('floatingRouteHud');
+      const header = document.getElementById('floatingRouteHudHeader');
+      if (!hud || !header) return;
+
+      let isDragging = false;
+      let startX = 0, startY = 0;
+      let initialLeft = 0, initialTop = 0;
+
+      header.addEventListener('mousedown', (e) => {
+        if (e.target.closest('button') || e.target.closest('input')) return;
+        isDragging = true;
+        startX = e.clientX;
+        startY = e.clientY;
+        const rect = hud.getBoundingClientRect();
+        initialLeft = rect.left;
+        initialTop = rect.top;
+
+        hud.style.left = `${initialLeft}px`;
+        hud.style.top = `${initialTop}px`;
+        hud.style.right = 'auto';
+        hud.style.bottom = 'auto';
+
+        document.body.style.userSelect = 'none';
+        if (window.map && window.map.dragging) window.map.dragging.disable();
+      });
+
+      window.addEventListener('mousemove', (e) => {
+        if (!isDragging) return;
+        const dx = e.clientX - startX;
+        const dy = e.clientY - startY;
+
+        const maxLeft = Math.max(10, window.innerWidth - hud.offsetWidth - 10);
+        const maxTop = Math.max(10, window.innerHeight - hud.offsetHeight - 10);
+
+        const newLeft = Math.max(10, Math.min(maxLeft, initialLeft + dx));
+        const newTop = Math.max(10, Math.min(maxTop, initialTop + dy));
+
+        hud.style.left = `${newLeft}px`;
+        hud.style.top = `${newTop}px`;
+      });
+
+      window.addEventListener('mouseup', () => {
+        if (!isDragging) return;
+        isDragging = false;
+        document.body.style.userSelect = '';
+        if (window.map && window.map.dragging) window.map.dragging.enable();
+      });
+    }
+
+    function haversine(lat1, lon1, lat2, lon2) {
+      const R = 6371000;
+      const dLat = (lat2 - lat1) * (Math.PI / 180);
+      const dLon = (lon2 - lon1) * (Math.PI / 180);
+      const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+                Math.cos(lat1 * (Math.PI / 180)) * Math.cos(lat2 * (Math.PI / 180)) *
+                Math.sin(dLon / 2) * Math.sin(dLon / 2);
+      const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+      return R * c;
+    }
+
+    function getStationsBetweenNodes(startIdx, endIdx) {
+      if (!selectedLine) return [];
+      const activePts = getActiveTrack();
+      const activeStops = getActiveStops();
+      if (!activePts || !activeStops || activeStops.length === 0) return [];
+
+      const start = Math.min(startIdx, endIdx);
+      const end = Math.max(startIdx, endIdx);
+      const isForward = startIdx <= endIdx;
+
+      const stationsOnSegment = [];
+      activeStops.forEach((stop, sIdx) => {
+        const sLat = stop.lat != null ? stop.lat : stop.latitude;
+        const sLon = stop.lon != null ? stop.lon : stop.longitude;
+        if (sLat == null || sLon == null) return;
+
+        let closestIdx = -1;
+        let minDist = Infinity;
+        for (let k = start; k <= end; k++) {
+          const d = haversine(sLat, sLon, activePts[k][0], activePts[k][1]);
+          if (d < minDist) {
+            minDist = d;
+            closestIdx = k;
+          }
+        }
+
+        // If station is located reasonably close to this track interval and not right at endpoints
+        if (minDist <= 350 && closestIdx > start && closestIdx < end) {
+          stationsOnSegment.push({
+            trackIndex: closestIdx,
+            stopIndex: sIdx,
+            name: stop.name_fr || stop.name || `Arrêt #${sIdx + 1}`,
+            point: [parseFloat(Number(sLat).toFixed(6)), parseFloat(Number(sLon).toFixed(6))],
+            dist: minDist
+          });
+        }
+      });
+
+      // Sort strictly by official station number sequence!
+      stationsOnSegment.sort((a, b) => isForward ? a.stopIndex - b.stopIndex : b.stopIndex - a.stopIndex);
+      return stationsOnSegment;
+    }
+
+    function simplifyRDP(points, toleranceM = 2.0) {
+      if (!points || points.length <= 2) return points || [];
+      let dmax = 0, index = 0;
+      const end = points.length - 1;
+      for (let i = 1; i < end; i++) {
+        const d = perpDistM(points[i], points[0], points[end]);
+        if (d > dmax) { index = i; dmax = d; }
+      }
+      if (dmax > toleranceM) {
+        const rec1 = simplifyRDP(points.slice(0, index + 1), toleranceM);
+        const rec2 = simplifyRDP(points.slice(index), toleranceM);
+        return rec1.slice(0, rec1.length - 1).concat(rec2);
+      } else {
+        return [points[0], points[end]];
+      }
+    }
+
+    function perpDistM(pt, lineStart, lineEnd) {
+      const dTotal = haversine(lineStart[0], lineStart[1], lineEnd[0], lineEnd[1]);
+      if (dTotal < 0.1) return haversine(pt[0], pt[1], lineStart[0], lineStart[1]);
+      const meanLat = ((lineStart[0] + lineEnd[0] + pt[0]) / 3.0) * (Math.PI / 180.0);
+      const cosLat = Math.cos(meanLat);
+      const x0 = (pt[1] - lineStart[1]) * cosLat * 111320.0;
+      const y0 = (pt[0] - lineStart[0]) * 111320.0;
+      const x1 = (lineEnd[1] - lineStart[1]) * cosLat * 111320.0;
+      const y1 = (lineEnd[0] - lineStart[0]) * 111320.0;
+      const cross = Math.abs(x0 * y1 - y0 * x1);
+      return cross / (Math.hypot(x1, y1) || 1.0);
+    }
+
+    function smartCleanRouteGeometry(rawPoints) {
+      if (!rawPoints || rawPoints.length < 3) return rawPoints || [];
+
+      // 1. Simplify straight-line micro-zigzags
+      const simplified = simplifyRDP(rawPoints, 2.0);
+      if (simplified.length < 3) return simplified;
+
+      // 2. Identify turns, corners, and hips/turnarounds and round them
+      const result = [simplified[0]];
+      let i = 1;
+      while (i < simplified.length - 1) {
+        const pPrev = result[result.length - 1];
+        const pCurr = simplified[i];
+        const pNext = simplified[i + 1];
+
+        const dIn = haversine(pPrev[0], pPrev[1], pCurr[0], pCurr[1]);
+        const dOut = haversine(pCurr[0], pCurr[1], pNext[0], pNext[1]);
+
+        const refLat = pCurr[0], refLon = pCurr[1];
+        const cosLat = Math.cos(refLat * Math.PI / 180.0);
+        const toXY = (p) => ({ x: (p[1] - refLon) * cosLat * 111320.0, y: (p[0] - refLat) * 111320.0 });
+        const toLatLon = (xy) => [
+          parseFloat((refLat + xy.y / 111320.0).toFixed(6)),
+          parseFloat((refLon + xy.x / (111320.0 * cosLat)).toFixed(6))
+        ];
+
+        const P = toXY(pPrev);
+        const C = toXY(pCurr);
+        const N = toXY(pNext);
+
+        const vIn = { x: (C.x - P.x) / (dIn || 1), y: (C.y - P.y) / (dIn || 1) };
+        const vOut = { x: (N.x - C.x) / (dOut || 1), y: (N.y - C.y) / (dOut || 1) };
+        const dot = vIn.x * vOut.x + vIn.y * vOut.y;
+
+        // Check U-Turn / Hip turnaround (antiparallel incoming & outgoing, dot < -0.4)
+        if (dot < -0.4 && dIn >= 5.0 && dOut >= 5.0) {
+          const dDirect = haversine(pPrev[0], pPrev[1], pNext[0], pNext[1]);
+          if (dDirect < 70) {
+            const midPN = { x: (P.x + N.x) / 2.0, y: (P.y + N.y) / 2.0 };
+            const fwdX = (vIn.x - vOut.x) / 2.0;
+            const fwdY = (vIn.y - vOut.y) / 2.0;
+            const fwdLen = Math.hypot(fwdX, fwdY) || 1.0;
+            const fwdUnit = { x: fwdX / fwdLen, y: fwdY / fwdLen };
+            const R = dDirect / 2.0;
+            const apex = { x: midPN.x + fwdUnit.x * R, y: midPN.y + fwdUnit.y * R };
+            const pApex = toLatLon(apex);
+            const arc = generate3PointCircularArc(pPrev, pApex, pNext, 5);
+            for (let k = 1; k < arc.length; k++) {
+              result.push(arc[k]);
+            }
+            i += 2;
+            continue;
+          }
+        }
+
+        // Check road corner / intersection turn (dot < 0.85, angle > 30 degrees)
+        if (dot < 0.85 && dIn >= 8.0 && dOut >= 8.0) {
+          const filletRadius = Math.min(14.0, dIn * 0.35, dOut * 0.35);
+          const pCutIn = toLatLon({ x: C.x - vIn.x * filletRadius, y: C.y - vIn.y * filletRadius });
+          const pCutOut = toLatLon({ x: C.x + vOut.x * filletRadius, y: C.y + vOut.y * filletRadius });
+          const arc = generate3PointCircularArc(pCutIn, pCurr, pCutOut, 4);
+          result.push(pCutIn);
+          for (let k = 1; k < arc.length - 1; k++) {
+            result.push(arc[k]);
+          }
+          result.push(pCutOut);
+          i++;
+          continue;
+        }
+
+        result.push(pCurr);
+        i++;
+      }
+      result.push(simplified[simplified.length - 1]);
+      return result;
+    }
+
+    async function computeAndPreviewGoogleRoutes() {
+      if (!selectedLine) return;
+      const activePts = getActiveTrack();
+      if (curveNodeA === null || curveNodeB === null || !activePts) return;
+
+      const origin = activePts[curveNodeA];
+      const destination = activePts[curveNodeB];
+      if (!origin || !destination) return;
+
+      const btnApplyText = document.getElementById('btnHudApplyRouteText');
+      const badgeProvider = document.getElementById('hudProviderBadge');
+      const warningBox = document.getElementById('hudRouteWarningBox');
+      const warningText = document.getElementById('hudRouteWarningText');
+
+      if (btnApplyText) btnApplyText.innerHTML = `<i data-lucide="loader-2" class="w-4 h-4 animate-spin"></i> Calcul Google Routes...`;
+      if (badgeProvider) {
+        badgeProvider.innerText = 'Calcul en cours...';
+        badgeProvider.className = 'text-[9px] px-2 py-0.5 rounded-full bg-slate-800 text-slate-300 font-bold border border-slate-700 animate-pulse';
+      }
+      lucide.createIcons();
+
+      // Check intermediate bus stations along the line
+      const stationFollowBox = document.getElementById('hudStationsFollowBox');
+      const stationFollowText = document.getElementById('lblFollowStationsText');
+      const chkFollowStations = document.getElementById('chkFollowStations');
+
+      let intermediateStations = getStationsBetweenNodes(curveNodeA, curveNodeB);
+
+      // Sample evenly up to 4 stations to prevent API waypoint limits or deadlocks
+      let sampledStations = intermediateStations;
+      if (sampledStations.length > 4) {
+        const step = (sampledStations.length - 1) / 3;
+        sampledStations = [
+          sampledStations[0],
+          sampledStations[Math.round(step)],
+          sampledStations[Math.round(2 * step)],
+          sampledStations[sampledStations.length - 1]
+        ];
+      }
+
+      const hasViaPoints = routeIntermediates && routeIntermediates.length > 0;
+      let finalIntermediates = [];
+
+      if (hasViaPoints) {
+        // Point Via (V1, V2, V3...) is powerful more than all:
+        // It strictly dictates the route flow through V1, V2, V3 in user order,
+        // removing conflicting auto-stations and alternative lines!
+        finalIntermediates = [...routeIntermediates];
+        if (stationFollowBox && stationFollowText) {
+          stationFollowBox.classList.remove('hidden');
+          stationFollowText.innerText = `Priorité Absolue : ${routeIntermediates.length} Point(s) Via (V1, V2...)`;
+        }
+      } else {
+        if (stationFollowBox && stationFollowText) {
+          if (intermediateStations.length > 0) {
+            stationFollowBox.classList.remove('hidden');
+            stationFollowText.innerText = `Suit ${intermediateStations.length} station(s) numérotées`;
+          } else {
+            stationFollowBox.classList.add('hidden');
+          }
+        }
+        if (chkFollowStations && chkFollowStations.checked && sampledStations.length > 0) {
+          finalIntermediates = sampledStations.map(s => s.point);
+        }
+      }
+
+      try {
+        const payload = {
+          origin: origin,
+          destination: destination,
+          intermediates: finalIntermediates,
+          travelMode: 'DRIVE',
+          routingPreference: 'TRAFFIC_UNAWARE',
+          // When via points are active, do not compute alternative bypasses ("remove any other line it must only go throw it")
+          computeAlternativeRoutes: !hasViaPoints,
+          routeModifiers: {
+            avoidHighways: document.getElementById('chkAvoidHighways')?.checked || false,
+            avoidTolls: document.getElementById('chkAvoidTolls')?.checked || false
+          },
+          engine: currentSegmentEngine || 'google'
+        };
+
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 7000);
+
+        let res = await fetch('/api/routes-v2/compute', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+          signal: controller.signal
+        });
+        clearTimeout(timeoutId);
+
+        let data = await res.json();
+
+        // If routing failed with intermediate stations (when no via points), retry direct A->B
+        if ((!data.success || !data.routes || data.routes.length === 0) && !hasViaPoints && finalIntermediates.length > 0) {
+          console.warn('[Google Routes] Retrying segment A->B directly without intermediate stations...');
+          const retryRes = await fetch('/api/routes-v2/compute', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ ...payload, intermediates: [] })
+          });
+          data = await retryRes.json();
+        }
+
+        if (data.success && data.routes && data.routes.length > 0) {
+          if (hasViaPoints) {
+            // Strictly keep only the authoritative route flowing through V1, V2, V3
+            data.routes = [data.routes[0]];
+            data.routes[0].description = `Itinéraire strict via ${routeIntermediates.length} Point(s) Via`;
+          }
+
+          // Clean each route's polyline to be straight on avenues and rounded in turns
+          data.routes.forEach(r => {
+            if (r.coordinates) {
+              r.coordinates = smartCleanRouteGeometry(r.coordinates);
+              r.pointsCount = r.coordinates.length;
+            }
+          });
+
+          computedRoutes = data.routes;
+          selectedRouteIndex = 0;
+
+          if (badgeProvider) {
+            if (data.provider === 'google_routes_v2') {
+              badgeProvider.innerText = 'Google Routes v2 (Précision Max)';
+              badgeProvider.className = 'text-[9px] px-2 py-0.5 rounded-full bg-emerald-950 text-emerald-300 font-bold border border-emerald-700';
+            } else {
+              badgeProvider.innerText = data.provider || 'Google Maps Direct';
+              badgeProvider.className = 'text-[9px] px-2 py-0.5 rounded-full bg-indigo-950 text-indigo-300 font-bold border border-indigo-700';
+            }
+          }
+
+          if (data.warning && warningBox && warningText) {
+            warningText.innerText = data.warning;
+            warningBox.classList.remove('hidden');
+          } else if (warningBox) {
+            warningBox.classList.add('hidden');
+          }
+
+          renderRouteChipsUI();
+          renderRoutePreviewOnMap();
+          updateRouteStepsUI();
+
+          const r0 = computedRoutes[0];
+          const stInfo = intermediateStations.length > 0 && chkFollowStations?.checked ? ` (via ${intermediateStations.length} arrêts)` : '';
+          showToast(`🎯 Itinéraire calculé${stInfo} : ${r0.formattedDistance}, ${r0.formattedDuration} (${computedRoutes.length} variante(s)). Appuyez sur Entrée pour valider !`, 'success');
+        } else {
+          showToast(`Routage impossible : ${data.error || 'Erreur'}`, 'error');
+        }
+      } catch (err) {
+        console.error('Error computing routes:', err);
+        // Direct browser fallback so user is NEVER blocked
+        try {
+          const directFallback = await calculateDrivingRoute(origin, destination, 'osrm');
+          if (directFallback && directFallback.success && directFallback.coordinates) {
+            const cleanedCoords = smartCleanRouteGeometry(directFallback.coordinates);
+            let totalD = 0;
+            for (let i = 0; i < cleanedCoords.length - 1; i++) {
+              totalD += haversine(cleanedCoords[i][0], cleanedCoords[i][1], cleanedCoords[i+1][0], cleanedCoords[i+1][1]);
+            }
+            computedRoutes = [{
+              index: 0,
+              isDefault: true,
+              description: 'Itinéraire Routier (Secours Direct)',
+              distanceMeters: Math.round(totalD),
+              duration: `${Math.round(totalD / 8.33)}s`,
+              formattedDistance: google_format_distance(totalD),
+              formattedDuration: `${Math.max(1, Math.round(totalD / 500))} min`,
+              stepsCount: 0,
+              steps: [],
+              coordinates: cleanedCoords,
+              pointsCount: cleanedCoords.length
+            }];
+            selectedRouteIndex = 0;
+            if (badgeProvider) {
+              badgeProvider.innerText = 'Secours Direct';
+              badgeProvider.className = 'text-[9px] px-2 py-0.5 rounded-full bg-amber-950 text-amber-300 font-bold border border-amber-700';
+            }
+            renderRouteChipsUI();
+            renderRoutePreviewOnMap();
+            updateRouteStepsUI();
+            showToast('✓ Tracé de secours calculé instantanément ! Appuyez sur Entrée pour valider.', 'info');
+          }
+        } catch (fbErr) {
+          showToast('Erreur de calcul : veuillez réessayer', 'error');
+        }
+      } finally {
+        if (btnApplyText) btnApplyText.innerHTML = `Appliquer ce Tronçon (Entrée)`;
+        if (badgeProvider && (!computedRoutes || computedRoutes.length === 0)) {
+          badgeProvider.innerText = 'Prêt';
+          badgeProvider.className = 'text-[9px] px-2 py-0.5 rounded-full bg-slate-800 text-slate-300 font-bold border border-slate-700';
+        }
+        lucide.createIcons();
+      }
+    }
+
+    function renderRouteChipsUI() {
+      const alternativesSec = document.getElementById('hudRouteAlternativesSection');
+      const chipsContainer = document.getElementById('hudRouteChipsContainer');
+      const distTimeEl = document.getElementById('hudRouteDistanceTime');
+      if (!chipsContainer || !alternativesSec) return;
+
+      if (!computedRoutes || computedRoutes.length === 0) {
+        alternativesSec.classList.add('hidden');
+        return;
+      }
+
+      alternativesSec.classList.remove('hidden');
+      chipsContainer.innerHTML = '';
+
+      const current = computedRoutes[selectedRouteIndex] || computedRoutes[0];
+      if (distTimeEl && current) {
+        distTimeEl.innerText = `${current.formattedDistance} • ${current.formattedDuration}`;
+      }
+
+      computedRoutes.forEach((route, idx) => {
+        const isSelected = idx === selectedRouteIndex;
+        const chip = document.createElement('div');
+        chip.className = `p-2 rounded-lg border cursor-pointer transition flex items-center justify-between text-xs ${
+          isSelected 
+            ? 'bg-cyan-950/70 border-cyan-500 shadow text-white font-semibold' 
+            : 'bg-slate-950/50 hover:bg-slate-900 border-slate-800 text-slate-300'
+        }`;
+
+        const colorDot = idx === 0 ? 'bg-cyan-400' : idx === 1 ? 'bg-purple-400' : 'bg-amber-400';
+        chip.innerHTML = `
+          <div class="flex items-center gap-2 min-w-0">
+            <span class="w-2.5 h-2.5 rounded-full ${colorDot} shrink-0"></span>
+            <div class="min-w-0">
+              <div class="font-bold flex items-center gap-1.5 truncate">
+                <span>Option ${idx + 1} ${idx === 0 ? '(Recommandée)' : ''}</span>
+              </div>
+              <div class="text-[10px] text-slate-400 truncate">${route.description || 'Itinéraire routier'}</div>
+            </div>
+          </div>
+          <div class="text-right shrink-0">
+            <div class="font-mono font-bold ${isSelected ? 'text-cyan-300' : 'text-slate-300'}">${route.formattedDistance}</div>
+            <div class="text-[10px] text-slate-400 font-mono">${route.formattedDuration}</div>
+          </div>
+        `;
+
+        chip.onclick = () => {
+          selectedRouteIndex = idx;
+          renderRouteChipsUI();
+          renderRoutePreviewOnMap();
+          updateRouteStepsUI();
+        };
+
+        chipsContainer.appendChild(chip);
+      });
+    }
+
+    function renderRoutePreviewOnMap() {
+      routesPreviewGroup.clearLayers();
+      if (!computedRoutes || computedRoutes.length === 0) return;
+
+      computedRoutes.forEach((route, idx) => {
+        const isSelected = idx === selectedRouteIndex;
+        const coords = route.coordinates;
+        if (!coords || coords.length < 2) return;
+
+        if (isSelected) {
+          // Google Maps Itinerary Style: Thick rounded casing + solid vibrant ribbon + inner core
+          // 1. Dark high-contrast outer casing (erases angles and glitches)
+          L.polyline(coords, {
+            color: '#172554',
+            weight: 15,
+            opacity: 0.95,
+            lineCap: 'round',
+            lineJoin: 'round'
+          }).addTo(routesPreviewGroup);
+
+          // 2. Outer aura / glow
+          L.polyline(coords, {
+            color: '#38bdf8',
+            weight: 12,
+            opacity: 0.6,
+            lineCap: 'round',
+            lineJoin: 'round'
+          }).addTo(routesPreviewGroup);
+
+          // 3. Main solid Google Maps driving line
+          const mainLine = L.polyline(coords, {
+            color: '#2563eb',
+            weight: 9,
+            opacity: 1,
+            lineCap: 'round',
+            lineJoin: 'round'
+          }).addTo(routesPreviewGroup);
+          mainLine.bringToFront();
+
+          // 4. Inner core ribbon highlight
+          L.polyline(coords, {
+            color: '#93c5fd',
+            weight: 4,
+            opacity: 0.75,
+            lineCap: 'round',
+            lineJoin: 'round'
+          }).addTo(routesPreviewGroup);
+
+          mainLine.bindTooltip(`Itinéraire sélectionné (${route.formattedDistance}, ${route.formattedDuration})<br><span class="text-emerald-300 font-bold">Appuyez sur Entrée pour valider</span>`, { direction: 'top' });
+        } else {
+          // Alternative route: clean solid ribbon (like Google Maps grey alternative routes)
+          const altCasing = idx === 1 ? '#3b0764' : '#451a03';
+          const altColor = idx === 1 ? '#a855f7' : '#f59e0b';
+
+          L.polyline(coords, {
+            color: altCasing,
+            weight: 12,
+            opacity: 0.85,
+            lineCap: 'round',
+            lineJoin: 'round'
+          }).addTo(routesPreviewGroup);
+
+          const altLine = L.polyline(coords, {
+            color: altColor,
+            weight: 7.5,
+            opacity: 0.9,
+            lineCap: 'round',
+            lineJoin: 'round'
+          }).addTo(routesPreviewGroup);
+
+          altLine.bindTooltip(`Variante ${idx + 1} (${route.formattedDistance}, ${route.formattedDuration})<br><span class="text-indigo-300 font-bold">👆 Cliquer pour sélectionner</span>`, { direction: 'top' });
+
+          altLine.on('click', (e) => {
+            L.DomEvent.stopPropagation(e);
+            selectedRouteIndex = idx;
+            renderRouteChipsUI();
+            renderRoutePreviewOnMap();
+            updateRouteStepsUI();
+          });
+        }
+      });
+    }
+
+    function toggleAddViaPoint(forceState) {
+      if (typeof forceState === 'boolean') {
+        isPickingViaPoint = forceState;
+      } else {
+        isPickingViaPoint = !isPickingViaPoint;
+      }
+      const btn = document.getElementById('btnHudAddVia');
+      const lbl = document.getElementById('lblAddViaBtn');
+      if (isPickingViaPoint) {
+        if (btn) btn.className = 'py-1 px-2.5 rounded-md bg-indigo-600 text-white font-bold flex items-center gap-1 shadow ring-2 ring-indigo-400 animate-pulse';
+        if (lbl) lbl.innerText = 'Point Via (Actif - Cliquez)';
+        showToast('📍 Mode Point Via actif ! Cliquez sur la carte pour ajouter des points de passage successifs.', 'info');
+      } else {
+        if (btn) btn.className = 'py-1 px-2 rounded-md bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white font-semibold flex items-center gap-1';
+        if (lbl) lbl.innerText = '+ Point Via';
+      }
+    }
+
+    function addViaPoint(pt) {
+      routeIntermediates.push(pt);
+      // Stays active across clicks until user toggles off or cancels!
+      renderViaMarkersUI();
+      computeAndPreviewGoogleRoutes();
+      showToast(`✓ Point de passage #${routeIntermediates.length} ajouté ! (Continuez à cliquer ou cliquez sur Annuler)`, 'success');
+    }
+
+    function removeViaPoint(idx) {
+      routeIntermediates.splice(idx, 1);
+      renderViaMarkersUI();
+      computeAndPreviewGoogleRoutes();
+    }
+
+    function renderViaMarkersUI() {
+      viaMarkersGroup.clearLayers();
+      const listEl = document.getElementById('hudViaPointsList');
+      const container = document.getElementById('hudViaPointsContainer');
+      const countEl = document.getElementById('hudViaCount');
+
+      if (!listEl || !container) return;
+
+      if (routeIntermediates.length === 0) {
+        listEl.classList.add('hidden');
+        return;
+      }
+
+      listEl.classList.remove('hidden');
+      if (countEl) countEl.innerText = routeIntermediates.length;
+      container.innerHTML = '';
+
+      routeIntermediates.forEach((pt, idx) => {
+        const tag = document.createElement('span');
+        tag.className = 'px-2 py-0.5 rounded-full bg-indigo-950 border border-indigo-700 text-indigo-300 font-semibold text-[10px] flex items-center gap-1';
+        tag.innerHTML = `<span>Via ${idx + 1}</span><button onclick="removeViaPoint(${idx})" class="text-rose-400 hover:text-rose-300 font-bold ml-0.5">✕</button>`;
+        container.appendChild(tag);
+
+        const pinHtml = `<div class="w-5 h-5 rounded-full bg-indigo-600 border-2 border-white shadow-lg text-white font-bold text-[10px] flex items-center justify-center cursor-pointer hover:scale-125 transition">V${idx + 1}</div>`;
+        const icon = L.divIcon({ html: pinHtml, className: '', iconSize: [20, 20], iconAnchor: [10, 10] });
+        const marker = L.marker(pt, { icon: icon }).addTo(viaMarkersGroup);
+        marker.bindTooltip(`Point de passage obligatoire #${idx + 1}<br><span class="text-rose-400 font-bold">Clic droit pour supprimer</span>`);
+        marker.on('contextmenu', (e) => {
+          L.DomEvent.stopPropagation(e);
+          removeViaPoint(idx);
+        });
+      });
+    }
+
+    function updateRouteStepsUI() {
+      const stepsList = document.getElementById('hudRouteStepsList');
+      const lblStepsCount = document.getElementById('lblStepsCount');
+      if (!stepsList || !lblStepsCount) return;
+
+      const current = computedRoutes[selectedRouteIndex] || computedRoutes[0];
+      const steps = (current && current.steps) || [];
+      lblStepsCount.innerText = `Étapes de guidage (${steps.length})`;
+
+      if (steps.length === 0) {
+        stepsList.innerHTML = `<div class="text-slate-500 italic py-1">Aucune instruction textuelle spécifique pour ce tronçon.</div>`;
+        return;
+      }
+
+      stepsList.innerHTML = '';
+      steps.forEach((step, idx) => {
+        const item = document.createElement('div');
+        item.className = 'py-0.5 border-b border-slate-900 last:border-0 flex items-start gap-1';
+        item.innerHTML = `<span class="text-indigo-400 font-bold">${idx + 1}.</span> <span>${step}</span>`;
+        stepsList.appendChild(item);
+      });
+    }
+
+    function toggleRouteStepsAccordion() {
+      const stepsList = document.getElementById('hudRouteStepsList');
+      if (!stepsList) return;
+      if (stepsList.classList.contains('hidden')) {
+        stepsList.classList.remove('hidden');
+      } else {
+        stepsList.classList.add('hidden');
+      }
+    }
+
+    async function routeSegmentViaOsmDirect() {
+      currentSegmentEngine = 'osrm';
+      const badgeProvider = document.getElementById('hudProviderBadge');
+      if (badgeProvider) {
+        badgeProvider.innerText = 'OpenStreetMap (OSRM)';
+        badgeProvider.className = 'text-[9px] px-2 py-0.5 rounded-full bg-cyan-950 text-cyan-300 font-bold border border-cyan-700';
+      }
+      await computeAndPreviewGoogleRoutes();
+    }
+
+    function onRouteModifierChange() {
+      if (curveNodeA !== null && curveNodeB !== null) {
+        computeAndPreviewGoogleRoutes();
+      }
+    }
+
+    function clearRoutePreview() {
+      computedRoutes = [];
+      selectedRouteIndex = 0;
+      routeIntermediates = [];
+      isPickingViaPoint = false;
+      routesPreviewGroup.clearLayers();
+      viaMarkersGroup.clearLayers();
+      const alternativesSec = document.getElementById('hudRouteAlternativesSection');
+      if (alternativesSec) alternativesSec.classList.add('hidden');
+      const viaList = document.getElementById('hudViaPointsList');
+      if (viaList) viaList.classList.add('hidden');
+      const warningBox = document.getElementById('hudRouteWarningBox');
+      if (warningBox) warningBox.classList.add('hidden');
+      const stepsList = document.getElementById('hudRouteStepsList');
+      if (stepsList) stepsList.classList.add('hidden');
+      const stationFollowBox = document.getElementById('hudStationsFollowBox');
+      if (stationFollowBox) stationFollowBox.classList.add('hidden');
+      const btnVia = document.getElementById('btnHudAddVia');
+      const lblVia = document.getElementById('lblAddViaBtn');
+      if (btnVia) btnVia.className = 'py-1 px-2 rounded-md bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white font-semibold flex items-center gap-1';
+      if (lblVia) lblVia.innerText = '+ Point Via';
+    }
+
+    function applyComputedRouteToTrack() {
       if (!selectedLine) return;
       const activePts = getActiveTrack();
 
       if (curveNodeA === null || curveNodeB === null) {
-        showToast('Veuillez cliquer sur le Nœud A (Départ) puis le Nœud B (Arrivée) sur la carte', 'warning');
+        showToast('Veuillez sélectionner le Nœud A et le Nœud B sur la carte', 'warning');
+        return;
+      }
+
+      if (!computedRoutes || computedRoutes.length === 0) {
+        showToast('Aucun itinéraire Google calculé. Cliquez sur le Nœud B pour recalculer.', 'warning');
+        return;
+      }
+
+      const chosenRoute = computedRoutes[selectedRouteIndex] || computedRoutes[0];
+      if (!chosenRoute || !chosenRoute.coordinates || chosenRoute.coordinates.length < 2) {
+        showToast('Itinéraire invalide', 'error');
         return;
       }
 
       const start = Math.min(curveNodeA, curveNodeB);
       const end = Math.max(curveNodeA, curveNodeB);
       const rangeLen = end - start + 1;
-
-      if (rangeLen < 2) {
-        showToast('La zone sélectionnée doit contenir au moins 2 nœuds', 'warning');
-        return;
-      }
-
-      // Direction of travel is strictly from Node A (departure) to Node B (arrival)
-      const origin = activePts[curveNodeA];
-      const destination = activePts[curveNodeB];
       const isForward = curveNodeA <= curveNodeB;
 
-      const engine = overrideEngine || currentSegmentEngine || 'google';
-
-      const btnGoogle = document.getElementById('btnRouteSegmentGoogle');
-      const btnOsm = document.getElementById('btnRouteSegmentOsm');
-      const btnHudGoogle = document.getElementById('btnHudRouteGoogle');
-      const btnHudOsm = document.getElementById('btnHudRouteOsm');
-
-      if (engine === 'google') {
-        if (btnGoogle) btnGoogle.innerHTML = `<i data-lucide="loader-2" class="w-3.5 h-3.5 animate-spin"></i> Traçage...`;
-        if (btnHudGoogle) btnHudGoogle.innerHTML = `<i data-lucide="loader-2" class="w-3.5 h-3.5 animate-spin"></i> Traçage...`;
-      } else {
-        if (btnOsm) btnOsm.innerHTML = `<i data-lucide="loader-2" class="w-3.5 h-3.5 animate-spin"></i> Traçage...`;
-        if (btnHudOsm) btnHudOsm.innerHTML = `<i data-lucide="loader-2" class="w-3.5 h-3.5 animate-spin"></i> Traçage...`;
+      let coordsToInsert = smartCleanRouteGeometry(chosenRoute.coordinates);
+      if (!isForward) {
+        coordsToInsert = [...coordsToInsert].reverse();
       }
 
-      try {
-        const routeRes = await calculateDrivingRoute(origin, destination, engine);
-        if (routeRes.success && routeRes.coordinates && routeRes.coordinates.length > 0) {
-          let coordsToInsert = routeRes.coordinates;
-          if (!isForward) {
-            coordsToInsert = [...coordsToInsert].reverse();
-          }
+      // Replace the segment in the active track with real road nodes
+      activePts.splice(start, rangeLen, ...coordsToInsert);
 
-          // Replace the segment in the active track with real road nodes
-          activePts.splice(start, rangeLen, ...coordsToInsert);
+      pushHistory();
+      markUnsavedChanges();
+      resetCurveSelection();
+      renderMapLayers();
+      showToast(`✓ Tronçon tracé selon ${chosenRoute.description || 'Google Routes'} (${chosenRoute.formattedDistance}, ${coordsToInsert.length} points sur la route) !`, 'success');
+    }
 
-          pushHistory();
-          markUnsavedChanges();
-          resetCurveSelection();
-          renderMapLayers();
-          showToast(`✓ Tronçon tracé selon ${routeRes.provider} (${coordsToInsert.length} nœuds créés sur la route, demi-tour rond-point respecté) ! Cliquez sur le prochain nœud pour continuer.`, 'success');
-        } else {
-          showToast(`Erreur : ${routeRes.error || 'Routage impossible sur ce tronçon'}`, 'error');
-        }
-      } catch (e) {
-        console.error('Error routing segment:', e);
-        showToast('Erreur serveur lors du calcul du tronçon', 'error');
-      } finally {
-        if (btnGoogle) btnGoogle.innerHTML = `<i data-lucide="navigation" class="w-3.5 h-3.5 fill-current"></i> Tracer Google`;
-        if (btnOsm) btnOsm.innerHTML = `<i data-lucide="globe" class="w-3.5 h-3.5"></i> Tracer OSM`;
-        if (btnHudGoogle) btnHudGoogle.innerHTML = `<i data-lucide="navigation" class="w-3.5 h-3.5 fill-current"></i> Tracer Google`;
-        if (btnHudOsm) btnHudOsm.innerHTML = `<i data-lucide="globe" class="w-3.5 h-3.5"></i> Tracer OSM`;
-        lucide.createIcons();
+    async function routeSegmentBetweenNodes(overrideEngine) {
+      if (overrideEngine) currentSegmentEngine = overrideEngine;
+      if (curveNodeA !== null && curveNodeB !== null) {
+        await computeAndPreviewGoogleRoutes();
+        applyComputedRouteToTrack();
+      } else {
+        showToast('Veuillez d\'abord cliquer sur le Nœud A puis le Nœud B sur la carte', 'warning');
       }
     }
 
@@ -2078,9 +3279,11 @@
         curveNodeA = index;
         const lblA = document.getElementById('lblCurveNodeA');
         const hudA = document.getElementById('hudRouteNodeA');
+        const hudTitle = document.getElementById('hudHeaderTitle');
         if (lblA) lblA.innerText = `#${index + 1}`;
         if (hudA) hudA.innerText = formatNode(index);
-        showToast(`📍 Nœud A (Début : #${index + 1}) sélectionné. Cliquez maintenant sur le Nœud B (Fin).`, 'info');
+        if (hudTitle) hudTitle.innerText = `Nœud #${index + 1} ➔ ?`;
+        showToast(`📍 Nœud A (Départ : #${index + 1}) sélectionné. Cliquez maintenant sur le Nœud B (Fin).`, 'info');
       } else if (curveNodeB === null) {
         if (index === curveNodeA) {
           showToast('Veuillez sélectionner un nœud différent pour l\'arrivée (Point B)', 'warning');
@@ -2089,8 +3292,14 @@
         curveNodeB = index;
         const lblB = document.getElementById('lblCurveNodeB');
         const hudB = document.getElementById('hudRouteNodeB');
+        const hudTitle = document.getElementById('hudHeaderTitle');
         if (lblB) lblB.innerText = `#${index + 1}`;
         if (hudB) hudB.innerText = formatNode(index);
+        if (hudTitle) {
+          hudTitle.innerText = isHudCollapsed 
+            ? `#${curveNodeA + 1} ➔ #${curveNodeB + 1}` 
+            : `Tronçon #${curveNodeA + 1} ➔ #${curveNodeB + 1}`;
+        }
 
         renderMapLayers();
 
@@ -2108,21 +3317,25 @@
           showToast(`🎯 Tronçon #${curveNodeA + 1} ➔ #${curveNodeB + 1} prêt. Arrondi automatique de la forme...`, 'info');
           applyCurveSmoothingOnRange();
         } else {
-          showToast(`🎯 Tronçon #${curveNodeA + 1} ➔ #${curveNodeB + 1} sélectionné ! Choisissez : [Arrondir], [Tracer Google] ou [Tracer OSM].`, 'success');
+          // Immediately compute and preview Google Routes v2 on the map with alternatives!
+          computeAndPreviewGoogleRoutes();
         }
         return;
       } else {
         curveNodeA = index;
         curveNodeB = null;
+        clearRoutePreview();
         const lblA = document.getElementById('lblCurveNodeA');
         const lblB = document.getElementById('lblCurveNodeB');
         const hudA = document.getElementById('hudRouteNodeA');
         const hudB = document.getElementById('hudRouteNodeB');
+        const hudTitle = document.getElementById('hudHeaderTitle');
         if (lblA) lblA.innerText = `#${index + 1}`;
         if (lblB) lblB.innerText = `--`;
         if (hudA) hudA.innerText = formatNode(index);
         if (hudB) hudB.innerText = `Cliquez sur un nœud`;
-        showToast(`📍 Nouveau Nœud A (Début : #${index + 1}) sélectionné. Cliquez sur le Nœud B.`, 'info');
+        if (hudTitle) hudTitle.innerText = `Nœud #${index + 1} ➔ ?`;
+        showToast(`📍 Nouveau Nœud A (Départ : #${index + 1}) sélectionné. Cliquez sur le Nœud B.`, 'info');
       }
       renderMapLayers();
     }
@@ -2135,10 +3348,14 @@
       const tmp = curveNodeA;
       curveNodeA = curveNodeB;
       curveNodeB = tmp;
+      if (routeIntermediates.length > 0) {
+        routeIntermediates.reverse();
+      }
       const lblA = document.getElementById('lblCurveNodeA');
       const lblB = document.getElementById('lblCurveNodeB');
       const hudA = document.getElementById('hudRouteNodeA');
       const hudB = document.getElementById('hudRouteNodeB');
+      const hudTitle = document.getElementById('hudHeaderTitle');
       const activePts = getActiveTrack();
       const txtA = activePts[curveNodeA] ? `#${curveNodeA + 1} (${activePts[curveNodeA][0].toFixed(5)}, ${activePts[curveNodeA][1].toFixed(5)})` : `#${curveNodeA + 1}`;
       const txtB = activePts[curveNodeB] ? `#${curveNodeB + 1} (${activePts[curveNodeB][0].toFixed(5)}, ${activePts[curveNodeB][1].toFixed(5)})` : `#${curveNodeB + 1}`;
@@ -2146,17 +3363,28 @@
       if (lblB) lblB.innerText = `#${curveNodeB + 1}`;
       if (hudA) hudA.innerText = txtA;
       if (hudB) hudB.innerText = txtB;
+      if (hudTitle) {
+        hudTitle.innerText = isHudCollapsed 
+          ? `#${curveNodeA + 1} ➔ #${curveNodeB + 1}` 
+          : `Tronçon #${curveNodeA + 1} ➔ #${curveNodeB + 1}`;
+      }
       renderMapLayers();
+      renderViaMarkersUI();
+      computeAndPreviewGoogleRoutes();
       showToast(`Sens inversé : Nœud A (#${curveNodeA + 1}) ➔ Nœud B (#${curveNodeB + 1})`, 'info');
     }
 
     function resetCurveSelection() {
       curveNodeA = null;
       curveNodeB = null;
+      clearRoutePreview();
+      toggleAddViaPoint(false);
       const lblA = document.getElementById('lblCurveNodeA');
       const lblB = document.getElementById('lblCurveNodeB');
       const hudA = document.getElementById('hudRouteNodeA');
       const hudB = document.getElementById('hudRouteNodeB');
+      const hudTitle = document.getElementById('hudHeaderTitle');
+      if (hudTitle) hudTitle.innerText = 'Tronçon A ➔ B (Google Routes)';
       if (lblA) lblA.innerText = `--`;
       if (lblB) lblB.innerText = `--`;
       if (hudA) hudA.innerText = `Cliquez sur un nœud`;
@@ -2164,42 +3392,87 @@
       renderMapLayers();
     }
 
-    function smoothArcBetweenTwoPoints(pA, pB, pPrev, pNext, numPoints = 6) {
-      let dLatA, dLonA, dLatB, dLonB;
+    function cleanRoundTurn(pA, pB, pVia = null, pPrev = null, pNext = null, numPts = 5) {
+      if (pVia) {
+        return generate3PointCircularArc(pA, pVia, pB, numPts);
+      }
+
+      const refLat = pA[0], refLon = pA[1];
+      const cosLat = Math.cos(refLat * Math.PI / 180.0);
+      const toXY = (lat, lon) => ({ x: (lon - refLon) * cosLat * 111320.0, y: (lat - refLat) * 111320.0 });
+      const toLatLon = (x, y) => [
+        parseFloat((refLat + y / 111320.0).toFixed(6)),
+        parseFloat((refLon + x / (111320.0 * cosLat)).toFixed(6))
+      ];
+
+      const A = toXY(pA[0], pA[1]);
+      const B = toXY(pB[0], pB[1]);
+      const dAB = Math.hypot(B.x - A.x, B.y - A.y);
+      if (dAB < 0.5) return [pA, pB];
+
+      let vIn = null, vOut = null;
       if (pPrev) {
-        dLatA = pA[0] - pPrev[0];
-        dLonA = pA[1] - pPrev[1];
-      } else {
-        dLatA = pB[0] - pA[0];
-        dLonA = pB[1] - pA[1];
+        const P = toXY(pPrev[0], pPrev[1]);
+        const d = Math.hypot(A.x - P.x, A.y - P.y);
+        if (d > 0.1) vIn = { x: (A.x - P.x) / d, y: (A.y - P.y) / d };
       }
       if (pNext) {
-        dLatB = pNext[0] - pB[0];
-        dLonB = pNext[1] - pB[1];
-      } else {
-        dLatB = pB[0] - pA[0];
-        dLonB = pB[1] - pA[1];
+        const N = toXY(pNext[0], pNext[1]);
+        const d = Math.hypot(N.x - B.x, N.y - B.y);
+        if (d > 0.1) vOut = { x: (N.x - B.x) / d, y: (N.y - B.y) / d };
       }
 
-      const dist = Math.hypot(pB[0] - pA[0], pB[1] - pA[1]);
-      const lenA = Math.hypot(dLatA, dLonA) || 1;
-      const lenB = Math.hypot(dLatB, dLonB) || 1;
-
-      const tA = [dLatA / lenA, dLonA / lenA];
-      const tB = [dLatB / lenB, dLonB / lenB];
-
-      const cp1 = [pA[0] + tA[0] * dist * 0.38, pA[1] + tA[1] * dist * 0.38];
-      const cp2 = [pB[0] - tB[0] * dist * 0.38, pB[1] - tB[1] * dist * 0.38];
-
-      const result = [];
-      for (let i = 0; i <= numPoints; i++) {
-        const t = i / numPoints;
-        const u = 1 - t;
-        const lat = u*u*u * pA[0] + 3*u*u*t * cp1[0] + 3*u*t*t * cp2[0] + t*t*t * pB[0];
-        const lon = u*u*u * pA[1] + 3*u*u*t * cp1[1] + 3*u*t*t * cp2[1] + t*t*t * pB[1];
-        result.push([parseFloat(lat.toFixed(6)), parseFloat(lon.toFixed(6))]);
+      // 1. Semicircular turnaround loop / hip (boucle de retournement / raquette / U-turn)
+      if (vIn && vOut) {
+        const dot = vIn.x * vOut.x + vIn.y * vOut.y;
+        if (dot < -0.4) {
+          const midAB = { x: (A.x + B.x) / 2.0, y: (A.y + B.y) / 2.0 };
+          const fwdX = (vIn.x - vOut.x) / 2.0;
+          const fwdY = (vIn.y - vOut.y) / 2.0;
+          const fwdLen = Math.hypot(fwdX, fwdY) || 1.0;
+          const fwdUnit = { x: fwdX / fwdLen, y: fwdY / fwdLen };
+          const R = dAB / 2.0;
+          const apex = { x: midAB.x + fwdUnit.x * R, y: midAB.y + fwdUnit.y * R };
+          const pApex = toLatLon(apex.x, apex.y);
+          return generate3PointCircularArc(pA, pApex, pB, numPts);
+        }
       }
-      return result;
+
+      // 2. Corner intersection (tangential circular fillet arc)
+      if (vIn && vOut) {
+        const det = vIn.x * vOut.y - vIn.y * vOut.x;
+        if (Math.abs(det) > 0.05) {
+          const dx = B.x - A.x, dy = B.y - A.y;
+          const s = (dx * vOut.y - dy * vOut.x) / det;
+          const u = (vIn.x * dy - vIn.y * dx) / det;
+          if (s > 0 && u > 0 && s < dAB * 3.0 && u < dAB * 3.0) {
+            const V = { x: A.x + s * vIn.x, y: A.y + s * vIn.y };
+            const midAB = { x: (A.x + B.x) / 2.0, y: (A.y + B.y) / 2.0 };
+            const M = { x: (midAB.x + V.x) / 2.0, y: (midAB.y + V.y) / 2.0 };
+            const pM = toLatLon(M.x, M.y);
+            return generate3PointCircularArc(pA, pM, pB, numPts);
+          }
+        }
+      }
+
+      // 3. Smooth bend with directional bulge
+      const dx = B.x - A.x, dy = B.y - A.y;
+      const chordLen = Math.hypot(dx, dy);
+      const midX = (A.x + B.x) / 2.0, midY = (A.y + B.y) / 2.0;
+      let nx = -dy / chordLen, ny = dx / chordLen;
+      if (vIn) {
+        const cross = vIn.x * dy - vIn.y * dx;
+        if (cross < 0) { nx = -nx; ny = -ny; }
+      }
+      const sagitta = chordLen * 0.32;
+      const apexX = midX + nx * sagitta;
+      const apexY = midY + ny * sagitta;
+      const pApex = toLatLon(apexX, apexY);
+      return generate3PointCircularArc(pA, pApex, pB, numPts);
+    }
+
+    function smoothArcBetweenTwoPoints(pA, pB, pPrev, pNext, numPoints = 5) {
+      return cleanRoundTurn(pA, pB, null, pPrev, pNext, numPoints);
     }
 
     function chaikinSmooth(points, iterations = 2) {
@@ -2264,25 +3537,37 @@
         return;
       }
 
-      const method = document.getElementById('selCurveMethod') ? document.getElementById('selCurveMethod').value : 'chaikin';
+      const method = document.getElementById('selCurveMethod') ? document.getElementById('selCurveMethod').value : 'circle_arc';
       const levelEl = document.getElementById('hudCurveLevel') || document.getElementById('selCurveLevel');
       const level = levelEl ? parseInt(levelEl.value, 10) : 2;
+      const numPts = level === 1 ? 4 : level === 2 ? 5 : 7;
+
+      const pPrev = start > 0 ? activePts[start - 1] : null;
+      const pNext = end < activePts.length - 1 ? activePts[end + 1] : null;
 
       let smoothedSub = [];
 
-      if (rangeLen === 2) {
-        // Direct rounding of straight line between 2 points into an arc
-        const pPrev = start > 0 ? activePts[start - 1] : null;
-        const pNext = end < activePts.length - 1 ? activePts[end + 1] : null;
-        const numPts = level === 1 ? 4 : level === 2 ? 6 : 9;
-        smoothedSub = smoothArcBetweenTwoPoints(activePts[start], activePts[end], pPrev, pNext, numPts);
+      if (method === 'circle_arc') {
+        let pVia = null;
+        if (routeIntermediates && routeIntermediates.length > 0) {
+          pVia = routeIntermediates[0];
+        } else if (rangeLen > 2) {
+          const midIdx = Math.floor((start + end) / 2);
+          pVia = activePts[midIdx];
+        }
+        smoothedSub = cleanRoundTurn(activePts[start], activePts[end], pVia, pPrev, pNext, numPts);
+      } else if (method === 'uturn_180') {
+        smoothedSub = generateBulgeArc(activePts[start], activePts[end], 1.0, numPts);
+      } else if (rangeLen === 2) {
+        smoothedSub = cleanRoundTurn(activePts[start], activePts[end], null, pPrev, pNext, numPts);
+      } else if (rangeLen === 3 && method === 'chaikin') {
+        smoothedSub = cleanRoundTurn(activePts[start], activePts[end], activePts[start + 1], pPrev, pNext, numPts);
       } else {
         const subPoints = activePts.slice(start, end + 1);
         if (method === 'chaikin') {
           smoothedSub = chaikinSmooth(subPoints, level);
         } else {
-          const pps = level === 1 ? 4 : level === 2 ? 6 : 9;
-          smoothedSub = catmullRomSpline(subPoints, pps);
+          smoothedSub = catmullRomSpline(subPoints, numPts);
         }
       }
 
@@ -2304,7 +3589,106 @@
       pushHistory();
       markUnsavedChanges();
       renderMapLayers();
-      showToast(`✓ Forme arrondie en courbe fluide (+${smoothedSub.length - rangeLen} nœuds réguliers créés sans angles bruts) !`, 'success');
+      showToast(`✓ Courbe circulaire propre dessinée (+${smoothedSub.length - rangeLen} nœuds réguliers sans angles bruts) !`, 'success');
+    }
+
+    function applyPerfectCircleArc() {
+      if (!selectedLine) return;
+      const activePts = getActiveTrack();
+      if (curveNodeA === null || curveNodeB === null || !activePts) {
+        showToast('Veuillez sélectionner le Nœud A (Entrée) et le Nœud B (Sortie) sur la carte', 'warning');
+        return;
+      }
+
+      const start = Math.min(curveNodeA, curveNodeB);
+      const end = Math.max(curveNodeA, curveNodeB);
+      const rangeLen = end - start + 1;
+      const pA = activePts[curveNodeA];
+      const pB = activePts[curveNodeB];
+      const pPrev = start > 0 ? activePts[start - 1] : null;
+      const pNext = end < activePts.length - 1 ? activePts[end + 1] : null;
+
+      let circleArc = [];
+      let viaLabel = '';
+
+      if (routeIntermediates && routeIntermediates.length > 0) {
+        const pVia = routeIntermediates[0];
+        circleArc = cleanRoundTurn(pA, pB, pVia, pPrev, pNext, 5);
+        viaLabel = 'via le point de passage';
+      } else if (rangeLen > 2) {
+        const midIdx = Math.floor((start + end) / 2);
+        const pVia = activePts[midIdx];
+        circleArc = cleanRoundTurn(pA, pB, pVia, pPrev, pNext, 5);
+        viaLabel = 'via le sommet existant';
+      } else {
+        circleArc = cleanRoundTurn(pA, pB, null, pPrev, pNext, 5);
+        viaLabel = 'demi-cercle / rond-point';
+      }
+
+      if (!circleArc || circleArc.length < 2) {
+        showToast('Impossible de générer l\'arc circulaire', 'error');
+        return;
+      }
+
+      let totalDist = 0;
+      for (let i = 0; i < circleArc.length - 1; i++) {
+        totalDist += haversine(circleArc[i][0], circleArc[i][1], circleArc[i+1][0], circleArc[i+1][1]);
+      }
+      const formattedDist = google_format_distance(totalDist);
+
+      computedRoutes = [{
+        index: 0,
+        isDefault: true,
+        description: `Rond-point / Arc Circulaire Parfait (${viaLabel})`,
+        distanceMeters: Math.round(totalDist),
+        duration: '15s',
+        formattedDistance: formattedDist,
+        formattedDuration: '15 sec',
+        stepsCount: 1,
+        steps: [`Suivre l'arc circulaire (${formattedDist})`],
+        coordinates: circleArc,
+        pointsCount: circleArc.length
+      }];
+      selectedRouteIndex = 0;
+
+      const badgeProvider = document.getElementById('hudProviderBadge');
+      if (badgeProvider) {
+        badgeProvider.innerText = 'Cercle Parfait (Géométrie)';
+        badgeProvider.className = 'text-[9px] px-2 py-0.5 rounded-full bg-cyan-950 text-cyan-300 font-bold border border-cyan-700';
+      }
+
+      renderRouteChipsUI();
+      renderRoutePreviewOnMap();
+      updateRouteStepsUI();
+
+      showToast(`🎯 Rond-point / Cercle parfait calculé (${formattedDist}, ${circleArc.length} nœuds réguliers). Appuyez sur Entrée pour valider !`, 'success');
+    }
+
+    function google_format_distance(meters) {
+      if (!meters) return '0 m';
+      if (meters < 1000) return `${Math.round(meters)} m`;
+      return `${(meters / 1000).toFixed(1)} km`;
+    }
+
+    function applyPhysicalLaneSpacing(offsetMeters = 3.0) {
+      if (!selectedLine) return;
+      if ((!currentShape0 || currentShape0.length < 2) && (!currentShape1 || currentShape1.length < 2)) {
+        showToast('Aucun tracé disponible à espacer', 'warning');
+        return;
+      }
+      if (confirm(`Voulez-vous décaler physiquement Aller et Retour de +${offsetMeters}m chacun vers sa voie de droite ? Cela séparera les deux sens de circulation de ${(offsetMeters * 2).toFixed(1)}m au total dans les coordonnées.`)) {
+        if (currentShape0 && currentShape0.length >= 2) {
+          currentShape0 = offsetPolylineRight(currentShape0, offsetMeters);
+        }
+        if (currentShape1 && currentShape1.length >= 2) {
+          currentShape1 = offsetPolylineRight(currentShape1, offsetMeters);
+        }
+        pushHistory();
+        markUnsavedChanges();
+        renderMapLayers();
+        updateStatsBadge();
+        showToast(`✓ Voies Aller et Retour séparées physiquement (+${offsetMeters}m à droite dans chaque sens) !`, 'success');
+      }
     }
 
     function applyGlobalSmoothing() {
@@ -2450,12 +3834,28 @@
     }
 
     document.addEventListener('keydown', (e) => {
+      const activeTag = document.activeElement ? document.activeElement.tagName.toLowerCase() : '';
+      const isInput = activeTag === 'input' || activeTag === 'textarea' || activeTag === 'select';
+
       if ((e.ctrlKey || e.metaKey) && e.key === 'z') {
         e.preventDefault();
         undo();
       } else if ((e.ctrlKey || e.metaKey) && e.key === 'y') {
         e.preventDefault();
         redo();
+      } else if (e.key === 'Enter' && !isInput) {
+        if (curveNodeA !== null && curveNodeB !== null) {
+          e.preventDefault();
+          applyComputedRouteToTrack();
+        }
+      } else if (e.key === 'Escape' && !isInput) {
+        if (isPickingViaPoint) {
+          e.preventDefault();
+          toggleAddViaPoint();
+        } else if (curveNodeA !== null || curveNodeB !== null) {
+          e.preventDefault();
+          resetCurveSelection();
+        }
       }
     });
 

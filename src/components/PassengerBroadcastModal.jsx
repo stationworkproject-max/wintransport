@@ -13,13 +13,17 @@ import {
 } from 'lucide-react';
 import { STATIC_LINES } from '../data/staticTransit';
 import TRANSIT_SHAPES from '../data/transitShapes.json';
-import { publishLiveLocation, removeLiveLocation, SUPABASE_URL, SUPABASE_ANON_KEY } from '../supabase';
+import { 
+  broadcastPing, 
+  broadcastLeave, 
+  fetchLiveVehicles, 
+  publishLiveLocation, 
+  removeLiveLocation, 
+  SUPABASE_URL, 
+  SUPABASE_ANON_KEY 
+} from '../supabase';
 import { isNativeAndroid, startBackgroundBroadcast, stopBackgroundBroadcast, isBackgroundBroadcastRunning } from '../native/backgroundBroadcast';
 import { getLineName, getLineShortName } from '../utils/i18n';
-
-const RAIL_LINE_TYPES = new Set(['metro', 'tgm', 'rfr', 'train']);
-const HUB_SHARED_STOP_RADIUS_METERS = 95;
-
 export default function PassengerBroadcastModal({
   isOpen,
   onClose,
@@ -40,8 +44,32 @@ export default function PassengerBroadcastModal({
   const [currentSpeed, setCurrentSpeed] = useState(0);
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
   const [backgroundLocationEnabled, setBackgroundLocationEnabled] = useState(false);
+  const [broadcasterRole, setBroadcasterRole] = useState(broadcastSession?.role || 'OFF'); // 'OFF' | 'LEADER' | 'STANDBY'
+  const [currentVehicleId, setCurrentVehicleId] = useState(broadcastSession?.sessionId || '');
+  
   const watchIdRef = useRef(null);
   const lastPosRef = useRef(null);
+  const latestPosRef = useRef(null);
+  const broadcasterIdRef = useRef(null);
+  const transmissionTimerRef = useRef(null);
+  const standbyCheckTimerRef = useRef(null);
+  const directionAnchorRef = useRef(null);
+  const directionStreakRef = useRef(0);
+
+  // Initialize or restore persistent unique client device identifier
+  useEffect(() => {
+    let devId = null;
+    try {
+      devId = localStorage.getItem('transit_device_id');
+      if (!devId) {
+        devId = 'dev_' + Math.random().toString(36).substring(2, 10);
+        localStorage.setItem('transit_device_id', devId);
+      }
+    } catch (e) {
+      devId = 'dev_' + Math.random().toString(36).substring(2, 10);
+    }
+    broadcasterIdRef.current = devId;
+  }, []);
 
   // Helper: Distance in meters between two lat/lon points
   const getDistanceMeters = (lat1, lon1, lat2, lon2) => {
@@ -121,72 +149,17 @@ export default function PassengerBroadcastModal({
     return { minD, closestStop };
   };
 
-  const getRailHubContext = (userLat, userLon) => {
-    const railLines = STATIC_LINES.filter(line => RAIL_LINE_TYPES.has(line.type_id));
-    if (!railLines.length) return null;
-
-    const hubDetectionRadius = Math.max(65, Math.min(95, maxAllowedDistance + 20));
-    const nearbyStops = [];
-
-    railLines.forEach(line => {
-      (line.stops || []).forEach(stop => {
-        const d = getDistanceMeters(userLat, userLon, stop.lat, stop.lon);
-        if (d <= hubDetectionRadius) {
-          nearbyStops.push({ stop, distance: d });
-        }
-      });
-    });
-
-    if (!nearbyStops.length) return null;
-
-    let bestHub = null;
-
-    nearbyStops.forEach(({ stop, distance }) => {
-      const lineIds = new Set();
-
-      railLines.forEach(line => {
-        const servesHub = (line.stops || []).some(otherStop =>
-          getDistanceMeters(stop.lat, stop.lon, otherStop.lat, otherStop.lon) <= HUB_SHARED_STOP_RADIUS_METERS
-        );
-        if (servesHub) lineIds.add(line.id);
-      });
-
-      if (lineIds.size < 2) return;
-
-      if (
-        !bestHub ||
-        lineIds.size > bestHub.lineIds.size ||
-        (lineIds.size === bestHub.lineIds.size && distance < bestHub.nearestStopDistance)
-      ) {
-        bestHub = {
-          nearestStopName: stop.name,
-          nearestStopDistance: distance,
-          lineIds,
-        };
-      }
-    });
-
-    return bestHub;
-  };
-
   const canUseLineFromPosition = (userLat, userLon, line) => {
-    if (!line) return { allowed: false, minD: 999999, viaHub: false, hubName: null };
+    if (!line) return { allowed: false, minD: 999999 };
 
     const { minD } = getDistanceToLine(userLat, userLon, line);
     if (minD <= maxAllowedDistance) {
-      return { allowed: true, minD, viaHub: false, hubName: null };
-    }
-
-    const hubContext = getRailHubContext(userLat, userLon);
-    if (hubContext && hubContext.lineIds.has(line.id)) {
-      return { allowed: true, minD, viaHub: true, hubName: hubContext.nearestStopName };
+      return { allowed: true, minD };
     }
 
     return {
       allowed: false,
-      minD,
-      viaHub: false,
-      hubName: hubContext?.nearestStopName || null
+      minD
     };
   };
 
@@ -195,12 +168,95 @@ export default function PassengerBroadcastModal({
     return getDistanceMeters(lat1, lon1, lat2, lon2) / 1000;
   };
 
+  // Inferred Direction Engine: computes whether physical movement aligns with Aller (0) or Retour (1)
+  const inferTransitDirection = (line, currentLat, currentLon, prevLat, prevLon, heading) => {
+    if (!line || !line.directions || line.directions.length < 2) return null;
+    if (!currentLat || !currentLon || !prevLat || !prevLon) return null;
+
+    const dTravel = getDistanceMeters(prevLat, prevLon, currentLat, currentLon);
+    if (dTravel < 25) return null; // Need at least 25m of physical displacement
+
+    const stopsAller = (line.stops_aller && line.stops_aller.length >= 2)
+      ? line.stops_aller
+      : (line.stops && line.stops.length >= 2 ? line.stops : null);
+
+    const stopsRetour = (line.stops_retour && line.stops_retour.length >= 2)
+      ? line.stops_retour
+      : (stopsAller ? [...stopsAller].reverse() : null);
+
+    if (!stopsAller || stopsAller.length < 2) return null;
+
+    // Terminus destinations
+    const destAller = stopsAller[stopsAller.length - 1];
+    const destRetour = stopsRetour ? stopsRetour[stopsRetour.length - 1] : stopsAller[0];
+
+    // Distance deltas to each terminus
+    const distToAllerDestCurr = getDistanceMeters(currentLat, currentLon, destAller.lat, destAller.lon);
+    const distToAllerDestPrev = getDistanceMeters(prevLat, prevLon, destAller.lat, destAller.lon);
+
+    const distToRetourDestCurr = getDistanceMeters(currentLat, currentLon, destRetour.lat, destRetour.lon);
+    const distToRetourDestPrev = getDistanceMeters(prevLat, prevLon, destRetour.lat, destRetour.lon);
+
+    const dDeltaAller = distToAllerDestCurr - distToAllerDestPrev; // Negative = approaching Aller terminus
+    const dDeltaRetour = distToRetourDestCurr - distToRetourDestPrev; // Negative = approaching Retour terminus
+
+    // Shape track bearing alignment
+    const shape = TRANSIT_SHAPES[line.id + '_aller'] || TRANSIT_SHAPES[line.id];
+    let headingAlignment = 0; // +1 = Aller, -1 = Retour
+
+    if (heading !== null && heading !== undefined && !isNaN(heading) && shape && shape.length >= 2) {
+      let minSegD = Infinity;
+      let segIdx = 0;
+      for (let i = 0; i < shape.length - 1; i++) {
+        const pA = shape[i];
+        const pB = shape[i + 1];
+        const d = getDistanceToSegment(currentLat, currentLon, pA[0], pA[1], pB[0], pB[1]);
+        if (d < minSegD) {
+          minSegD = d;
+          segIdx = i;
+        }
+      }
+
+      if (minSegD <= 60) {
+        const pA = shape[segIdx];
+        const pB = shape[segIdx + 1];
+        const y = Math.sin((pB[1] - pA[1]) * Math.PI / 180) * Math.cos(pB[0] * Math.PI / 180);
+        const x = Math.cos(pA[0] * Math.PI / 180) * Math.sin(pB[0] * Math.PI / 180) -
+                  Math.sin(pA[0] * Math.PI / 180) * Math.cos(pB[0] * Math.PI / 180) * Math.cos((pB[1] - pA[1]) * Math.PI / 180);
+        const segBearingDeg = (Math.atan2(y, x) * 180 / Math.PI + 360) % 360;
+
+        const diffAngle = Math.abs(((heading - segBearingDeg) + 180) % 360 - 180);
+        if (diffAngle < 55) {
+          headingAlignment = 1; // strongly Aller
+        } else if (diffAngle > 125) {
+          headingAlignment = -1; // strongly Retour
+        }
+      }
+    }
+
+    let scoreAller = 0;
+    let scoreRetour = 0;
+
+    if (dDeltaAller < -8 && dDeltaRetour > 8) {
+      scoreAller += 2;
+    } else if (dDeltaRetour < -8 && dDeltaAller > 8) {
+      scoreRetour += 2;
+    }
+
+    if (headingAlignment === 1) scoreAller += 2;
+    if (headingAlignment === -1) scoreRetour += 2;
+
+    if (scoreAller >= 2 && scoreAller > scoreRetour) return 0;
+    if (scoreRetour >= 2 && scoreRetour > scoreAller) return 1;
+
+    return null;
+  };
+
   // SMART ANTI-SCAM THRESHOLD:
-  // Base proximity: 45 meters (accommodates wide boulevards, multi-track stations, bus platforms, and vehicle interior)
-  // Scales up slightly if GPS has high uncertainty (±15m), capped at 55 meters maximum.
-  // Anyone at home or 60m+ away is strictly BLOCKED from diffusing.
+  // Strictly no more than 10 meters based on GPS accuracy.
+  // Anyone further than 10 meters is strictly BLOCKED from diffusing.
   const gpsAccuracy = Math.round(userLocation?.accuracy || 10);
-  const maxAllowedDistance = Math.min(55, Math.max(45, Math.round(gpsAccuracy * 1.4)));
+  const maxAllowedDistance = Math.min(10, Math.max(6, Math.round(gpsAccuracy)));
 
   // Compute exact physical distance to all lines, sorted by proximity
   const allLinesDistances = useMemo(() => {
@@ -219,31 +275,16 @@ export default function PassengerBroadcastModal({
 
   const nearestLine = allLinesDistances[0] || null;
   const isAtTransitLine = nearestLine && nearestLine.distanceMeters <= maxAllowedDistance;
+  const isAtTransitContext = Boolean(isAtTransitLine);
 
-  const railHubContext = useMemo(() => {
-    if (!userLocation) return null;
-    return getRailHubContext(userLocation.lat, userLocation.lon);
-  }, [userLocation, maxAllowedDistance]);
-
-  const isAtRailHub = !!railHubContext;
-  const isAtTransitContext = !!(isAtTransitLine || isAtRailHub);
-
-  // Nearest-track rule + shared rail-hub rule (major stations with parallel tracks)
+  // Strictly lines where user is physically within <= maxAllowedDistance (never exceeds 10m)
   const eligibleLines = useMemo(() => {
     if (!isAtTransitContext || !nearestLine) return [];
 
-    const nearestDist = nearestLine.distanceMeters;
-    const hubLineIds = railHubContext?.lineIds || new Set();
-
     return allLinesDistances.filter(line => {
-      const sameNearestTrack =
-        line.distanceMeters <= maxAllowedDistance &&
-        Math.abs(line.distanceMeters - nearestDist) <= 10;
-
-      const sharedRailHubTrack = hubLineIds.has(line.id);
-      return sameNearestTrack || sharedRailHubTrack;
+      return line.distanceMeters <= maxAllowedDistance;
     });
-  }, [allLinesDistances, isAtTransitContext, nearestLine, maxAllowedDistance, railHubContext]);
+  }, [allLinesDistances, isAtTransitContext, nearestLine, maxAllowedDistance]);
 
   // Backward compatible alias
   const nearbyLines = eligibleLines;
@@ -338,27 +379,20 @@ export default function PassengerBroadcastModal({
     };
   }, [isOpen]);
 
-  // Instant Unload Cleanup: if user closes tab/browser/app, immediately DELETE the vehicle
+  // Instant Unload Cleanup: if user closes tab/browser/app, immediately leave broadcast lease
   useEffect(() => {
-    if (!isBroadcasting || !broadcastSession?.sessionId || isNativeAndroid()) return;
+    if (!isBroadcasting || !currentVehicleId || isNativeAndroid()) return;
 
     const cleanupOnExit = () => {
-      const sessId = broadcastSession.sessionId;
+      const sessId = currentVehicleId;
+      const bId = broadcasterIdRef.current;
       try {
         localStorage.removeItem('transit_broadcast_id');
       } catch (e) {}
 
-      const url = `${SUPABASE_URL}/rest/v1/transit_live_locations?id=eq.${sessId}`;
-      try {
-        fetch(url, {
-          method: 'DELETE',
-          headers: {
-            'apikey': SUPABASE_ANON_KEY,
-            'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
-          },
-          keepalive: true,
-        }).catch(() => {});
-      } catch (e) {}
+      if (sessId && bId) {
+        broadcastLeave(sessId, bId);
+      }
     };
 
     window.addEventListener('beforeunload', cleanupOnExit);
@@ -368,33 +402,206 @@ export default function PassengerBroadcastModal({
       window.removeEventListener('beforeunload', cleanupOnExit);
       window.removeEventListener('pagehide', cleanupOnExit);
     };
-  }, [isBroadcasting, broadcastSession]);
+  }, [isBroadcasting, currentVehicleId]);
 
-  // Periodic Heartbeat (every 10s): keeps TTL fresh while broadcasting
+  // ── 1. LEADER Dynamic Transmission Loop ──
+  // Dynamic GPS sampling: stopped (<= 5 km/h) = 20s; moving (> 5 km/h) = 8s + jitter (±1.5s)
+  // Writes connectionless PostgREST RPC pings, zero WAL overhead
   useEffect(() => {
-    if (!isBroadcasting || !broadcastSession?.sessionId || backgroundLocationEnabled) return;
-
-    const heartbeat = setInterval(() => {
-      if (lastPosRef.current && selectedLine) {
-        publishLiveLocation({
-          id: broadcastSession.sessionId,
-          line_id: selectedLineId,
-          direction: direction,
-          vehicle_label: `${selectedLine.short_name || 'Ligne'} (Signal direct)`,
-          latitude: lastPosRef.current.lat,
-          longitude: lastPosRef.current.lon,
-          heading: 0,
-          speed_kmh: currentSpeed,
-          passenger_count: 1,
-          is_simulated: false,
-        }).catch(() => {});
+    if (!isBroadcasting || broadcasterRole !== 'LEADER' || !currentVehicleId) {
+      if (transmissionTimerRef.current) {
+        clearTimeout(transmissionTimerRef.current);
+        transmissionTimerRef.current = null;
       }
-    }, 10000);
+      return;
+    }
 
-    return () => clearInterval(heartbeat);
-  }, [isBroadcasting, broadcastSession, selectedLine, selectedLineId, direction, currentSpeed, backgroundLocationEnabled]);
+    let isCancelled = false;
 
-  // Handle GPS location streaming to Supabase
+    const scheduleNextTransmission = () => {
+      const spd = latestPosRef.current?.speed || 0;
+      // Stopped: 20s. Moving: 8s + jitter (6.5s to 9.5s)
+      const delay = spd <= 5 
+        ? 20000 
+        : Math.max(6000, 8000 + Math.round((Math.random() * 3000 - 1500)));
+
+      transmissionTimerRef.current = setTimeout(async () => {
+        if (isCancelled || !latestPosRef.current || !selectedLine) return;
+
+        try {
+          const directionIndex = (selectedLine.directions && selectedLine.directions.indexOf(direction) === 1) ? 1 : 0;
+          const res = await broadcastPing({
+            vehicleId: currentVehicleId,
+            routeId: selectedLineId,
+            lineName: selectedLine.short_name || 'Ligne',
+            networkType: selectedLine.type_id || 'bus',
+            direction: directionIndex,
+            directionName: direction || '',
+            latitude: latestPosRef.current.lat,
+            longitude: latestPosRef.current.lon,
+            speed: latestPosRef.current.speed || 0,
+            bearing: latestPosRef.current.heading || 0,
+            broadcasterId: broadcasterIdRef.current,
+          });
+
+          if (res?.is_leader === false) {
+            // Relinquished or another broadcaster superseded
+            setBroadcasterRole('STANDBY');
+            setStatusMessage("En Veille Active : un autre voyageur diffuse ce véhicule 🟡");
+            return;
+          }
+
+          const acc = latestPosRef.current.accuracy ? `±${Math.round(latestPosRef.current.accuracy)}m` : '';
+          setStatusMessage(`Émetteur Principal : Signal direct synchronisé (${acc}) 🟢`);
+        } catch (e) {
+          console.error("Leader transmission ping failed:", e);
+        }
+
+        if (!isCancelled) {
+          scheduleNextTransmission();
+        }
+      }, delay);
+    };
+
+    scheduleNextTransmission();
+
+    return () => {
+      isCancelled = true;
+      if (transmissionTimerRef.current) {
+        clearTimeout(transmissionTimerRef.current);
+        transmissionTimerRef.current = null;
+      }
+    };
+  }, [isBroadcasting, broadcasterRole, currentVehicleId, selectedLine, selectedLineId, direction]);
+
+  // ── 2. STANDBY Failover & Auto-Divergence Promotion Engine ──
+  // Checks every 4 seconds:
+  // A) If leader silent > 15 seconds: takes over immediately!
+  // B) Divergence Split: If leader has moved away (> 22m), we are on a DIFFERENT vehicle
+  //    (e.g., two buses queued 7-10m apart at a stop; the front bus left while this one stayed).
+  //    Auto-splits and immediately creates an independent vehicle!
+  useEffect(() => {
+    if (!isBroadcasting || broadcasterRole !== 'STANDBY' || !currentVehicleId) {
+      if (standbyCheckTimerRef.current) {
+        clearInterval(standbyCheckTimerRef.current);
+        standbyCheckTimerRef.current = null;
+      }
+      return;
+    }
+
+    standbyCheckTimerRef.current = setInterval(async () => {
+      try {
+        const vehicles = await fetchLiveVehicles();
+        const cur = vehicles.find(v => v.id === currentVehicleId);
+
+        let shouldPromote = false;
+        let shouldSplit = false;
+
+        if (!cur) {
+          // Vehicle evicted or silent > 30s
+          shouldPromote = true;
+        } else {
+          const ageMs = Date.now() - new Date(cur.updated_at).getTime();
+          if (ageMs > 15000) {
+            // Leader timed out (> 15s lease expiry)
+            shouldPromote = true;
+          } else if (latestPosRef.current) {
+            // Divergence Check: If distance to leader > 22m, vehicles have separated!
+            const distToLeader = getDistanceMeters(
+              latestPosRef.current.lat,
+              latestPosRef.current.lon,
+              cur.latitude,
+              cur.longitude
+            );
+            if (distToLeader > 22) {
+              shouldSplit = true;
+            }
+          }
+        }
+
+        if ((shouldPromote || shouldSplit) && latestPosRef.current && selectedLine) {
+          const directionIndex = (selectedLine.directions && selectedLine.directions.indexOf(direction) === 1) ? 1 : 0;
+          const targetId = shouldSplit
+            ? `veh_${selectedLineId}_d${directionIndex}_${Math.random().toString(36).substring(2, 8)}`
+            : currentVehicleId;
+
+          if (shouldSplit) {
+            setCurrentVehicleId(targetId);
+            try {
+              localStorage.setItem('transit_broadcast_id', targetId);
+            } catch (e) {}
+          }
+
+          const res = await broadcastPing({
+            vehicleId: targetId,
+            routeId: selectedLineId,
+            lineName: selectedLine.short_name || 'Ligne',
+            networkType: selectedLine.type_id || 'bus',
+            direction: directionIndex,
+            directionName: direction || '',
+            latitude: latestPosRef.current.lat,
+            longitude: latestPosRef.current.lon,
+            speed: latestPosRef.current.speed || 0,
+            bearing: latestPosRef.current.heading || 0,
+            broadcasterId: broadcasterIdRef.current,
+          });
+
+          if (res?.is_leader === true) {
+            setBroadcasterRole('LEADER');
+            setStatusMessage(
+              shouldSplit
+                ? "Séparation automatique : Véhicule distinct créé et diffusé en direct 🟢"
+                : "Relais GPS pris en direct ! Vous êtes désormais l'Émetteur Principal 🟢"
+            );
+          }
+        }
+      } catch (e) {
+        console.warn("Standby failover/split check error:", e);
+      }
+    }, 4000);
+
+    return () => {
+      if (standbyCheckTimerRef.current) {
+        clearInterval(standbyCheckTimerRef.current);
+        standbyCheckTimerRef.current = null;
+      }
+    };
+  }, [isBroadcasting, broadcasterRole, currentVehicleId, selectedLine, selectedLineId, direction]);
+
+  // Manual split trigger if user knows they are in a different queued vehicle
+  const handleForceSplitVehicle = async () => {
+    if (!latestPosRef.current || !selectedLine) return;
+    const directionIndex = (selectedLine.directions && selectedLine.directions.indexOf(direction) === 1) ? 1 : 0;
+    const newVehicleId = `veh_${selectedLineId}_d${directionIndex}_${Math.random().toString(36).substring(2, 8)}`;
+    setCurrentVehicleId(newVehicleId);
+    try {
+      localStorage.setItem('transit_broadcast_id', newVehicleId);
+    } catch (e) {}
+
+    try {
+      const res = await broadcastPing({
+        vehicleId: newVehicleId,
+        routeId: selectedLineId,
+        lineName: selectedLine.short_name || 'Ligne',
+        networkType: selectedLine.type_id || 'bus',
+        direction: directionIndex,
+        directionName: direction || '',
+        latitude: latestPosRef.current.lat,
+        longitude: latestPosRef.current.lon,
+        speed: latestPosRef.current.speed || 0,
+        bearing: latestPosRef.current.heading || 0,
+        broadcasterId: broadcasterIdRef.current,
+      });
+      if (res?.is_leader === true) {
+        setBroadcasterRole('LEADER');
+        setStatusMessage("Véhicule séparé avec succès ! Vous êtes désormais l'Émetteur Principal 🟢");
+      }
+    } catch (err) {
+      console.error("Manual vehicle split error:", err);
+    }
+  };
+
+  // Handle GPS location streaming with Spatial Clustering & Leader Election
   const startBroadcasting = async () => {
     if (!userLocation) {
       alert("Votre position GPS est obligatoire pour diffuser.");
@@ -406,52 +613,118 @@ export default function PassengerBroadcastModal({
       return;
     }
 
-    // Geofence validation: line itself OR shared multi-track rail hub (e.g. Barcelone / Tunis Marine / Tunis Ville)
+    // Geofence validation: strict physical proximity check (<= 10m)
     const lineAccess = canUseLineFromPosition(userLocation.lat, userLocation.lon, selectedLine);
     if (!lineAccess.allowed) {
-      const hubHint = lineAccess.hubName
-        ? ` (hub détecté: ${lineAccess.hubName}, mais cette ligne n'y passe pas)`
-        : '';
-      alert(`Diffusion bloquée (Sécurité anti-fraude) : Vous êtes à ${lineAccess.minD}m de cette ligne. Distance autorisée: ${maxAllowedDistance}m (GPS ±${gpsAccuracy}m)${hubHint}. Placez-vous sur la ligne ou dans une station commune de cette ligne.`);
+      alert(`Diffusion bloquée (Sécurité anti-fraude) : Vous êtes à ${lineAccess.minD}m de cette ligne. Distance autorisée: ${maxAllowedDistance}m (GPS ±${gpsAccuracy}m). Vous devez être à 10m maximum de la ligne pour diffuser.`);
       return;
     }
 
-    const sessionId = `veh-${selectedLineId}-${Math.floor(1000 + Math.random() * 9000)}`;
+    const directionIndex = (selectedLine.directions && selectedLine.directions.indexOf(direction) === 1) ? 1 : 0;
+    const bId = broadcasterIdRef.current || ('dev_' + Math.random().toString(36).substring(2, 10));
+
+    // Spatial clustering: detect if an active vehicle on this line & direction already exists nearby.
+    // Tight 18m threshold (max vehicle length 12m + GPS buffer) + kinematic motion check.
+    let targetVehicleId = null;
+    const clusteringThresholdMeters = Math.min(22, Math.max(12, (userLocation.accuracy || 10) + 4));
+    const userSpdKmh = userLocation.speed ? Math.round(userLocation.speed * 3.6) : 0;
 
     try {
-      localStorage.setItem('transit_broadcast_id', sessionId);
+      const activeList = await fetchLiveVehicles();
+      const sameLineSameDir = activeList.filter(v => 
+        v.line_id === selectedLineId && Number(v.direction) === directionIndex
+      );
+      for (const veh of sameLineSameDir) {
+        const d = getDistanceMeters(userLocation.lat, userLocation.lon, veh.latitude, veh.longitude);
+        if (d <= clusteringThresholdMeters) {
+          // Kinematic check: If candidate vehicle is moving fast (> 15 km/h) and user is stationary (<= 4 km/h),
+          // it's an overtaking/passing vehicle on the same street, NOT our vehicle!
+          const vehSpd = veh.speed || 0;
+          if (vehSpd > 15 && userSpdKmh <= 4) {
+            continue;
+          }
+          // If both moving, speeds must be somewhat correlated
+          if (vehSpd > 10 && userSpdKmh > 10 && Math.abs(vehSpd - userSpdKmh) > 18) {
+            continue;
+          }
+          targetVehicleId = veh.id;
+          break;
+        }
+      }
+    } catch (e) {
+      console.warn("Clustering lookup error:", e);
+    }
+
+    if (!targetVehicleId) {
+      targetVehicleId = `veh_${selectedLineId}_d${directionIndex}_${Math.random().toString(36).substring(2, 8)}`;
+    }
+
+    setCurrentVehicleId(targetVehicleId);
+    try {
+      localStorage.setItem('transit_broadcast_id', targetVehicleId);
     } catch (e) {}
 
+    latestPosRef.current = {
+      lat: userLocation.lat,
+      lon: userLocation.lon,
+      speed: userLocation.speed || 0,
+      heading: userLocation.heading || 0,
+      accuracy: userLocation.accuracy || 10,
+      time: Date.now()
+    };
+    lastPosRef.current = latestPosRef.current;
+    directionAnchorRef.current = { lat: userLocation.lat, lon: userLocation.lon };
+    directionStreakRef.current = 0;
+
+    // Initial ping to claim lease or enter standby
+    let isLeader = false;
+    try {
+      const pingResult = await broadcastPing({
+        vehicleId: targetVehicleId,
+        routeId: selectedLineId,
+        lineName: selectedLine.short_name || 'Ligne',
+        networkType: selectedLine.type_id || 'bus',
+        direction: directionIndex,
+        directionName: direction || '',
+        latitude: userLocation.lat,
+        longitude: userLocation.lon,
+        speed: userLocation.speed || 0,
+        bearing: userLocation.heading || 0,
+        broadcasterId: bId,
+      });
+      isLeader = pingResult?.is_leader === true;
+    } catch (err) {
+      console.error("Initial broadcast ping error:", err);
+      isLeader = true;
+    }
+
     setIsBroadcasting(true);
+    setBroadcasterRole(isLeader ? 'LEADER' : 'STANDBY');
     setBroadcastSession({
-      sessionId,
+      sessionId: targetVehicleId,
       lineId: selectedLineId,
       direction,
+      directionIndex,
       lineName: selectedLine.short_name,
+      networkType: selectedLine.type_id,
       startedAt: new Date(),
+      role: isLeader ? 'LEADER' : 'STANDBY',
     });
-    setStatusMessage("Signal GPS verrouillé. Diffusion en direct active.");
 
-    lastPosRef.current = { lat: userLocation.lat, lon: userLocation.lon, time: Date.now() };
-    publishLiveLocation({
-      id: sessionId,
-      line_id: selectedLineId,
-      direction: direction,
-      vehicle_label: `${selectedLine.short_name || 'Ligne'} (Signal direct)`,
-      latitude: userLocation.lat,
-      longitude: userLocation.lon,
-      heading: userLocation.heading || 0,
-      speed_kmh: userLocation.speed || 0,
-      passenger_count: 1,
-      is_simulated: false,
-    }).catch(console.error);
+    if (isLeader) {
+      setStatusMessage("Émetteur Principal actif. Signal direct synchronisé 🟢");
+    } else {
+      setStatusMessage("En Veille Active : un passager diffuse déjà ce véhicule. Relais prêt 🟡");
+    }
 
     if (isNativeAndroid()) {
       try {
         const nativeStart = await startBackgroundBroadcast({
-          sessionId,
+          sessionId: targetVehicleId,
           lineId: selectedLineId,
           direction,
+          directionIndex,
+          networkType: selectedLine.type_id,
           lineShortName: selectedLine.short_name || 'Ligne',
           supabaseUrl: SUPABASE_URL,
           supabaseAnonKey: SUPABASE_ANON_KEY,
@@ -459,12 +732,10 @@ export default function PassengerBroadcastModal({
 
         if (nativeStart?.started) {
           setBackgroundLocationEnabled(true);
-          setStatusMessage('Diffusion en direct active (avant-plan + arrière-plan).');
         }
       } catch (error) {
         console.error('Background location start failed:', error);
         setBackgroundLocationEnabled(false);
-        setStatusMessage('Diffusion active au premier plan. Autorisez la localisation en arrière-plan dans les paramètres Android.');
       }
     } else {
       setBackgroundLocationEnabled(false);
@@ -476,45 +747,101 @@ export default function PassengerBroadcastModal({
         let speedKmh = 0;
         if (pos.coords.speed !== null && pos.coords.speed !== undefined && !isNaN(pos.coords.speed)) {
           speedKmh = Math.max(0, Math.round(pos.coords.speed * 3.6));
-        } else if (lastPosRef.current) {
-          const dKm = getDistanceKm(lastPosRef.current.lat, lastPosRef.current.lon, pos.coords.latitude, pos.coords.longitude);
-          const dtHours = (pos.timestamp - lastPosRef.current.time) / (1000 * 3600);
+        } else if (latestPosRef.current) {
+          const dKm = getDistanceKm(latestPosRef.current.lat, latestPosRef.current.lon, pos.coords.latitude, pos.coords.longitude);
+          const dtHours = (pos.timestamp - latestPosRef.current.time) / (1000 * 3600);
           if (dtHours > 0 && dtHours < 0.01) {
             speedKmh = Math.min(Math.round(dKm / dtHours), 120);
           }
         }
-        lastPosRef.current = { lat: pos.coords.latitude, lon: pos.coords.longitude, time: pos.timestamp };
+
+        latestPosRef.current = {
+          lat: pos.coords.latitude,
+          lon: pos.coords.longitude,
+          speed: speedKmh,
+          heading: pos.coords.heading || 0,
+          accuracy: pos.coords.accuracy || 10,
+          time: pos.timestamp
+        };
+        lastPosRef.current = latestPosRef.current;
         setCurrentSpeed(speedKmh);
 
-        publishLiveLocation({
-          id: sessionId,
-          line_id: selectedLineId,
-          direction: direction,
-          vehicle_label: `${selectedLine.short_name || 'Ligne'} (Signal direct)`,
-          latitude: pos.coords.latitude,
-          longitude: pos.coords.longitude,
-          heading: pos.coords.heading || 0,
-          speed_kmh: speedKmh,
-          passenger_count: 1,
-          is_simulated: false,
-        })
-          .then(() => {
-            const acc = pos.coords.accuracy ? `±${Math.round(pos.coords.accuracy)}m` : '';
-            setStatusMessage(`Position GPS transmise en direct (${acc}) 🟢`);
+        // Auto-Direction Correction: detect if the user selected Retour instead of Aller (or vice versa) by mistake
+        if (speedKmh >= 10 && selectedLine && selectedLine.directions?.length > 1) {
+          if (!directionAnchorRef.current) {
+            directionAnchorRef.current = { lat: pos.coords.latitude, lon: pos.coords.longitude };
+          } else {
+            const dFromAnchor = getDistanceMeters(
+              directionAnchorRef.current.lat,
+              directionAnchorRef.current.lon,
+              pos.coords.latitude,
+              pos.coords.longitude
+            );
 
-            // Auto-cutoff: allow shared multi-track rail hubs before stopping
-            const { minD: currentLineDist } = getDistanceToLine(pos.coords.latitude, pos.coords.longitude, selectedLine);
-            const currentHub = getRailHubContext(pos.coords.latitude, pos.coords.longitude);
-            const isOnSharedRailHubTrack = !!(currentHub && currentHub.lineIds.has(selectedLine.id));
-            if (currentLineDist > Math.max(90, maxAllowedDistance * 3) && !isOnSharedRailHubTrack) {
-              stopBroadcasting();
-              alert(`Diffusion arrêtée : vous vous êtes éloigné du tracé de la ligne (${currentLineDist}m).`);
+            if (dFromAnchor >= 40) {
+              const currentDirIdx = (selectedLine.directions && selectedLine.directions.indexOf(direction) === 1) ? 1 : 0;
+              const inferredDir = inferTransitDirection(
+                selectedLine,
+                pos.coords.latitude,
+                pos.coords.longitude,
+                directionAnchorRef.current.lat,
+                directionAnchorRef.current.lon,
+                pos.coords.heading
+              );
+
+              if (inferredDir !== null && inferredDir !== currentDirIdx) {
+                directionStreakRef.current = (directionStreakRef.current || 0) + 1;
+                if (directionStreakRef.current >= 2) {
+                  // Confirmed direction error! Reverse / auto-correct direction
+                  const correctedDirName = selectedLine.directions[inferredDir];
+                  setDirection(correctedDirName);
+                  directionStreakRef.current = 0;
+
+                  const oldId = currentVehicleId;
+                  const newId = `veh_${selectedLineId}_d${inferredDir}_${Math.random().toString(36).substring(2, 8)}`;
+                  setCurrentVehicleId(newId);
+                  try { localStorage.setItem('transit_broadcast_id', newId); } catch (e) {}
+
+                  if (broadcasterRole === 'LEADER') {
+                    broadcastPing({
+                      vehicleId: newId,
+                      routeId: selectedLineId,
+                      lineName: selectedLine.short_name || 'Ligne',
+                      networkType: selectedLine.type_id || 'bus',
+                      direction: inferredDir,
+                      directionName: correctedDirName,
+                      latitude: pos.coords.latitude,
+                      longitude: pos.coords.longitude,
+                      speed: speedKmh,
+                      bearing: pos.coords.heading || 0,
+                      broadcasterId: broadcasterIdRef.current,
+                    }).catch(console.error);
+
+                    if (oldId) {
+                      broadcastLeave(oldId, broadcasterIdRef.current).catch(console.error);
+                    }
+                  }
+
+                  setStatusMessage(
+                    `🧭 Direction inversée automatiquement : Déplacement détecté vers ${correctedDirName} (${inferredDir === 0 ? 'Sens Aller ➡️' : 'Sens Retour ⬅️'})`
+                  );
+                }
+              } else {
+                directionStreakRef.current = 0;
+              }
+
+              // Advance anchor
+              directionAnchorRef.current = { lat: pos.coords.latitude, lon: pos.coords.longitude };
             }
-          })
-          .catch((err) => {
-            console.error("Erreur mise à jour position:", err);
-            setStatusMessage("Erreur de synchronisation réseau.");
-          });
+          }
+        }
+
+        // Auto-cutoff: user must remain on the transit line (within 25m accounting for vehicle turn / GPS drift)
+        const { minD: currentLineDist } = getDistanceToLine(pos.coords.latitude, pos.coords.longitude, selectedLine);
+        if (currentLineDist > Math.max(25, maxAllowedDistance * 2.5)) {
+          stopBroadcasting();
+          alert(`Diffusion arrêtée : vous vous êtes éloigné du tracé de la ligne (${currentLineDist}m).`);
+        }
       },
       (error) => {
         console.warn("Erreur GPS:", error);
@@ -533,6 +860,14 @@ export default function PassengerBroadcastModal({
       navigator.geolocation.clearWatch(watchIdRef.current);
       watchIdRef.current = null;
     }
+    if (transmissionTimerRef.current !== null) {
+      clearTimeout(transmissionTimerRef.current);
+      transmissionTimerRef.current = null;
+    }
+    if (standbyCheckTimerRef.current !== null) {
+      clearInterval(standbyCheckTimerRef.current);
+      standbyCheckTimerRef.current = null;
+    }
 
     if (isNativeAndroid()) {
       stopBackgroundBroadcast().catch((error) => {
@@ -540,17 +875,23 @@ export default function PassengerBroadcastModal({
       });
     }
 
+    const sessId = currentVehicleId || broadcastSession?.sessionId;
+    const bId = broadcasterIdRef.current;
+    if (sessId && bId) {
+      broadcastLeave(sessId, bId).catch(console.error);
+    }
+
     try {
       localStorage.removeItem('transit_broadcast_id');
     } catch (e) {}
 
-    if (broadcastSession?.sessionId) {
-      removeLiveLocation(broadcastSession.sessionId).catch(console.error);
-    }
-
     setBackgroundLocationEnabled(false);
     setIsBroadcasting(false);
+    setBroadcasterRole('OFF');
+    setCurrentVehicleId('');
     setBroadcastSession(null);
+    directionAnchorRef.current = null;
+    directionStreakRef.current = 0;
     setStatusMessage("Partage de position arrêté.");
   };
 
@@ -625,13 +966,24 @@ export default function PassengerBroadcastModal({
           
           {/* Active Broadcast Banner */}
           {isBroadcasting ? (
-            <div className="bg-emerald-500/10 border border-emerald-500/30 rounded-2xl p-4 text-center space-y-4">
-              <div className="inline-flex items-center gap-2 bg-emerald-500/20 text-emerald-300 font-bold px-3 py-1 rounded-full text-xs">
-                <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping"></span>
-                Diffusion GPS en direct active
-              </div>
+            <div className={`border rounded-2xl p-4 text-center space-y-4 ${
+              broadcasterRole === 'LEADER'
+                ? 'bg-emerald-500/10 border-emerald-500/30'
+                : 'bg-amber-500/10 border-amber-500/30'
+            }`}>
+              {broadcasterRole === 'LEADER' ? (
+                <div className="inline-flex items-center gap-2 bg-emerald-500/20 text-emerald-300 font-bold px-3 py-1 rounded-full text-xs">
+                  <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping"></span>
+                  🟢 Émetteur Principal (Direct GPS actif)
+                </div>
+              ) : (
+                <div className="inline-flex items-center gap-2 bg-amber-500/20 text-amber-300 font-bold px-3 py-1 rounded-full text-xs">
+                  <span className="w-2 h-2 rounded-full bg-amber-400 animate-pulse"></span>
+                  🟡 En Veille Active (Relais automatique prêt)
+                </div>
+              )}
               
-              <div className="flex items-center justify-around py-2 bg-slate-900/60 rounded-xl border border-emerald-500/20">
+              <div className="flex items-center justify-around py-2 bg-slate-900/60 rounded-xl border border-slate-700/60">
                 <div>
                   <div className="text-[11px] text-slate-400">Ligne active</div>
                   <div className="font-extrabold text-base text-white">{selectedLine?.short_name}</div>
@@ -654,10 +1006,36 @@ export default function PassengerBroadcastModal({
                 Direction : <strong className="text-white">{direction}</strong>
               </div>
 
-              <div className="space-y-1">
-                <p className="text-xs text-emerald-300/90 font-medium">
-                  {statusMessage || "Votre véhicule est maintenant visible sur la carte pour tous les voyageurs !"}
+              <div className="space-y-1.5">
+                <p className={`text-xs font-medium ${broadcasterRole === 'LEADER' ? 'text-emerald-300/90' : 'text-amber-300/90'}`}>
+                  {statusMessage || (broadcasterRole === 'LEADER' ? "Signal GPS diffusé en direct pour tous les voyageurs !" : "En veille active : prêt à prendre le relais")}
                 </p>
+
+                {broadcasterRole === 'LEADER' ? (
+                  <div className="p-2.5 bg-emerald-950/40 border border-emerald-500/20 rounded-xl text-[11px] text-emerald-200/90 text-left flex items-start gap-2">
+                    <Zap className="w-4 h-4 text-emerald-400 flex-shrink-0 mt-0.5" />
+                    <span>Cadence adaptative : émission toutes les 8s en route (&gt; 5 km/h) et 20s à l'arrêt pour économiser la batterie.</span>
+                  </div>
+                ) : (
+                  <div className="p-2.5 bg-amber-950/40 border border-amber-500/20 rounded-xl text-[11px] text-amber-200/90 text-left flex items-start gap-2">
+                    <ShieldCheck className="w-4 h-4 text-amber-400 flex-shrink-0 mt-0.5" />
+                    <span>Un autre voyageur émet déjà le signal sur ce véhicule. Vos données sont préservées ; en cas d'interruption, vous prendrez le relais immédiatement.</span>
+                  </div>
+                )}
+
+                {broadcasterRole === 'STANDBY' && (
+                  <div className="pt-2 border-t border-amber-500/20">
+                    <button
+                      type="button"
+                      onClick={handleForceSplitVehicle}
+                      className="w-full py-2.5 px-3 bg-amber-600/30 hover:bg-amber-600/50 border border-amber-500/40 text-amber-200 rounded-xl text-xs font-bold transition flex items-center justify-center gap-1.5 shadow-sm active:scale-95"
+                    >
+                      <span>🚌</span>
+                      <span>Vous êtes dans un autre bus juste derrière ? Cliquez pour séparer</span>
+                    </button>
+                  </div>
+                )}
+
                 {backgroundLocationEnabled && (
                   <p className="text-[11px] text-emerald-400 font-semibold">Mode arrière-plan actif sur Android</p>
                 )}
@@ -744,7 +1122,7 @@ export default function PassengerBroadcastModal({
               <div className="p-3 bg-red-950/40 rounded-2xl border border-red-500/40 text-xs text-red-200 max-w-sm mx-auto text-left flex items-start gap-2.5">
                 <ShieldCheck className="w-5 h-5 text-red-400 flex-shrink-0 mt-0.5" />
                 <p className="leading-relaxed">
-                  <strong>Sécurité anti-triche :</strong> Pour empêcher toute fausse diffusion à distance (depuis chez soi ou à 50m/100m), la diffusion est <strong>strictement réservée</strong> aux voyageurs physiquement à bord ou à l'arrêt (distance ≤ {maxAllowedDistance}m).
+                  <strong>Sécurité anti-triche :</strong> Pour empêcher toute fausse diffusion à distance (depuis chez soi ou à plus de 10m), la diffusion est <strong>strictement réservée</strong> aux voyageurs physiquement à bord ou sur la ligne (distance ≤ {maxAllowedDistance}m).
                 </p>
               </div>
 

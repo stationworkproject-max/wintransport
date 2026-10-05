@@ -13185,9 +13185,9 @@ export const STATIC_LINES = [
       {
         "id": "st-3",
         "stop_id": 3,
-        "name": "BAB SADOUN",
-        "lat": 36.809756,
-        "lon": 10.153219,
+        "name": "Bab Saadoun (Aller)",
+        "lat": 36.809207,
+        "lon": 10.157059,
         "horaires_count": 30,
         "name_fr": "Bab Saadoun (Aller)",
         "name_ar": "باب سعدون (ذهاب)"
@@ -13377,9 +13377,9 @@ export const STATIC_LINES = [
       {
         "id": "st-3",
         "stop_id": 3,
-        "name": "BAB SADOUN",
-        "lat": 36.809756,
-        "lon": 10.153219,
+        "name": "Bab Saadoun (Aller)",
+        "lat": 36.809207,
+        "lon": 10.157059,
         "horaires_count": 30,
         "name_fr": "Bab Saadoun (Aller)",
         "name_ar": "باب سعدون (ذهاب)"
@@ -13639,9 +13639,9 @@ export const STATIC_LINES = [
       {
         "id": "st-10-r",
         "stop_id": 10,
-        "name": "OMRANE SUPÉRIEUR RETOUR",
-        "lat": 36.841032,
-        "lon": 10.128381,
+        "name": "OMRANE SUPÉRIEUR (Retour)",
+        "lat": 36.830138,
+        "lon": 10.125575,
         "horaires_count": 30,
         "name_fr": "OMRANE SUPÉRIEUR (Retour)",
         "name_ar": "العمران الأعلى (إياب)"
@@ -13650,8 +13650,8 @@ export const STATIC_LINES = [
         "id": "st-11-r",
         "stop_id": 11,
         "name": "ETTAHRIR SUPÉRIEUR",
-        "lat": 36.827072,
-        "lon": 10.131281,
+        "lat": 36.827527,
+        "lon": 10.131433,
         "horaires_count": 30,
         "name_fr": "ETTAHRIR SUPÉRIEUR",
         "name_ar": "حي التحرير"

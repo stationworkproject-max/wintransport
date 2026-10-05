@@ -123,6 +123,33 @@ public class BackgroundBroadcastService extends Service {
         stopLocationUpdates();
         running = false;
 
+        final String sId = sessionId;
+        final String sUrl = supabaseUrl;
+        final String sKey = supabaseAnonKey;
+        if (sId != null && sUrl != null && sKey != null) {
+            new Thread(() -> {
+                try {
+                    JSONObject leavePayload = new JSONObject();
+                    leavePayload.put("p_vehicle_id", sId);
+                    leavePayload.put("p_broadcaster_id", sId);
+                    URL url = new URL(sUrl + "/rest/v1/rpc/broadcast_leave");
+                    HttpURLConnection conn = (HttpURLConnection) url.openConnection();
+                    conn.setRequestMethod("POST");
+                    conn.setConnectTimeout(3000);
+                    conn.setReadTimeout(3000);
+                    conn.setDoOutput(true);
+                    conn.setRequestProperty("Content-Type", "application/json");
+                    conn.setRequestProperty("apikey", sKey);
+                    conn.setRequestProperty("Authorization", "Bearer " + sKey);
+                    byte[] b = leavePayload.toString().getBytes(StandardCharsets.UTF_8);
+                    conn.setFixedLengthStreamingMode(b.length);
+                    try (OutputStream os = conn.getOutputStream()) { os.write(b); }
+                    conn.getResponseCode();
+                    conn.disconnect();
+                } catch (Exception ignored) {}
+            }).start();
+        }
+
         if (networkExecutor != null) {
             networkExecutor.shutdownNow();
         }
@@ -193,32 +220,33 @@ public class BackgroundBroadcastService extends Service {
         final double heading = location.hasBearing() ? location.getBearing() : 0d;
         final int speedKmh = location.hasSpeed() ? Math.max(0, Math.round(location.getSpeed() * 3.6f)) : 0;
         final String vehicleLabel = ((lineShortName != null && !lineShortName.isEmpty()) ? lineShortName : "Ligne") + " (Signal direct)";
+        final int dirInt = "1".equals(direction) ? 1 : 0;
 
         networkExecutor.execute(() -> {
             HttpURLConnection connection = null;
             try {
+                // High-scale unlogged RPC lease payload
                 JSONObject payload = new JSONObject();
-                payload.put("id", sessionId);
-                payload.put("line_id", lineId);
-                payload.put("direction", direction);
-                payload.put("vehicle_label", vehicleLabel);
-                payload.put("latitude", latitude);
-                payload.put("longitude", longitude);
-                payload.put("heading", heading);
-                payload.put("speed_kmh", speedKmh);
-                payload.put("passenger_count", 1);
-                payload.put("is_simulated", false);
+                payload.put("p_vehicle_id", sessionId);
+                payload.put("p_route_id", lineId);
+                payload.put("p_line_name", lineShortName != null ? lineShortName : "");
+                payload.put("p_direction", dirInt);
+                payload.put("p_direction_name", direction != null ? direction : "");
+                payload.put("p_lat", latitude);
+                payload.put("p_lon", longitude);
+                payload.put("p_speed", speedKmh);
+                payload.put("p_bearing", heading);
+                payload.put("p_broadcaster_id", sessionId);
 
-                URL url = new URL(supabaseUrl + "/rest/v1/transit_live_locations");
+                URL url = new URL(supabaseUrl + "/rest/v1/rpc/broadcast_ping");
                 connection = (HttpURLConnection) url.openConnection();
                 connection.setRequestMethod("POST");
-                connection.setConnectTimeout(12000);
-                connection.setReadTimeout(12000);
+                connection.setConnectTimeout(8000);
+                connection.setReadTimeout(8000);
                 connection.setDoOutput(true);
                 connection.setRequestProperty("Content-Type", "application/json");
                 connection.setRequestProperty("apikey", supabaseAnonKey);
                 connection.setRequestProperty("Authorization", "Bearer " + supabaseAnonKey);
-                connection.setRequestProperty("Prefer", "resolution=merge-duplicates,return=minimal");
 
                 byte[] body = payload.toString().getBytes(StandardCharsets.UTF_8);
                 connection.setFixedLengthStreamingMode(body.length);
@@ -227,8 +255,38 @@ public class BackgroundBroadcastService extends Service {
                 }
 
                 int code = connection.getResponseCode();
-                if (code >= 400) {
-                    Log.e(TAG, "Supabase push failed with HTTP " + code);
+                if (code == 404) {
+                    // Fallback to legacy table if RPC is not yet created
+                    if (connection != null) connection.disconnect();
+                    JSONObject legPayload = new JSONObject();
+                    legPayload.put("id", sessionId);
+                    legPayload.put("line_id", lineId);
+                    legPayload.put("direction", direction);
+                    legPayload.put("vehicle_label", vehicleLabel);
+                    legPayload.put("latitude", latitude);
+                    legPayload.put("longitude", longitude);
+                    legPayload.put("heading", heading);
+                    legPayload.put("speed_kmh", speedKmh);
+                    legPayload.put("passenger_count", 1);
+                    legPayload.put("is_simulated", false);
+
+                    URL legUrl = new URL(supabaseUrl + "/rest/v1/transit_live_locations");
+                    connection = (HttpURLConnection) legUrl.openConnection();
+                    connection.setRequestMethod("POST");
+                    connection.setConnectTimeout(8000);
+                    connection.setReadTimeout(8000);
+                    connection.setDoOutput(true);
+                    connection.setRequestProperty("Content-Type", "application/json");
+                    connection.setRequestProperty("apikey", supabaseAnonKey);
+                    connection.setRequestProperty("Authorization", "Bearer " + supabaseAnonKey);
+                    connection.setRequestProperty("Prefer", "resolution=merge-duplicates,return=minimal");
+
+                    byte[] legBody = legPayload.toString().getBytes(StandardCharsets.UTF_8);
+                    connection.setFixedLengthStreamingMode(legBody.length);
+                    try (OutputStream outputStream = connection.getOutputStream()) {
+                        outputStream.write(legBody);
+                    }
+                    connection.getResponseCode();
                 }
             } catch (Exception e) {
                 Log.e(TAG, "Failed to publish background location", e);

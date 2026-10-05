@@ -4,31 +4,36 @@
 
 :root {
   --font-sans: 'DM Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-  --sat: env(safe-area-inset-top, 0px);
-  --sab: env(safe-area-inset-bottom, 0px);
-  --sal: env(safe-area-inset-left, 0px);
-  --sar: env(safe-area-inset-right, 0px);
 }
 
-body {
+html, body {
+  margin: 0;
+  padding: 0;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
   font-family: var(--font-sans);
+  -webkit-tap-highlight-color: transparent;
+  user-select: none;
+}
+
+html.dark body {
   background-color: #0b1120;
   color: #f8fafc;
-  overflow-x: hidden;
-  user-select: none;
-  -webkit-tap-highlight-color: transparent;
-  padding-top: var(--sat);
-  padding-bottom: var(--sab);
-  padding-left: var(--sal);
-  padding-right: var(--sar);
 }
 
+html.light body {
+  background-color: #f8fafc;
+  color: #0f172a;
+}
+
+/* Safe area utilities */
 .safe-top-padding {
   padding-top: max(env(safe-area-inset-top, 0px), 8px);
 }
 
 .safe-bottom-padding {
-  padding-bottom: max(env(safe-area-inset-bottom, 0px), 12px);
+  padding-bottom: max(env(safe-area-inset-bottom, 0px), 10px);
 }
 
 /* Custom scrollbars */
@@ -37,36 +42,61 @@ body {
   height: 6px;
 }
 ::-webkit-scrollbar-track {
-  background: rgba(15, 23, 42, 0.6);
+  background: rgba(15, 23, 42, 0.4);
 }
 ::-webkit-scrollbar-thumb {
-  background: rgba(51, 65, 85, 0.8);
+  background: rgba(51, 65, 85, 0.7);
   border-radius: 9999px;
 }
 ::-webkit-scrollbar-thumb:hover {
   background: rgba(71, 85, 105, 1);
 }
 
-/* Glassmorphism helpers */
-.glass-panel {
-  background: rgba(15, 23, 42, 0.82);
+/* Glassmorphism helpers - Dark Mode */
+html.dark .glass-panel {
+  background: rgba(15, 23, 42, 0.88);
   backdrop-filter: blur(16px);
   -webkit-backdrop-filter: blur(16px);
   border: 1px solid rgba(255, 255, 255, 0.08);
 }
 
-.glass-panel-light {
-  background: rgba(30, 41, 59, 0.7);
+html.dark .glass-panel-light {
+  background: rgba(30, 41, 59, 0.75);
   backdrop-filter: blur(12px);
   -webkit-backdrop-filter: blur(12px);
   border: 1px solid rgba(255, 255, 255, 0.06);
 }
 
+/* Glassmorphism helpers - Light Mode */
+html.light .glass-panel {
+  background: rgba(255, 255, 255, 0.92);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  box-shadow: 0 4px 20px -2px rgba(0, 0, 0, 0.06);
+}
+
+html.light .glass-panel-light {
+  background: rgba(241, 245, 249, 0.85);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(0, 0, 0, 0.06);
+}
+
 /* Leaflet Overrides */
-.leaflet-container {
+html.dark .leaflet-container {
   width: 100%;
   height: 100%;
   background: #0b1120 !important;
+  font-family: var(--font-sans);
+  -webkit-transform: translate3d(0, 0, 0);
+  transform: translate3d(0, 0, 0);
+}
+
+html.light .leaflet-container {
+  width: 100%;
+  height: 100%;
+  background: #e2e8f0 !important;
   font-family: var(--font-sans);
   -webkit-transform: translate3d(0, 0, 0);
   transform: translate3d(0, 0, 0);
@@ -124,8 +154,24 @@ body {
   right: 8px !important;
 }
 
+/* Light Mode Leaflet Tooltip & Popup */
+html.light .leaflet-popup-content-wrapper {
+  background: rgba(255, 255, 255, 0.96) !important;
+  color: #0f172a !important;
+  border: 1px solid rgba(0, 0, 0, 0.1) !important;
+  box-shadow: 0 12px 36px rgba(0, 0, 0, 0.12) !important;
+}
+
+html.light .leaflet-popup-tip {
+  background: rgba(255, 255, 255, 0.96) !important;
+}
+
+html.light .leaflet-popup-close-button {
+  color: #64748b !important;
+}
+
 .station-label {
-  background: rgba(15, 23, 42, 0.85) !important;
+  background: rgba(15, 23, 42, 0.88) !important;
   backdrop-filter: blur(8px) !important;
   color: #e2e8f0 !important;
   border: 1px solid rgba(255, 255, 255, 0.1) !important;
@@ -138,4 +184,18 @@ body {
 
 .station-label::before {
   display: none !important;
+}
+
+html.light .station-label {
+  background: rgba(255, 255, 255, 0.92) !important;
+  color: #0f172a !important;
+  border: 1px solid rgba(0, 0, 0, 0.1) !important;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08) !important;
+}
+
+/* Ensure Leaflet controls clear mobile bottom nav */
+@media (max-width: 768px) {
+  .leaflet-bottom {
+    bottom: calc(env(safe-area-inset-bottom, 0px) + 5rem) !important;
+  }
 }
