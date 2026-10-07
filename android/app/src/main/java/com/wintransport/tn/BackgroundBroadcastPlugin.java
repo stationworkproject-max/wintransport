@@ -87,4 +87,14 @@ public class BackgroundBroadcastPlugin extends Plugin {
         result.put("running", BackgroundBroadcastService.isRunning());
         call.resolve(result);
     }
+
+    @PluginMethod
+    public void getStatus(PluginCall call) {
+        JSObject result = new JSObject();
+        result.put("running", BackgroundBroadcastService.isRunning());
+        result.put("speed", BackgroundBroadcastService.getLastSpeed());
+        result.put("latitude", BackgroundBroadcastService.getLastLatitude());
+        result.put("longitude", BackgroundBroadcastService.getLastLongitude());
+        call.resolve(result);
+    }
 }

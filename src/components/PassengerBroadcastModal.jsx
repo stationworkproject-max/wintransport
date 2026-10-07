@@ -22,7 +22,7 @@ import {
   SUPABASE_URL, 
   SUPABASE_ANON_KEY 
 } from '../supabase';
-import { isNativeAndroid, startBackgroundBroadcast, stopBackgroundBroadcast, isBackgroundBroadcastRunning } from '../native/backgroundBroadcast';
+import { isNativeAndroid, startBackgroundBroadcast, stopBackgroundBroadcast, isBackgroundBroadcastRunning, getBackgroundBroadcastStatus } from '../native/backgroundBroadcast';
 import { getLineName, getLineShortName } from '../utils/i18n';
 export default function PassengerBroadcastModal({
   isOpen,
@@ -47,6 +47,8 @@ export default function PassengerBroadcastModal({
   const [broadcasterRole, setBroadcasterRole] = useState(broadcastSession?.role || 'OFF'); // 'OFF' | 'LEADER' | 'STANDBY'
   const [currentVehicleId, setCurrentVehicleId] = useState(broadcastSession?.sessionId || '');
   
+  const currentVehicleIdRef = useRef(broadcastSession?.sessionId || '');
+  const broadcasterRoleRef = useRef(broadcastSession?.role || 'OFF');
   const watchIdRef = useRef(null);
   const lastPosRef = useRef(null);
   const latestPosRef = useRef(null);
@@ -55,6 +57,49 @@ export default function PassengerBroadcastModal({
   const standbyCheckTimerRef = useRef(null);
   const directionAnchorRef = useRef(null);
   const directionStreakRef = useRef(0);
+
+  // Keep refs in lockstep with state
+  useEffect(() => {
+    currentVehicleIdRef.current = currentVehicleId;
+  }, [currentVehicleId]);
+
+  useEffect(() => {
+    broadcasterRoleRef.current = broadcasterRole;
+  }, [broadcasterRole]);
+
+  // Continuously sync vehicle speed from user GPS location
+  useEffect(() => {
+    if (userLocation?.speed !== undefined && userLocation?.speed !== null) {
+      const spd = Math.max(0, Math.round(userLocation.speed));
+      setCurrentSpeed(spd);
+    }
+  }, [userLocation?.speed]);
+
+  // Synchronize speed & latest position when reopening modal or waking from screen off
+  useEffect(() => {
+    if (isBroadcasting) {
+      if (userLocation?.speed !== undefined && userLocation?.speed !== null) {
+        setCurrentSpeed(Math.max(0, Math.round(userLocation.speed)));
+      }
+      if (!latestPosRef.current && userLocation) {
+        latestPosRef.current = {
+          lat: userLocation.lat,
+          lon: userLocation.lon,
+          speed: userLocation.speed || 0,
+          heading: userLocation.heading || 0,
+          accuracy: userLocation.accuracy || 10,
+          time: Date.now()
+        };
+      }
+      if (isNativeAndroid()) {
+        getBackgroundBroadcastStatus().then(st => {
+          if (st?.speed && st.speed > 0) {
+            setCurrentSpeed(Math.round(st.speed));
+          }
+        }).catch(() => {});
+      }
+    }
+  }, [isBroadcasting, isOpen]);
 
   // Initialize or restore persistent unique client device identifier
   useEffect(() => {
@@ -797,14 +842,11 @@ export default function PassengerBroadcastModal({
                   setDirection(correctedDirName);
                   directionStreakRef.current = 0;
 
-                  const oldId = currentVehicleId;
-                  const newId = `veh_${selectedLineId}_d${inferredDir}_${Math.random().toString(36).substring(2, 8)}`;
-                  setCurrentVehicleId(newId);
-                  try { localStorage.setItem('transit_broadcast_id', newId); } catch (e) {}
-
-                  if (broadcasterRole === 'LEADER') {
+                  // Update the SAME vehicle in-place! Never create a duplicate vehicle!
+                  const activeVehId = currentVehicleIdRef.current;
+                  if (activeVehId && broadcasterRoleRef.current === 'LEADER') {
                     broadcastPing({
-                      vehicleId: newId,
+                      vehicleId: activeVehId,
                       routeId: selectedLineId,
                       lineName: selectedLine.short_name || 'Ligne',
                       networkType: selectedLine.type_id || 'bus',
@@ -816,11 +858,27 @@ export default function PassengerBroadcastModal({
                       bearing: pos.coords.heading || 0,
                       broadcasterId: broadcasterIdRef.current,
                     }).catch(console.error);
-
-                    if (oldId) {
-                      broadcastLeave(oldId, broadcasterIdRef.current).catch(console.error);
-                    }
                   }
+
+                  // If on Android, also notify native background service of updated direction
+                  if (isNativeAndroid() && activeVehId) {
+                    startBackgroundBroadcast({
+                      sessionId: activeVehId,
+                      lineId: selectedLineId,
+                      direction: correctedDirName,
+                      directionIndex: inferredDir,
+                      networkType: selectedLine.type_id,
+                      lineShortName: selectedLine.short_name || 'Ligne',
+                      supabaseUrl: SUPABASE_URL,
+                      supabaseAnonKey: SUPABASE_ANON_KEY,
+                    }).catch(console.error);
+                  }
+
+                  setBroadcastSession(prev => prev ? {
+                    ...prev,
+                    direction: correctedDirName,
+                    directionIndex: inferredDir
+                  } : null);
 
                   setStatusMessage(
                     `🧭 Direction inversée automatiquement : Déplacement détecté vers ${correctedDirName} (${inferredDir === 0 ? 'Sens Aller ➡️' : 'Sens Retour ⬅️'})`
@@ -930,6 +988,10 @@ export default function PassengerBroadcastModal({
     }
   };
 
+  const displaySpeed = currentSpeed > 0
+    ? currentSpeed
+    : (userLocation?.speed ? Math.max(0, Math.round(userLocation.speed)) : 0);
+
   if (!isOpen) return null;
 
   return (
@@ -991,7 +1053,7 @@ export default function PassengerBroadcastModal({
                 <div className="w-px h-8 bg-slate-800"></div>
                 <div>
                   <div className="text-[11px] text-slate-400">Vitesse</div>
-                  <div className="font-extrabold text-base text-emerald-400">{currentSpeed} km/h</div>
+                  <div className="font-extrabold text-base text-emerald-400">{displaySpeed} km/h</div>
                 </div>
                 <div className="w-px h-8 bg-slate-800"></div>
                 <div>

@@ -25,6 +25,7 @@ CREATE UNLOGGED TABLE public.live_vehicles (
     speed DOUBLE PRECISION NOT NULL DEFAULT 0.0,
     bearing DOUBLE PRECISION NOT NULL DEFAULT 0.0,
     active_broadcaster_id TEXT NOT NULL,
+    broadcaster_queue TEXT[] NOT NULL DEFAULT ARRAY[]::TEXT[],
     passenger_count INT NOT NULL DEFAULT 1,
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
@@ -57,9 +58,10 @@ WHERE updated_at > NOW() - INTERVAL '30 seconds';
 CREATE OR REPLACE VIEW public.active_vehicles AS
 SELECT * FROM public.active_buses;
 
--- 5. ATOMIC BROADCASTER CONSENSUS LEASE MANAGEMENT RPC
--- Only 1 passenger broadcasts GPS per vehicle.
--- Standby passengers don't write. If leader stops > 15s, standby takes over.
+-- 5. ATOMIC BROADCASTER CONSENSUS LEASE MANAGEMENT RPC (STRICT FIFO)
+-- 1 passenger acts as Leader and broadcasts GPS per vehicle.
+-- Standby passengers register in a First-In-First-Out (FIFO) queue.
+-- If the leader leaves or stops > 15s, the next passenger in queue is promoted to Leader.
 CREATE OR REPLACE FUNCTION public.broadcast_ping(
     p_vehicle_id TEXT,
     p_route_id TEXT,
@@ -80,6 +82,8 @@ AS $$
 DECLARE
     v_record RECORD;
     v_is_leader BOOLEAN := false;
+    v_queue TEXT[];
+    v_pos INT := 0;
 BEGIN
     -- Check if vehicle exists
     SELECT * INTO v_record
@@ -87,7 +91,8 @@ BEGIN
     WHERE vehicle_id = p_vehicle_id;
 
     IF NOT FOUND THEN
-        -- New vehicle instance -> Caller becomes the active LEADER
+        -- New vehicle instance -> Caller becomes the active LEADER (FIFO head)
+        v_queue := ARRAY[p_broadcaster_id];
         INSERT INTO public.live_vehicles (
             vehicle_id,
             route_id,
@@ -100,6 +105,7 @@ BEGIN
             speed,
             bearing,
             active_broadcaster_id,
+            broadcaster_queue,
             passenger_count,
             created_at,
             updated_at
@@ -115,47 +121,79 @@ BEGIN
             COALESCE(p_speed, 0.0),
             COALESCE(p_bearing, 0.0),
             p_broadcaster_id,
+            v_queue,
             1,
             NOW(),
             NOW()
         );
         v_is_leader := true;
+        v_pos := 0;
     ELSE
-        -- Vehicle exists: check if caller is already leader OR leader timed out (>15s lease)
+        -- Maintain FIFO queue of unique broadcasters on this vehicle
+        v_queue := COALESCE(v_record.broadcaster_queue, ARRAY[]::TEXT[]);
+        IF NOT (p_broadcaster_id = ANY(v_queue)) THEN
+            v_queue := array_append(v_queue, p_broadcaster_id);
+        END IF;
+
+        -- Leader election logic:
+        -- Caller is leader IF:
+        -- 1) Caller is already current active broadcaster, OR
+        -- 2) Active broadcaster lease timed out (> 15s) and caller is at head of FIFO queue
         IF v_record.active_broadcaster_id = p_broadcaster_id OR v_record.updated_at < NOW() - INTERVAL '15 seconds' THEN
+            -- Promote caller as active leader at head of queue
+            IF array_length(v_queue, 1) > 0 AND v_queue[1] <> p_broadcaster_id THEN
+                v_queue := array_prepend(p_broadcaster_id, array_remove(v_queue, p_broadcaster_id));
+            END IF;
+
             UPDATE public.live_vehicles
             SET
                 latitude = p_lat,
                 longitude = p_lon,
                 speed = COALESCE(p_speed, 0.0),
                 bearing = COALESCE(p_bearing, 0.0),
+                direction = COALESCE(p_direction, direction),
+                direction_name = COALESCE(p_direction_name, direction_name),
+                line_name = COALESCE(NULLIF(p_line_name, ''), line_name),
                 active_broadcaster_id = p_broadcaster_id,
-                passenger_count = GREATEST(1, v_record.passenger_count),
+                broadcaster_queue = v_queue,
+                passenger_count = GREATEST(1, array_length(v_queue, 1)),
                 updated_at = NOW()
             WHERE vehicle_id = p_vehicle_id;
             v_is_leader := true;
+            v_pos := 0;
         ELSE
-            -- Current leader is alive (<15s lease). Caller is STANDBY.
-            -- Keep vehicle alive and reflect crowd presence without heavy writes.
+            -- Current leader is alive (< 15s). Caller is STANDBY in FIFO queue.
+            -- Determine queue position (1-based: 1 = next in line)
+            FOR i IN 1..array_length(v_queue, 1) LOOP
+                IF v_queue[i] = p_broadcaster_id THEN
+                    v_pos := i - 1;
+                    EXIT;
+                END IF;
+            END LOOP;
+
             UPDATE public.live_vehicles
-            SET passenger_count = GREATEST(v_record.passenger_count, 1)
+            SET
+                broadcaster_queue = v_queue,
+                passenger_count = GREATEST(v_record.passenger_count, array_length(v_queue, 1))
             WHERE vehicle_id = p_vehicle_id;
             v_is_leader := false;
         END IF;
     END IF;
 
-    -- Opportunistic auto-purge of dead records (>90s stale) to guarantee table stays small
-    DELETE FROM public.live_vehicles WHERE updated_at < NOW() - INTERVAL '90 seconds';
+    -- Opportunistic auto-purge of dead records (> 45s stale)
+    DELETE FROM public.live_vehicles WHERE updated_at < NOW() - INTERVAL '45 seconds';
 
     RETURN jsonb_build_object(
         'vehicle_id', p_vehicle_id,
         'is_leader', v_is_leader,
+        'queue_position', v_pos,
+        'passenger_count', GREATEST(1, COALESCE(array_length(v_queue, 1), 1)),
         'timestamp', NOW()
     );
 END;
 $$;
 
--- 6. BROADCAST LEAVE RPC (Graceful departure when passenger stops or leaves)
+-- 6. BROADCAST LEAVE RPC (Graceful departure with immediate FIFO promotion)
 CREATE OR REPLACE FUNCTION public.broadcast_leave(
     p_vehicle_id TEXT,
     p_broadcaster_id TEXT
@@ -164,17 +202,34 @@ RETURNS VOID
 LANGUAGE plpgsql
 SECURITY DEFINER
 AS $$
+DECLARE
+    v_record RECORD;
+    v_queue TEXT[];
+    v_new_leader TEXT := NULL;
 BEGIN
-    -- If the active broadcaster leaves, expire the lease immediately so standby passengers can take over instantly
-    UPDATE public.live_vehicles
-    SET
-        updated_at = NOW() - INTERVAL '20 seconds',
-        passenger_count = GREATEST(0, passenger_count - 1)
-    WHERE vehicle_id = p_vehicle_id AND active_broadcaster_id = p_broadcaster_id;
+    SELECT * INTO v_record
+    FROM public.live_vehicles
+    WHERE vehicle_id = p_vehicle_id;
 
-    -- Delete if no passengers or stale
-    DELETE FROM public.live_vehicles
-    WHERE vehicle_id = p_vehicle_id AND (passenger_count <= 0 OR updated_at < NOW() - INTERVAL '45 seconds');
+    IF FOUND THEN
+        -- Remove caller from FIFO queue
+        v_queue := array_remove(COALESCE(v_record.broadcaster_queue, ARRAY[]::TEXT[]), p_broadcaster_id);
+
+        IF array_length(v_queue, 1) IS NULL OR array_length(v_queue, 1) = 0 THEN
+            -- No more broadcasters on this vehicle -> Delete immediately! Zero ghost vehicle!
+            DELETE FROM public.live_vehicles WHERE vehicle_id = p_vehicle_id;
+        ELSE
+            -- Promote next passenger in FIFO queue to be the new leader!
+            v_new_leader := v_queue[1];
+            UPDATE public.live_vehicles
+            SET
+                active_broadcaster_id = v_new_leader,
+                broadcaster_queue = v_queue,
+                passenger_count = array_length(v_queue, 1),
+                updated_at = NOW()
+            WHERE vehicle_id = p_vehicle_id;
+        END IF;
+    END IF;
 END;
 $$;
 

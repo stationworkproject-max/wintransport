@@ -44,8 +44,28 @@ public class BackgroundBroadcastService extends Service {
 
     private static final String TAG = "BgBroadcastService";
     private static final String CHANNEL_ID = "bg_broadcast_location";
-    private static final int NOTIFICATION_ID = 48211;
     private static volatile boolean running = false;
+    private static volatile int lastSpeedKmh = 0;
+    private static volatile double lastLatitude = 0.0;
+    private static volatile double lastLongitude = 0.0;
+
+    public static boolean isRunning() {
+        return running;
+    }
+
+    public static int getLastSpeed() {
+        return lastSpeedKmh;
+    }
+
+    public static double getLastLatitude() {
+        return lastLatitude;
+    }
+
+    public static double getLastLongitude() {
+        return lastLongitude;
+    }
+
+    private static final int NOTIFICATION_ID = 48211;
 
     private LocationManager locationManager;
     private ExecutorService networkExecutor;
@@ -58,10 +78,6 @@ public class BackgroundBroadcastService extends Service {
     private String supabaseAnonKey;
 
     private long lastPublishAtMs = 0L;
-
-    public static boolean isRunning() {
-        return running;
-    }
 
     private final LocationListener locationListener = new LocationListener() {
         @Override
@@ -219,6 +235,9 @@ public class BackgroundBroadcastService extends Service {
         final double longitude = location.getLongitude();
         final double heading = location.hasBearing() ? location.getBearing() : 0d;
         final int speedKmh = location.hasSpeed() ? Math.max(0, Math.round(location.getSpeed() * 3.6f)) : 0;
+        lastLatitude = latitude;
+        lastLongitude = longitude;
+        lastSpeedKmh = speedKmh;
         final String vehicleLabel = ((lineShortName != null && !lineShortName.isEmpty()) ? lineShortName : "Ligne") + " (Signal direct)";
         final int dirInt = "1".equals(direction) ? 1 : 0;
 

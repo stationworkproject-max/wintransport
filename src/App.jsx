@@ -258,9 +258,20 @@ export default function App() {
       window.addEventListener('pagehide', handleUnload);
     }
 
+    const handleVisibility = () => {
+      if (typeof document !== 'undefined' && !document.hidden) {
+        requestUserGps();
+        fetchLiveLocations((viewers) => {
+          if (viewers > 0) setLiveViewersCount(viewers);
+        }).then(setLiveLocations);
+      }
+    };
+    document.addEventListener('visibilitychange', handleVisibility);
+
     return () => {
       unsubscribe();
       clearInterval(livenessTimer);
+      document.removeEventListener('visibilitychange', handleVisibility);
       if (useUnloadCleanup) {
         window.removeEventListener('beforeunload', handleUnload);
         window.removeEventListener('pagehide', handleUnload);
@@ -532,7 +543,7 @@ export default function App() {
         )}
 
         {/* Passenger Broadcast Modal ("Je suis à bord") */}
-        {isBroadcastOpen && (
+        {(isBroadcastOpen || isBroadcasting) && (
           <PassengerBroadcastModal
             isOpen={isBroadcastOpen}
             onClose={() => setIsBroadcastOpen(false)}

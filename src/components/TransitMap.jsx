@@ -734,7 +734,7 @@ function TransitMap({
               <div class="absolute -top-1 -right-1 text-[10px] bg-slate-900 rounded-full w-4 h-4 flex items-center justify-center border border-slate-700 shadow">${typeEmoji}</div>
             </div>
             <div class="absolute -bottom-1 bg-slate-900/95 text-emerald-400 font-bold text-[9px] px-1.5 py-0.2 rounded-full border border-slate-700 shadow flex items-center gap-0.5">
-              <span>${loc.speed_kmh || 0} km/h</span>
+              <span class="veh-speed-val">${loc.speed_kmh || 0} km/h</span>
             </div>
           </div>
         `;
@@ -765,6 +765,14 @@ function TransitMap({
           </div>
         `;
 
+        const vehicleIcon = L.divIcon({
+          html: iconHtml,
+          className: 'vehicle-marker',
+          iconSize: [46, 46],
+          iconAnchor: [23, 23],
+          popupAnchor: [0, -23],
+        });
+
         if (vehicleMarkersRef.current[loc.id]) {
           // Existing marker: update target position and reset Lerp only if vehicle moved
           const marker = vehicleMarkersRef.current[loc.id];
@@ -788,20 +796,30 @@ function TransitMap({
               completed: false,
             };
           }
+
+          // Dynamically update speed badge and direction on existing marker
+          const el = marker.getElement();
+          if (el) {
+            const speedEl = el.querySelector('.veh-speed-val');
+            if (speedEl) {
+              speedEl.textContent = `${loc.speed_kmh || 0} km/h`;
+            }
+          }
+
+          // If direction or line changed, refresh icon
+          if (marker._lastDirection !== loc.direction) {
+            marker.setIcon(vehicleIcon);
+            marker._lastDirection = loc.direction;
+          }
+
           marker.setPopupContent(popupContent);
         } else {
           // New vehicle marker
-          const vehicleIcon = L.divIcon({
-            html: iconHtml,
-            className: 'vehicle-marker',
-            iconSize: [46, 46],
-            iconAnchor: [23, 23],
-            popupAnchor: [0, -23],
-          });
           const marker = L.marker([loc.latitude, loc.longitude], {
             icon: vehicleIcon,
             zIndexOffset: 1000,
           }).bindPopup(popupContent, { className: 'custom-popup' });
+          marker._lastDirection = loc.direction;
           marker.addTo(map);
           vehicleMarkersRef.current[loc.id] = marker;
 

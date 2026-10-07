@@ -27,3 +27,11 @@ export const isBackgroundBroadcastRunning = async () => {
 
   return BackgroundBroadcast.isRunning();
 };
+
+export const getBackgroundBroadcastStatus = async () => {
+  if (!isNativeAndroid()) {
+    return { supported: false, running: false, speed: 0 };
+  }
+
+  return BackgroundBroadcast.getStatus();
+};
