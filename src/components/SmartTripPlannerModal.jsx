@@ -16,6 +16,7 @@ import {
   Target
 } from 'lucide-react';
 import { STATIC_LINES } from '../data/staticTransit';
+import { getStationName, getLineName, getLineShortName } from '../utils/i18n';
 
 function getDistanceMeters(lat1, lon1, lat2, lon2) {
   if (!lat1 || !lon1 || !lat2 || !lon2) return 999999;

@@ -422,6 +422,7 @@ export default function PassengerBroadcastModal({
 
   // Backward compatible alias
   const nearbyLines = eligibleLines;
+  const maxAllowedDistance = selectedLineDistData?.threshold || nearestLine?.threshold || 55;
 
   // Auto-select nearest line ONLY when user hasn't explicitly chosen/locked a line!
   useEffect(() => {
@@ -474,15 +475,17 @@ export default function PassengerBroadcastModal({
     if (!candidate) return null;
 
     const { minD } = getDistanceToLine(userLocation.lat, userLocation.lon, candidate);
-    if (minD > maxAllowedDistance) {
+    const threshold = getCorridorThreshold(candidate, userLocation.accuracy);
+    if (minD > threshold) {
       return {
         ...candidate,
         distanceMeters: minD,
-        distanceDisplay: minD >= 1000 ? `${(minD / 1000).toFixed(1)} km` : `${minD} m`
+        distanceDisplay: minD >= 1000 ? `${(minD / 1000).toFixed(1)} km` : `${minD} m`,
+        threshold
       };
     }
     return null;
-  }, [searchQuery, userLocation, maxAllowedDistance]);
+  }, [searchQuery, userLocation]);
 
   // Timer for active broadcast session
   useEffect(() => {

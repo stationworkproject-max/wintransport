@@ -1,8 +1,7 @@
-const CACHE_NAME = 'wintransport-v1';
+const CACHE_NAME = 'wintransport-v2';
 const ASSETS_TO_CACHE = [
   '/',
-  '/index.html',
-  '/vite.svg'
+  '/index.html'
 ];
 
 self.addEventListener('install', (event) => {
