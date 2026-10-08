@@ -57,6 +57,7 @@ export default function SmartTripPlannerModal({
   userLocation,
   onRequestGps,
   onSelectLineAndStation,
+  onShowItinerary,
   liveLocations,
   language = 'fr'
 }) {
@@ -238,6 +239,7 @@ export default function SmartTripPlannerModal({
               walkToOriginMins,
               stopsCount,
               direction: directionName,
+              directionIndex: isForward ? 0 : 1,
               walkFromDropoffMeters,
               walkFromDropoffMins,
               totalWalkMeters,
@@ -505,7 +507,15 @@ export default function SmartTripPlannerModal({
                       {/* Action Button */}
                       <button
                         onClick={() => {
-                          onSelectLineAndStation(sol.line, sol.originStation);
+                          if (onShowItinerary) {
+                            onShowItinerary({
+                              ...sol,
+                              targetDestination,
+                              userLocation
+                            });
+                          } else if (onSelectLineAndStation) {
+                            onSelectLineAndStation(sol.line, sol.originStation);
+                          }
                           onClose();
                         }}
                         className="w-full py-2.5 px-3 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white rounded-xl text-xs font-bold transition flex items-center justify-center gap-1.5 shadow-md shadow-blue-500/20 active:scale-[0.99]"

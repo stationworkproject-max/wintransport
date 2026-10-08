@@ -1,8 +1,9 @@
 import React, { useState, useEffect, useRef, useMemo, memo } from 'react';
 import L from 'leaflet';
 import { STATIC_LINES } from '../data/staticTransit';
-import { Users, Navigation, Clock, ShieldCheck, AlertCircle, X, LocateFixed, Layers, Search, Compass, MapPin, Radio } from 'lucide-react';
+import { Users, Navigation, Clock, ShieldCheck, AlertCircle, X, LocateFixed, Layers, Search, Compass, MapPin, Radio, Footprints, ArrowRight, Target } from 'lucide-react';
 import { getStationName, getLineName, getLineShortName, getDirectionLabel } from '../utils/i18n';
+import { getWalkingRoute, getTransitRideSegment } from '../utils/itineraryRouter';
 
 export const GOOGLE_MAPS_API_KEY = 'AIzaSyD5AZ-rNY0NGtkFDZUyB3cwPKH3CiUit6I';
 
@@ -95,6 +96,8 @@ function TransitMap({
   gpsErrorMsg,
   onDismissGpsError,
   onOpenTripPlanner,
+  activeItinerary = null,
+  onClearItinerary,
   radarRadiusKm = 1.5,
   onUpdateRadarRadius,
   language = 'fr',
@@ -106,6 +109,9 @@ function TransitMap({
   const tileLayerRef = useRef(null);
   const lineLayersRef = useRef({});
   const stationLayersRef = useRef({});
+  const itineraryLayersRef = useRef([]);
+  const activeItineraryRef = useRef(activeItinerary);
+  activeItineraryRef.current = activeItinerary;
   const vehicleMarkersRef = useRef({});
   const vehicleAnimRef = useRef({});
   const animFrameIdRef = useRef(null);
@@ -288,6 +294,7 @@ function TransitMap({
       setIsLayerSelectorOpen(false);
       setIsSearchDropdownOpen(false);
       if (Date.now() < ignoreMapClickUntilRef.current) return;
+      if (activeItineraryRef.current) return;
       if (onSelectLineRef.current) onSelectLineRef.current(null);
       if (onSelectStationRef.current) onSelectStationRef.current(null, null);
     });
@@ -475,8 +482,8 @@ function TransitMap({
         stationLayersRef.current[`${selectedLine.id}-${stop.id}`] = marker;
       });
 
-      // Fit map bounds smoothly to the isolated line
-      if (lineLayersRef.current[selectedLine.id]) {
+      // Fit map bounds smoothly to the isolated line (if not in active itinerary mode)
+      if (!activeItinerary && lineLayersRef.current[selectedLine.id]) {
         const bounds = lineLayersRef.current[selectedLine.id].getBounds();
         if (bounds && bounds.isValid()) {
           map.fitBounds(bounds, { 
@@ -574,7 +581,265 @@ function TransitMap({
         stationLayersRef.current[key] = stationMarker;
       });
     });
-  }, [activeNetwork, selectedLine, selectedDirection, language, transitShapes]);
+  }, [activeNetwork, selectedLine, selectedDirection, language, transitShapes, activeItinerary]);
+
+  // ── Render Active Itinerary (Pedestrian Legs + Sliced Transit Ride + Target Destination) ──
+  useEffect(() => {
+    const map = mapInstanceRef.current;
+    if (!map) return;
+
+    // Clean up previous itinerary layers
+    itineraryLayersRef.current.forEach(layer => map.removeLayer(layer));
+    itineraryLayersRef.current = [];
+
+    if (!activeItinerary) return;
+
+    let isCancelled = false;
+
+    async function loadAndDrawItinerary() {
+      const {
+        line,
+        originStation,
+        dropoffStation,
+        targetDestination,
+        directionIndex = 0
+      } = activeItinerary;
+
+      const userLoc = activeItinerary.userLocation || userLocation;
+      const startPt = userLoc && userLoc.lat && userLoc.lon ? userLoc : null;
+
+      // 1. Sliced transit ride segment along line (high-density shape)
+      const transitCoords = getTransitRideSegment(line, originStation, dropoffStation, directionIndex, transitShapes);
+
+      // 2. Fetch walking legs asynchronously (with OSRM foot routing and fallback)
+      let walkLeg1Coords = [];
+      if (startPt && originStation) {
+        walkLeg1Coords = await getWalkingRoute(startPt, originStation);
+      }
+
+      let walkLeg2Coords = [];
+      if (dropoffStation && targetDestination) {
+        walkLeg2Coords = await getWalkingRoute(dropoffStation, targetDestination);
+      }
+
+      if (isCancelled || !mapInstanceRef.current) return;
+      const currentMap = mapInstanceRef.current;
+
+      // Clear any layers if re-rendered during fetch
+      itineraryLayersRef.current.forEach(layer => currentMap.removeLayer(layer));
+      itineraryLayersRef.current = [];
+
+      const newLayers = [];
+      const allCoords = [];
+
+      // A) Leg 1: Walk to origin station (À pied)
+      if (walkLeg1Coords.length >= 2) {
+        allCoords.push(...walkLeg1Coords);
+        const glow = L.polyline(walkLeg1Coords, {
+          color: '#0284c7',
+          weight: 9,
+          opacity: 0.35,
+          lineCap: 'round',
+          lineJoin: 'round'
+        }).addTo(currentMap);
+
+        const lineDash = L.polyline(walkLeg1Coords, {
+          color: '#38bdf8',
+          weight: 4.5,
+          dashArray: '6, 8',
+          opacity: 0.95,
+          lineCap: 'round',
+          lineJoin: 'round'
+        }).addTo(currentMap);
+
+        newLayers.push(glow, lineDash);
+      }
+
+      // B) Leg 2: Transit Ride along line (from originStation to dropoffStation)
+      if (transitCoords.length >= 2) {
+        allCoords.push(...transitCoords);
+        // Outer dark casing
+        const casing = L.polyline(transitCoords, {
+          color: '#020617',
+          weight: 10,
+          opacity: 0.85,
+          lineCap: 'round',
+          lineJoin: 'round'
+        }).addTo(currentMap);
+
+        // Core line in route color
+        const mainLine = L.polyline(transitCoords, {
+          color: line?.color || '#2563eb',
+          weight: 6.5,
+          opacity: 1.0,
+          lineCap: 'round',
+          lineJoin: 'round'
+        }).addTo(currentMap);
+
+        // Direction dash pattern
+        const dashOverlay = L.polyline(transitCoords, {
+          color: '#ffffff',
+          weight: 2.5,
+          opacity: 0.55,
+          dashArray: '10, 15',
+          lineCap: 'round',
+          lineJoin: 'round'
+        }).addTo(currentMap);
+
+        newLayers.push(casing, mainLine, dashOverlay);
+      }
+
+      // C) Leg 3: Walk to final destination (À pied vers destination)
+      if (walkLeg2Coords.length >= 2) {
+        allCoords.push(...walkLeg2Coords);
+        const glow = L.polyline(walkLeg2Coords, {
+          color: '#059669',
+          weight: 9,
+          opacity: 0.35,
+          lineCap: 'round',
+          lineJoin: 'round'
+        }).addTo(currentMap);
+
+        const lineDash = L.polyline(walkLeg2Coords, {
+          color: '#10b981',
+          weight: 4.5,
+          dashArray: '6, 8',
+          opacity: 0.95,
+          lineCap: 'round',
+          lineJoin: 'round'
+        }).addTo(currentMap);
+
+        newLayers.push(glow, lineDash);
+      }
+
+      // D) Markers for Itinerary Points:
+      // 1. Start / User point
+      if (startPt) {
+        allCoords.push([startPt.lat, startPt.lon]);
+        const startIcon = L.divIcon({
+          html: `
+            <div class="relative flex items-center justify-center" style="transform: translate(-50%, -50%);">
+              <div class="w-9 h-9 rounded-full bg-blue-600 text-white flex items-center justify-center font-bold text-sm shadow-2xl border-2 border-white ring-4 ring-blue-500/40">
+                🚶
+              </div>
+            </div>
+          `,
+          className: 'itinerary-marker-start',
+          iconSize: [0, 0]
+        });
+        const m = L.marker([startPt.lat, startPt.lon], { icon: startIcon, zIndexOffset: 2500 }).addTo(currentMap);
+        m.bindTooltip(language === 'ar' ? 'نقطة الانطلاق (أنت هنا)' : 'Point de départ (Vous)', {
+          direction: 'top',
+          offset: [0, -18]
+        });
+        newLayers.push(m);
+      }
+
+      // 2. Boarding Station (Station A)
+      if (originStation) {
+        allCoords.push([originStation.lat, originStation.lon]);
+        const oName = getStationName(originStation, language);
+        const lShort = getLineShortName(line, language);
+        const boardIcon = L.divIcon({
+          html: `
+            <div class="flex flex-col items-center pointer-events-auto" style="transform: translate(-50%, -100%);">
+              <div class="px-2 py-0.5 rounded-lg text-[10px] font-black text-white shadow-2xl flex items-center gap-1 whitespace-nowrap mb-1 ring-2 ring-white" style="background-color: ${line?.color || '#2563eb'};">
+                <span>${language === 'ar' ? '1. الركوب هنا' : '1. Monter ici'}</span>
+                <span class="bg-black/40 px-1 rounded text-[9px]">${lShort}</span>
+              </div>
+              <div class="w-8 h-8 rounded-full bg-white border-2 flex items-center justify-center shadow-2xl font-bold text-sm" style="border-color: ${line?.color || '#2563eb'}; color: ${line?.color || '#2563eb'};">
+                🚏
+              </div>
+            </div>
+          `,
+          className: 'itinerary-marker-board',
+          iconSize: [0, 0]
+        });
+        const m = L.marker([originStation.lat, originStation.lon], { icon: boardIcon, zIndexOffset: 2600 }).addTo(currentMap);
+        m.bindTooltip(`<b>${language === 'ar' ? 'محطة الركوب :' : 'Station de montée :'}</b> ${oName}`, {
+          direction: 'top',
+          offset: [0, -36]
+        });
+        newLayers.push(m);
+      }
+
+      // 3. Drop-off Station (Station B)
+      if (dropoffStation) {
+        allCoords.push([dropoffStation.lat, dropoffStation.lon]);
+        const dName = getStationName(dropoffStation, language);
+        const dropIcon = L.divIcon({
+          html: `
+            <div class="flex flex-col items-center pointer-events-auto" style="transform: translate(-50%, -100%);">
+              <div class="px-2 py-0.5 rounded-lg text-[10px] font-black text-white shadow-2xl flex items-center gap-1 whitespace-nowrap mb-1 bg-amber-500 ring-2 ring-white">
+                <span>${language === 'ar' ? '2. النزول هنا' : '2. Descendre ici'}</span>
+              </div>
+              <div class="w-8 h-8 rounded-full bg-white border-2 border-amber-500 flex items-center justify-center shadow-2xl font-bold text-sm text-amber-600">
+                🏁
+              </div>
+            </div>
+          `,
+          className: 'itinerary-marker-drop',
+          iconSize: [0, 0]
+        });
+        const m = L.marker([dropoffStation.lat, dropoffStation.lon], { icon: dropIcon, zIndexOffset: 2600 }).addTo(currentMap);
+        m.bindTooltip(`<b>${language === 'ar' ? 'محطة النزول :' : 'Station de descente :'}</b> ${dName}`, {
+          direction: 'top',
+          offset: [0, -36]
+        });
+        newLayers.push(m);
+      }
+
+      // 4. Target Destination (Point B)
+      if (targetDestination) {
+        allCoords.push([targetDestination.lat, targetDestination.lon]);
+        const destIcon = L.divIcon({
+          html: `
+            <div class="flex flex-col items-center pointer-events-auto" style="transform: translate(-50%, -100%);">
+              <div class="px-2.5 py-0.5 rounded-lg text-[10px] font-black text-white shadow-2xl flex items-center gap-1 whitespace-nowrap mb-1 bg-emerald-600 ring-2 ring-white">
+                <span>${language === 'ar' ? 'الوجهة المقصودة' : 'Destination finale'}</span>
+              </div>
+              <div class="w-9 h-9 rounded-full bg-emerald-500 text-white border-2 border-white flex items-center justify-center shadow-2xl text-base font-bold ring-4 ring-emerald-500/40">
+                🎯
+              </div>
+            </div>
+          `,
+          className: 'itinerary-marker-dest',
+          iconSize: [0, 0]
+        });
+        const m = L.marker([targetDestination.lat, targetDestination.lon], { icon: destIcon, zIndexOffset: 2700 }).addTo(currentMap);
+        m.bindTooltip(`<b>${targetDestination.name}</b>`, {
+          direction: 'top',
+          offset: [0, -40]
+        });
+        newLayers.push(m);
+      }
+
+      itineraryLayersRef.current = newLayers;
+
+      // Fit map bounds to view all legs with comfortable padding
+      if (allCoords.length >= 2) {
+        const bounds = L.latLngBounds(allCoords);
+        if (bounds.isValid()) {
+          currentMap.fitBounds(bounds, {
+            paddingTopLeft: [50, 50],
+            paddingBottomRight: [50, 160], // Clearance for bottom navigation card
+            maxZoom: 16,
+            animate: true
+          });
+        }
+      }
+    }
+
+    loadAndDrawItinerary();
+
+    return () => {
+      isCancelled = true;
+      if (mapInstanceRef.current) {
+        itineraryLayersRef.current.forEach(layer => mapInstanceRef.current.removeLayer(layer));
+        itineraryLayersRef.current = [];
+      }
+    };
+  }, [activeItinerary, transitShapes, language, userLocation]);
 
   // ── High-Scale 60 FPS Lerp (Linear Interpolation) Animation Loop ──
   // Glides vehicle markers continuously across animation frames without snapping or jumps
@@ -1514,6 +1779,109 @@ function TransitMap({
           </div>
         </div>
       )}
+
+      {/* ── Active Itinerary Navigation Guidance Card ── */}
+      {activeItinerary && (
+        <div className="absolute bottom-[calc(env(safe-area-inset-bottom,0px)+5rem)] left-3 right-3 sm:left-6 sm:max-w-lg sm:right-auto z-[1040] pointer-events-auto animate-fade-in">
+          <div className={`p-3.5 sm:p-4 rounded-3xl shadow-2xl border backdrop-blur-2xl transition-all ${
+            theme === 'light'
+              ? 'bg-white/95 border-slate-200/90 text-slate-800 shadow-slate-300/60 ring-1 ring-slate-900/5'
+              : 'bg-slate-900/95 border-slate-700/80 text-white shadow-2xl ring-1 ring-white/10'
+          }`}>
+            {/* Header: Destination & Total Duration */}
+            <div className="flex items-center justify-between pb-3 border-b border-slate-200/60 dark:border-slate-800/80">
+              <div className="flex items-center gap-2.5 min-w-0">
+                <span
+                  className="w-8 h-8 rounded-xl flex items-center justify-center font-black text-xs text-white shadow-md flex-shrink-0"
+                  style={{ backgroundColor: activeItinerary.line?.color || '#2563eb' }}
+                >
+                  {getLineShortName(activeItinerary.line, language)}
+                </span>
+                <div className="min-w-0">
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-[10px] font-extrabold uppercase tracking-wider text-emerald-500">
+                      {language === 'ar' ? '🎯 الوجهة' : '🎯 Destination'}
+                    </span>
+                    <span className="text-[11px] font-bold text-slate-400">•</span>
+                    <span className="text-[11px] font-bold text-emerald-400">
+                      ~{activeItinerary.estimatedTotalMins} min
+                    </span>
+                  </div>
+                  <h4 className="font-extrabold text-sm truncate text-white">
+                    {activeItinerary.targetDestination?.name}
+                  </h4>
+                </div>
+              </div>
+
+              {onClearItinerary && (
+                <button
+                  onClick={onClearItinerary}
+                  className="p-1.5 px-2.5 rounded-xl bg-slate-100 hover:bg-rose-600 hover:text-white dark:bg-slate-800 text-slate-400 transition-all shadow flex items-center gap-1 text-[11px] font-bold active:scale-95"
+                  title={language === 'ar' ? 'إنهاء المسار' : 'Quitter l\'itinéraire'}
+                >
+                  <X className="w-3.5 h-3.5" />
+                  <span>{language === 'ar' ? 'إنهاء' : 'Quitter'}</span>
+                </button>
+              )}
+            </div>
+
+            {/* Stepped Journey Timeline */}
+            <div className="pt-3 space-y-2.5">
+              {/* Leg 1: Walk to station */}
+              <div className="flex items-start gap-2.5">
+                <div className="flex flex-col items-center">
+                  <span className="w-5 h-5 rounded-full bg-sky-500/20 text-sky-400 flex items-center justify-center text-[10px] font-extrabold flex-shrink-0">
+                    🚶
+                  </span>
+                  <div className="w-0.5 h-4 bg-sky-500/40 my-0.5"></div>
+                </div>
+                <div className="text-[11px] leading-tight pt-0.5">
+                  <span className="text-slate-400">{language === 'ar' ? 'المشي' : 'Marcher'} </span>
+                  <span className="font-bold text-sky-400">{activeItinerary.walkToOriginMeters}m</span> (~{activeItinerary.walkToOriginMins} min)
+                  <span className="text-slate-400"> {language === 'ar' ? 'إلى محطة' : 'jusqu\'à'} </span>
+                  <span className="font-bold text-white">{getStationName(activeItinerary.originStation, language)}</span>
+                </div>
+              </div>
+
+              {/* Leg 2: Transit Ride */}
+              <div className="flex items-start gap-2.5">
+                <div className="flex flex-col items-center">
+                  <span
+                    className="w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-black text-white flex-shrink-0 shadow-sm"
+                    style={{ backgroundColor: activeItinerary.line?.color || '#2563eb' }}
+                  >
+                    {getLineShortName(activeItinerary.line, language)}
+                  </span>
+                  <div className="w-0.5 h-4 bg-slate-600/40 my-0.5"></div>
+                </div>
+                <div className="text-[11px] leading-tight pt-0.5">
+                  <span className="text-slate-400">{language === 'ar' ? 'ركوب' : 'Prendre'} </span>
+                  <span className="font-bold" style={{ color: activeItinerary.line?.color || '#3b82f6' }}>
+                    {getLineName(activeItinerary.line, language)}
+                  </span>
+                  <span className="text-slate-400"> ({activeItinerary.stopsCount} {language === 'ar' ? 'محطات' : 'arrêts'}) {language === 'ar' ? 'حتى' : 'jusqu\'à'} </span>
+                  <span className="font-bold text-white">{getStationName(activeItinerary.dropoffStation, language)}</span>
+                </div>
+              </div>
+
+              {/* Leg 3: Walk to target */}
+              <div className="flex items-start gap-2.5">
+                <div className="flex flex-col items-center">
+                  <span className="w-5 h-5 rounded-full bg-emerald-500/20 text-emerald-400 flex items-center justify-center text-[10px] font-extrabold flex-shrink-0">
+                    🎯
+                  </span>
+                </div>
+                <div className="text-[11px] leading-tight pt-0.5">
+                  <span className="text-slate-400">{language === 'ar' ? 'المشي' : 'Marcher'} </span>
+                  <span className="font-bold text-emerald-400">{activeItinerary.walkFromDropoffMeters}m</span> (~{activeItinerary.walkFromDropoffMins} min)
+                  <span className="text-slate-400"> {language === 'ar' ? 'للوصول إلى' : 'pour arriver à'} </span>
+                  <span className="font-bold text-white">{activeItinerary.targetDestination?.name}</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -1527,6 +1895,7 @@ function _areMapPropsEqual(prev, next) {
     prev.activeNetwork === next.activeNetwork &&
     prev.selectedLine?.id === next.selectedLine?.id &&
     prev.selectedDirection === next.selectedDirection &&
+    prev.activeItinerary === next.activeItinerary &&
     prev.gpsStatus === next.gpsStatus &&
     prev.gpsErrorMsg === next.gpsErrorMsg &&
     prev.userLocation?.lat === next.userLocation?.lat &&

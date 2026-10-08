@@ -64,9 +64,29 @@ export default function App() {
   const [stationContextLine, setStationContextLine] = useState(null);
   const [sidebarSearch, setSidebarSearch] = useState('');
 
+  const [activeItinerary, setActiveItinerary] = useState(null);
+
   const handleSelectLine = useCallback((line) => {
+    setActiveItinerary(null);
     setSelectedLine(line);
     setSelectedDirection(0);
+  }, []);
+
+  const handleShowItinerary = useCallback((itinerary) => {
+    setActiveItinerary(itinerary);
+    setSelectedLine(itinerary.line);
+    setSelectedDirection(itinerary.directionIndex ?? 0);
+    // CRITICAL: Ensure neither StationArrivalModal nor broadcast modal opens!
+    setSelectedStation(null);
+    setStationContextLine(null);
+    setIsBroadcastOpen(false);
+    setIsScheduleDrawerOpen(false);
+    setIsTripPlannerOpen(false);
+    setActiveTab('map');
+  }, []);
+
+  const handleClearItinerary = useCallback(() => {
+    setActiveItinerary(null);
   }, []);
   
   // Modals & Drawers
@@ -471,6 +491,9 @@ export default function App() {
               gpsStatus={gpsStatus}
               gpsErrorMsg={gpsErrorMsg}
               onDismissGpsError={() => setGpsErrorMsg('')}
+              onOpenTripPlanner={() => setIsTripPlannerOpen(true)}
+              activeItinerary={activeItinerary}
+              onClearItinerary={handleClearItinerary}
               radarRadiusKm={radarRadiusKm}
               onUpdateRadarRadius={handleUpdateRadarRadius}
               language={language}
@@ -535,6 +558,7 @@ export default function App() {
             onClose={() => setIsTripPlannerOpen(false)}
             userLocation={userLocation}
             onRequestGps={requestUserGps}
+            onShowItinerary={handleShowItinerary}
             onSelectLineAndStation={(line, station) => {
               handleSelectLine(line);
               setSelectedStation(station);
