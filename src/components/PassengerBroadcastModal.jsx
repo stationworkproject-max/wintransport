@@ -32,13 +32,19 @@ export default function PassengerBroadcastModal({
   userLocation,
   broadcastSession,
   setBroadcastSession,
+  preselectedLine = null,
   onRequestGps,
   gpsStatus,
-  language = 'fr'
+  language = 'fr',
+  theme = 'dark'
 }) {
   const [selectedCategory, setSelectedCategory] = useState('all');
-  const [selectedLineId, setSelectedLineId] = useState(broadcastSession?.lineId || '');
-  const [direction, setDirection] = useState(broadcastSession?.direction || '');
+  const [selectedLineId, setSelectedLineId] = useState(
+    broadcastSession?.lineId || preselectedLine?.id || ''
+  );
+  const [direction, setDirection] = useState(
+    broadcastSession?.direction || preselectedLine?.directions?.[0] || ''
+  );
   const [searchQuery, setSearchQuery] = useState('');
   const [statusMessage, setStatusMessage] = useState('');
   const [currentSpeed, setCurrentSpeed] = useState(0);
@@ -46,6 +52,17 @@ export default function PassengerBroadcastModal({
   const [backgroundLocationEnabled, setBackgroundLocationEnabled] = useState(false);
   const [broadcasterRole, setBroadcasterRole] = useState(broadcastSession?.role || 'OFF'); // 'OFF' | 'LEADER' | 'STANDBY'
   const [currentVehicleId, setCurrentVehicleId] = useState(broadcastSession?.sessionId || '');
+
+  // 🛡️ Smart Auto-Pause & Auto-Resume State (prevents abrupt cutoff when GPS jitters or drifts)
+  const [isAutoPaused, setIsAutoPaused] = useState(false);
+  const [autoPauseReason, setAutoPauseReason] = useState(null); // 'DRIFT' | 'POOR_GPS' | null
+  const isAutoPausedRef = useRef(false);
+  const offTrackDurationRef = useRef(null);
+  const offTrackCountRef = useRef(0);
+
+  // 🔒 User-chosen line lock: NEVER auto-switch or guess other lines when user selected a line!
+  const isUserLockedRef = useRef(Boolean(broadcastSession?.lineId || preselectedLine?.id));
+  const [isUserLocked, setIsUserLocked] = useState(Boolean(broadcastSession?.lineId || preselectedLine?.id));
   
   const currentVehicleIdRef = useRef(broadcastSession?.sessionId || '');
   const broadcasterRoleRef = useRef(broadcastSession?.role || 'OFF');
@@ -58,6 +75,25 @@ export default function PassengerBroadcastModal({
   const directionAnchorRef = useRef(null);
   const directionStreakRef = useRef(0);
 
+  // Synchronize when preselectedLine or broadcastSession changes from outside
+  useEffect(() => {
+    if (broadcastSession?.lineId) {
+      setSelectedLineId(broadcastSession.lineId);
+      isUserLockedRef.current = true;
+      setIsUserLocked(true);
+      if (broadcastSession.direction) {
+        setDirection(broadcastSession.direction);
+      }
+    } else if (preselectedLine?.id && !isBroadcasting) {
+      setSelectedLineId(preselectedLine.id);
+      isUserLockedRef.current = true;
+      setIsUserLocked(true);
+      if (preselectedLine.directions && preselectedLine.directions[0]) {
+        setDirection(preselectedLine.directions[0]);
+      }
+    }
+  }, [preselectedLine?.id, broadcastSession?.lineId, isBroadcasting]);
+
   // Keep refs in lockstep with state
   useEffect(() => {
     currentVehicleIdRef.current = currentVehicleId;
@@ -66,6 +102,10 @@ export default function PassengerBroadcastModal({
   useEffect(() => {
     broadcasterRoleRef.current = broadcasterRole;
   }, [broadcasterRole]);
+
+  useEffect(() => {
+    isAutoPausedRef.current = isAutoPaused;
+  }, [isAutoPaused]);
 
   // Continuously sync vehicle speed from user GPS location
   useEffect(() => {
@@ -148,15 +188,35 @@ export default function PassengerBroadcastModal({
     return Math.round(Math.sqrt(distX * distX + distY * distY));
   };
 
+  // ── 🛡️ SMART TRANSIT CORRIDOR & DIRECTION ALIGNMENT ENGINE ──
+
+  // Dynamic Corridor Tolerance based on transit mode and physical GPS precision
+  // Trains/RFR/Metro run on wide railway rights-of-way with overhead catenary that degrades GPS
+  // Buses run on multi-lane streets with sidewalks and bus stops
+  const getCorridorThreshold = (line, accuracy = 15) => {
+    if (!line) return 45;
+    const isRail = line.type_id && ['rfr', 'train', 'metro', 'tgm'].includes(line.type_id);
+    const baseCorridor = isRail ? 55 : 35;
+    const clampedAcc = Math.max(8, Math.min(Math.round(accuracy || 15), 65));
+    return Math.max(baseCorridor, clampedAcc + 15);
+  };
+
   // Helper: Exact distance from user GPS to a transit line (checks both high-def OSM track shapes & stops)
   const getDistanceToLine = (userLat, userLon, line) => {
     if (!line) return { minD: 999999, closestStop: null };
     let minD = Infinity;
     let closestStop = null;
 
-    // 1. High-definition real physical route geometry (from OSM / QGIS)
-    const shape = TRANSIT_SHAPES[line.id];
-    if (shape && shape.length > 1) {
+    // 1. High-definition real physical route geometry (checks main shape, directional shapes, and indexed shapes)
+    const shapesToCheck = [
+      TRANSIT_SHAPES[line.id],
+      TRANSIT_SHAPES[line.id + '_aller'],
+      TRANSIT_SHAPES[line.id + '_retour'],
+      TRANSIT_SHAPES[line.id + '_0'],
+      TRANSIT_SHAPES[line.id + '_1']
+    ].filter(s => Array.isArray(s) && s.length > 1);
+
+    for (const shape of shapesToCheck) {
       for (let i = 0; i < shape.length - 1; i++) {
         const ptA = shape[i];
         const ptB = shape[i + 1];
@@ -167,44 +227,49 @@ export default function PassengerBroadcastModal({
       }
     }
 
-    // 2. Individual stops
-    if (line.stops) {
-      for (let i = 0; i < line.stops.length; i++) {
-        const s = line.stops[i];
+    // 2. Individual stops (checks all stops and directional stops)
+    const allStops = [
+      ...(line.stops || []),
+      ...(line.stops_aller || []),
+      ...(line.stops_retour || [])
+    ];
+
+    for (let i = 0; i < allStops.length; i++) {
+      const s = allStops[i];
+      if (s && s.lat && s.lon) {
         const d = getDistanceMeters(userLat, userLon, s.lat, s.lon);
         if (d < minD) {
           minD = d;
           closestStop = s;
         }
       }
+    }
 
-      // 3. Fallback segments between stops if line does not have a dedicated shape polyline
-      if (!shape) {
-        for (let i = 0; i < line.stops.length - 1; i++) {
-          const sA = line.stops[i];
-          const sB = line.stops[i + 1];
-          const dSeg = getDistanceToSegment(userLat, userLon, sA.lat, sA.lon, sB.lat, sB.lon);
-          if (dSeg < minD) {
-            minD = dSeg;
-          }
+    // 3. Fallback segments between stops if line does not have a dedicated shape polyline
+    if (shapesToCheck.length === 0 && line.stops && line.stops.length > 1) {
+      for (let i = 0; i < line.stops.length - 1; i++) {
+        const sA = line.stops[i];
+        const sB = line.stops[i + 1];
+        const dSeg = getDistanceToSegment(userLat, userLon, sA.lat, sA.lon, sB.lat, sB.lon);
+        if (dSeg < minD) {
+          minD = dSeg;
         }
       }
     }
 
-    return { minD, closestStop };
+    return { minD: Math.round(minD), closestStop };
   };
 
-  const canUseLineFromPosition = (userLat, userLon, line) => {
-    if (!line) return { allowed: false, minD: 999999 };
+  const canUseLineFromPosition = (userLat, userLon, line, accuracy = 15) => {
+    if (!line) return { allowed: false, minD: 999999, maxAllowed: 45 };
 
-    const { minD } = getDistanceToLine(userLat, userLon, line);
-    if (minD <= maxAllowedDistance) {
-      return { allowed: true, minD };
-    }
-
+    const { minD, closestStop } = getDistanceToLine(userLat, userLon, line);
+    const maxAllowed = getCorridorThreshold(line, accuracy);
     return {
-      allowed: false,
-      minD
+      allowed: minD <= maxAllowed,
+      minD,
+      maxAllowed,
+      closestStop
     };
   };
 
@@ -245,11 +310,23 @@ export default function PassengerBroadcastModal({
     const dDeltaAller = distToAllerDestCurr - distToAllerDestPrev; // Negative = approaching Aller terminus
     const dDeltaRetour = distToRetourDestCurr - distToRetourDestPrev; // Negative = approaching Retour terminus
 
+    // Compute effective motion heading
+    let effectiveHeading = (heading !== null && heading !== undefined && !isNaN(heading) && heading > 0)
+      ? heading
+      : null;
+
+    if (effectiveHeading === null) {
+      const y = Math.sin((currentLon - prevLon) * Math.PI / 180) * Math.cos(currentLat * Math.PI / 180);
+      const x = Math.cos(prevLat * Math.PI / 180) * Math.sin(currentLat * Math.PI / 180) -
+                Math.sin(prevLat * Math.PI / 180) * Math.cos(currentLat * Math.PI / 180) * Math.cos((currentLon - prevLon) * Math.PI / 180);
+      effectiveHeading = (Math.atan2(y, x) * 180 / Math.PI + 360) % 360;
+    }
+
     // Shape track bearing alignment
     const shape = TRANSIT_SHAPES[line.id + '_aller'] || TRANSIT_SHAPES[line.id];
     let headingAlignment = 0; // +1 = Aller, -1 = Retour
 
-    if (heading !== null && heading !== undefined && !isNaN(heading) && shape && shape.length >= 2) {
+    if (effectiveHeading !== null && shape && shape.length >= 2) {
       let minSegD = Infinity;
       let segIdx = 0;
       for (let i = 0; i < shape.length - 1; i++) {
@@ -262,7 +339,7 @@ export default function PassengerBroadcastModal({
         }
       }
 
-      if (minSegD <= 60) {
+      if (minSegD <= 90) {
         const pA = shape[segIdx];
         const pB = shape[segIdx + 1];
         const y = Math.sin((pB[1] - pA[1]) * Math.PI / 180) * Math.cos(pB[0] * Math.PI / 180);
@@ -270,10 +347,10 @@ export default function PassengerBroadcastModal({
                   Math.sin(pA[0] * Math.PI / 180) * Math.cos(pB[0] * Math.PI / 180) * Math.cos((pB[1] - pA[1]) * Math.PI / 180);
         const segBearingDeg = (Math.atan2(y, x) * 180 / Math.PI + 360) % 360;
 
-        const diffAngle = Math.abs(((heading - segBearingDeg) + 180) % 360 - 180);
-        if (diffAngle < 55) {
+        const diffAngle = Math.abs(((effectiveHeading - segBearingDeg) + 180) % 360 - 180);
+        if (diffAngle < 60) {
           headingAlignment = 1; // strongly Aller
-        } else if (diffAngle > 125) {
+        } else if (diffAngle > 120) {
           headingAlignment = -1; // strongly Retour
         }
       }
@@ -297,21 +374,21 @@ export default function PassengerBroadcastModal({
     return null;
   };
 
-  // SMART ANTI-SCAM THRESHOLD:
-  // Strictly no more than 10 meters based on GPS accuracy.
-  // Anyone further than 10 meters is strictly BLOCKED from diffusing.
-  const gpsAccuracy = Math.round(userLocation?.accuracy || 10);
-  const maxAllowedDistance = Math.min(10, Math.max(6, Math.round(gpsAccuracy)));
+  const gpsAccuracy = Math.round(userLocation?.accuracy || 15);
 
   // Compute exact physical distance to all lines, sorted by proximity
   const allLinesDistances = useMemo(() => {
     if (!userLocation) return [];
     const list = [];
+    const acc = userLocation.accuracy || 15;
     STATIC_LINES.forEach(line => {
       const { minD, closestStop } = getDistanceToLine(userLocation.lat, userLocation.lon, line);
+      const threshold = getCorridorThreshold(line, acc);
       list.push({
         ...line,
         distanceMeters: minD,
+        threshold,
+        isWithinCorridor: minD <= threshold,
         closestStopName: closestStop?.name || 'Arrêt'
       });
     });
@@ -319,38 +396,56 @@ export default function PassengerBroadcastModal({
   }, [userLocation]);
 
   const nearestLine = allLinesDistances[0] || null;
-  const isAtTransitLine = nearestLine && nearestLine.distanceMeters <= maxAllowedDistance;
-  const isAtTransitContext = Boolean(isAtTransitLine);
+  const selectedLine = STATIC_LINES.find(l => l.id === selectedLineId);
+  const selectedLineDistData = allLinesDistances.find(line => line.id === selectedLineId);
+  const selectedLineDistance = selectedLineDistData?.distanceMeters;
 
-  // Strictly lines where user is physically within <= maxAllowedDistance (never exceeds 10m)
+  // Context check: user is at transit if selected line is within tolerance * 2.2 OR nearest line is within tolerance
+  const isAtTransitContext = Boolean(
+    (selectedLineDistData && selectedLineDistData.distanceMeters <= selectedLineDistData.threshold * 2.2) ||
+    (nearestLine && nearestLine.distanceMeters <= nearestLine.threshold)
+  );
+
+  // Strictly lines where user is physically within their corridor threshold
   const eligibleLines = useMemo(() => {
-    if (!isAtTransitContext || !nearestLine) return [];
+    if (!userLocation) return [];
+    const list = allLinesDistances.filter(line => line.isWithinCorridor);
 
-    return allLinesDistances.filter(line => {
-      return line.distanceMeters <= maxAllowedDistance;
-    });
-  }, [allLinesDistances, isAtTransitContext, nearestLine, maxAllowedDistance]);
+    // If user has a selected line and it's reasonably close, guarantee it's in the list
+    if (selectedLineDistData && selectedLineDistData.distanceMeters <= selectedLineDistData.threshold * 2.2) {
+      if (!list.some(l => l.id === selectedLineId)) {
+        list.unshift(selectedLineDistData);
+      }
+    }
+    return list;
+  }, [allLinesDistances, selectedLineDistData, selectedLineId, userLocation]);
 
   // Backward compatible alias
   const nearbyLines = eligibleLines;
 
-  // Auto-select nearest line
+  // Auto-select nearest line ONLY when user hasn't explicitly chosen/locked a line!
   useEffect(() => {
-    if (eligibleLines.length > 0) {
-      if (!selectedLineId || !eligibleLines.some(l => l.id === selectedLineId)) {
-        setSelectedLineId(eligibleLines[0].id);
-        setDirection(eligibleLines[0].directions[0] || '');
-      }
-    } else {
-      setSelectedLineId('');
-      setDirection('');
+    if (isUserLockedRef.current && selectedLineId) {
+      // User has chosen a line (e.g. RFR, train, metro) -> NEVER automatically switch or guess other lines!
+      return;
     }
-  }, [eligibleLines]);
+    if (!selectedLineId && eligibleLines.length > 0) {
+      setSelectedLineId(eligibleLines[0].id);
+      setDirection(eligibleLines[0].directions[0] || '');
+    }
+  }, [eligibleLines, selectedLineId]);
 
-  const selectedLine = STATIC_LINES.find(l => l.id === selectedLineId);
-  const selectedLineDistance = allLinesDistances.find(line => line.id === selectedLineId)?.distanceMeters;
+  // Explicit user selection handler
+  const handleSelectLine = (line) => {
+    setSelectedLineId(line.id);
+    setIsUserLocked(true);
+    isUserLockedRef.current = true;
+    if (line.directions && line.directions.length > 0) {
+      setDirection(line.directions[0]);
+    }
+  };
 
-  // Set default direction when line changes
+  // Set default direction when line changes if not set
   useEffect(() => {
     if (selectedLine && (!direction || !selectedLine.directions.includes(direction))) {
       setDirection(selectedLine.directions[0] || '');
@@ -472,6 +567,12 @@ export default function PassengerBroadcastModal({
 
       transmissionTimerRef.current = setTimeout(async () => {
         if (isCancelled || !latestPosRef.current || !selectedLine) return;
+
+        // Skip sending ping if currently auto-paused (prevents broadcasting off-track jitter)
+        if (isAutoPausedRef.current) {
+          if (!isCancelled) scheduleNextTransmission();
+          return;
+        }
 
         try {
           const directionIndex = (selectedLine.directions && selectedLine.directions.indexOf(direction) === 1) ? 1 : 0;
@@ -658,10 +759,11 @@ export default function PassengerBroadcastModal({
       return;
     }
 
-    // Geofence validation: strict physical proximity check (<= 10m)
-    const lineAccess = canUseLineFromPosition(userLocation.lat, userLocation.lon, selectedLine);
+    // Geofence validation: dynamic corridor check (adaptive to mode & GPS accuracy)
+    const currentAcc = userLocation.accuracy || 15;
+    const lineAccess = canUseLineFromPosition(userLocation.lat, userLocation.lon, selectedLine, currentAcc);
     if (!lineAccess.allowed) {
-      alert(`Diffusion bloquée (Sécurité anti-fraude) : Vous êtes à ${lineAccess.minD}m de cette ligne. Distance autorisée: ${maxAllowedDistance}m (GPS ±${gpsAccuracy}m). Vous devez être à 10m maximum de la ligne pour diffuser.`);
+      alert(`Diffusion non disponible : Vous êtes à ${lineAccess.minD}m de cette ligne (tolérance autorisée: ${lineAccess.maxAllowed}m pour ${selectedLine.short_name}). Vous devez être physiquement à bord ou sur le tracé pour diffuser.`);
       return;
     }
 
@@ -894,11 +996,52 @@ export default function PassengerBroadcastModal({
           }
         }
 
-        // Auto-cutoff: user must remain on the transit line (within 25m accounting for vehicle turn / GPS drift)
+        // Continuous Track Alignment & Smart Auto-Pause / Auto-Resume
         const { minD: currentLineDist } = getDistanceToLine(pos.coords.latitude, pos.coords.longitude, selectedLine);
-        if (currentLineDist > Math.max(25, maxAllowedDistance * 2.5)) {
-          stopBroadcasting();
-          alert(`Diffusion arrêtée : vous vous êtes éloigné du tracé de la ligne (${currentLineDist}m).`);
+        const currentAcc = pos.coords.accuracy || 15;
+        const tolerance = getCorridorThreshold(selectedLine, currentAcc);
+
+        // Hysteresis: pause threshold at 1.8x tolerance (min 70m); resume threshold at 1.0x tolerance
+        const pauseThreshold = Math.max(70, Math.round(tolerance * 1.8));
+        const resumeThreshold = tolerance;
+
+        if (currentLineDist > pauseThreshold || currentAcc > 90) {
+          // Off-track or degraded GPS
+          if (!offTrackDurationRef.current) {
+            offTrackDurationRef.current = Date.now();
+          }
+          offTrackCountRef.current = (offTrackCountRef.current || 0) + 1;
+
+          if (!isAutoPausedRef.current) {
+            isAutoPausedRef.current = true;
+            setIsAutoPaused(true);
+            const reason = currentAcc > 90 ? 'POOR_GPS' : 'DRIFT';
+            setAutoPauseReason(reason);
+            setStatusMessage(
+              reason === 'POOR_GPS'
+                ? `⏸️ Pause automatique : Précision GPS trop faible (±${Math.round(currentAcc)}m). Reprise dès stabilisation.`
+                : `⏸️ Pause automatique : Écart temporaire de la voie (${currentLineDist}m). Reprise automatique dès retour sur le tracé.`
+            );
+          }
+
+          // Grace period: only conclude broadcast if permanently away (> 120s or > 400m)
+          const offTrackSec = (Date.now() - offTrackDurationRef.current) / 1000;
+          if (currentLineDist > 400 || offTrackSec > 120) {
+            stopBroadcasting();
+            setStatusMessage(`Diffusion terminée : Vous avez quitté le véhicule (${currentLineDist}m).`);
+          }
+          return; // Skip direction checks and DO NOT send pings while off-track
+        } else if (currentLineDist <= resumeThreshold && currentAcc <= 70) {
+          // Re-aligned with track!
+          offTrackDurationRef.current = null;
+          offTrackCountRef.current = 0;
+
+          if (isAutoPausedRef.current) {
+            isAutoPausedRef.current = false;
+            setIsAutoPaused(false);
+            setAutoPauseReason(null);
+            setStatusMessage(`🟢 Reprise automatique de la diffusion ! Position synchronisée sur la ligne (${currentLineDist}m, GPS ±${Math.round(currentAcc)}m).`);
+          }
         }
       },
       (error) => {
@@ -1033,7 +1176,12 @@ export default function PassengerBroadcastModal({
                 ? 'bg-emerald-500/10 border-emerald-500/30'
                 : 'bg-amber-500/10 border-amber-500/30'
             }`}>
-              {broadcasterRole === 'LEADER' ? (
+              {isAutoPaused ? (
+                <div className="inline-flex items-center gap-2 bg-amber-500/25 text-amber-300 font-bold px-3 py-1.5 rounded-full text-xs border border-amber-500/40 animate-pulse">
+                  <span className="w-2.5 h-2.5 rounded-full bg-amber-400"></span>
+                  ⏸️ En pause automatique (Signal GPS imprécis ou écart de voie)
+                </div>
+              ) : broadcasterRole === 'LEADER' ? (
                 <div className="inline-flex items-center gap-2 bg-emerald-500/20 text-emerald-300 font-bold px-3 py-1 rounded-full text-xs">
                   <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping"></span>
                   🟢 Émetteur Principal (Direct GPS actif)
@@ -1212,20 +1360,43 @@ export default function PassengerBroadcastModal({
                 </span>
               </div>
 
-              {/* Ligne(s) détectée(s) sous vos pieds */}
-              <div>
-                <label className="block text-xs font-bold text-slate-300 uppercase tracking-wider mb-2">
-                  Ligne détectée à votre emplacement
+              {/* Ligne sélectionnée et options à proximité */}
+              <div className="space-y-3">
+                {selectedLine && (
+                  <div className="p-3.5 bg-blue-900/30 border border-blue-500/40 rounded-2xl space-y-2">
+                    <div className="flex items-center justify-between text-[11px] font-bold text-blue-300">
+                      <span className="flex items-center gap-1.5">
+                        <span>🔒</span>
+                        <span>Ligne sélectionnée pour la diffusion</span>
+                      </span>
+                      <span className="text-blue-200">à {selectedLineDistance ?? 0}m (tolérance: {getCorridorThreshold(selectedLine, gpsAccuracy)}m)</span>
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <span
+                        className="px-3 py-1.5 rounded-xl font-extrabold text-sm text-white flex-shrink-0 shadow"
+                        style={{ backgroundColor: selectedLine.color }}
+                      >
+                        {getLineShortName(selectedLine, language)}
+                      </span>
+                      <div className="min-w-0 flex-1">
+                        <div className="font-bold text-xs truncate text-white">{getLineName(selectedLine, language)}</div>
+                        <div className="text-[10px] text-slate-300 mt-0.5">
+                          {language === 'ar' ? 'الشبكة : ' : 'Réseau : '}<strong className="uppercase">{selectedLine.type_id}</strong> • {language === 'ar' ? 'محطة قريبة : ' : 'Arrêt : '}{selectedLineDistData?.closestStopName || selectedLine.stops?.[0]?.name}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                <label className="block text-xs font-bold text-slate-300 uppercase tracking-wider">
+                  {selectedLine ? "Changer ou choisir une autre ligne à proximité :" : "Ligne détectée à votre emplacement :"}
                 </label>
-                <div className="space-y-2">
+                <div className="space-y-2 max-h-48 overflow-y-auto pr-1">
                   {eligibleLines.map(line => (
                     <button
                       key={line.id}
                       type="button"
-                      onClick={() => {
-                        setSelectedLineId(line.id);
-                        setDirection(line.directions[0] || '');
-                      }}
+                      onClick={() => handleSelectLine(line)}
                       className={`w-full p-3.5 rounded-2xl text-left flex items-center justify-between transition border ${
                         selectedLineId === line.id
                           ? 'bg-blue-600/30 border-blue-500 text-white shadow-lg ring-1 ring-blue-500'

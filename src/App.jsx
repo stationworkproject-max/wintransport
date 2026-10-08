@@ -283,19 +283,24 @@ export default function App() {
   }, []);
 
   const handleOpenBroadcast = useCallback((preselectedLineId) => {
-    if (preselectedLineId && typeof preselectedLineId === 'string') {
-      const line = STATIC_LINES.find(l => l.id === preselectedLineId);
+    const targetLineId = (preselectedLineId && typeof preselectedLineId === 'string')
+      ? preselectedLineId
+      : selectedLine?.id;
+
+    if (targetLineId) {
+      const line = STATIC_LINES.find(l => l.id === targetLineId);
       if (line) {
         setBroadcastSession(prev => ({
           ...prev,
           lineId: line.id,
-          direction: line.directions[0],
-          lineName: line.short_name
+          direction: prev?.direction || line.directions[0],
+          lineName: line.short_name,
+          networkType: line.type_id
         }));
       }
     }
     setIsBroadcastOpen(true);
-  }, []);
+  }, [selectedLine]);
 
   const handleSelectStation = useCallback((station, line) => {
     setSelectedStation(station);
@@ -552,6 +557,7 @@ export default function App() {
             userLocation={userLocation}
             broadcastSession={broadcastSession}
             setBroadcastSession={setBroadcastSession}
+            preselectedLine={selectedLine}
             onRequestGps={requestUserGps}
             gpsStatus={gpsStatus}
             language={language}
