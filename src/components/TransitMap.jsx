@@ -112,6 +112,7 @@ function TransitMap({
   const itineraryLayersRef = useRef([]);
   const activeItineraryRef = useRef(activeItinerary);
   activeItineraryRef.current = activeItinerary;
+  const itineraryFittedRef = useRef(null);
   const vehicleMarkersRef = useRef({});
   const vehicleAnimRef = useRef({});
   const animFrameIdRef = useRef(null);
@@ -368,7 +369,7 @@ function TransitMap({
     stationLayersRef.current = {};
 
     // SCENARIO 1: Single Line is Selected (ISOLATION MODE)
-    if (selectedLine) {
+    if (selectedLine && !activeItinerary) {
       const activeDir = typeof selectedDirection === 'number' ? selectedDirection : 0;
       const dirShapeKey = `${selectedLine.id}_${activeDir}`;
 
@@ -576,7 +577,10 @@ function TransitMap({
     itineraryLayersRef.current.forEach(layer => map.removeLayer(layer));
     itineraryLayersRef.current = [];
 
-    if (!activeItinerary) return;
+    if (!activeItinerary) {
+      itineraryFittedRef.current = null;
+      return;
+    }
 
     let isCancelled = false;
 
@@ -589,7 +593,7 @@ function TransitMap({
         directionIndex = 0
       } = activeItinerary;
 
-      const userLoc = activeItinerary.userLocation || userLocation;
+      const userLoc = activeItinerary.userLocation || userLocationRef.current;
       const startPt = userLoc && userLoc.lat && userLoc.lon ? userLoc : null;
 
       // 1. Sliced transit ride segment along line (high-density shape)
@@ -800,8 +804,9 @@ function TransitMap({
 
       itineraryLayersRef.current = newLayers;
 
-      // Fit map bounds to view all legs with comfortable padding
-      if (allCoords.length >= 2) {
+      // Fit map bounds to view all legs with comfortable padding (ONLY ONCE upon itinerary load)
+      if (allCoords.length >= 2 && itineraryFittedRef.current !== activeItinerary) {
+        itineraryFittedRef.current = activeItinerary;
         const bounds = L.latLngBounds(allCoords);
         if (bounds.isValid()) {
           currentMap.fitBounds(bounds, {
@@ -823,7 +828,7 @@ function TransitMap({
         itineraryLayersRef.current = [];
       }
     };
-  }, [activeItinerary, transitShapes, language, userLocation]);
+  }, [activeItinerary, transitShapes, language]);
 
   // ── High-Scale 60 FPS Lerp (Linear Interpolation) Animation Loop ──
   // Glides vehicle markers continuously across animation frames without snapping or jumps
@@ -1527,17 +1532,7 @@ function TransitMap({
           </div>
         )}
 
-        {/* Floating Guide Trajet Assistant Button */}
-        {onOpenTripPlanner && (
-          <button
-            onClick={onOpenTripPlanner}
-            className="flex items-center gap-1.5 bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 hover:from-blue-500 hover:to-indigo-500 text-white font-bold text-xs p-2 px-3 sm:px-4 rounded-2xl shadow-xl shadow-blue-500/25 transition active:scale-95 border border-white/20 whitespace-nowrap"
-          >
-            <Compass className="w-4 h-4 text-white" />
-            <span className="hidden sm:inline">{language === 'ar' ? 'تخطيط المسار' : 'Guide Trajet'}</span>
-            <span className="sm:hidden">{language === 'ar' ? 'مسار' : 'Trajet'}</span>
-          </button>
-        )}
+
 
       </div>
 
@@ -1736,7 +1731,7 @@ function TransitMap({
         <button
           onClick={() => {
             if (!userLocation) {
-              if (onRequestGps) onRequestGps();
+              if (onRequestGps) onRequestGps(true);
             } else if (mapInstanceRef.current) {
               mapInstanceRef.current.flyTo([userLocation.lat, userLocation.lon], 16, { animate: true, duration: 1 });
             }

@@ -99,4 +99,53 @@ public class BackgroundBroadcastPlugin extends Plugin {
         result.put("longitude", BackgroundBroadcastService.getLastLongitude());
         call.resolve(result);
     }
+
+    @PluginMethod
+    public void openLocationSettings(PluginCall call) {
+        try {
+            Intent intent = new Intent(android.provider.Settings.ACTION_LOCATION_SOURCE_SETTINGS);
+            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+            getContext().startActivity(intent);
+            JSObject result = new JSObject();
+            result.put("opened", true);
+            call.resolve(result);
+        } catch (Exception e) {
+            call.reject("Could not open location settings", e);
+        }
+    }
+
+    @PluginMethod
+    public void openAppSettings(PluginCall call) {
+        try {
+            Intent intent = new Intent(android.provider.Settings.ACTION_APPLICATION_DETAILS_SETTINGS);
+            intent.setData(android.net.Uri.fromParts("package", getContext().getPackageName(), null));
+            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+            getContext().startActivity(intent);
+            JSObject result = new JSObject();
+            result.put("opened", true);
+            call.resolve(result);
+        } catch (Exception e) {
+            call.reject("Could not open app settings", e);
+        }
+    }
+
+    @PluginMethod
+    public void isLocationEnabled(PluginCall call) {
+        try {
+            android.location.LocationManager lm = (android.location.LocationManager) getContext().getSystemService(android.content.Context.LOCATION_SERVICE);
+            boolean isGpsEnabled = false;
+            boolean isNetworkEnabled = false;
+            if (lm != null) {
+                isGpsEnabled = lm.isProviderEnabled(android.location.LocationManager.GPS_PROVIDER);
+                isNetworkEnabled = lm.isProviderEnabled(android.location.LocationManager.NETWORK_PROVIDER);
+            }
+            JSObject result = new JSObject();
+            result.put("enabled", isGpsEnabled || isNetworkEnabled);
+            result.put("gpsEnabled", isGpsEnabled);
+            result.put("networkEnabled", isNetworkEnabled);
+            call.resolve(result);
+        } catch (Exception e) {
+            call.reject("Error checking location status", e);
+        }
+    }
 }

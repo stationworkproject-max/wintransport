@@ -35,3 +35,28 @@ export const getBackgroundBroadcastStatus = async () => {
 
   return BackgroundBroadcast.getStatus();
 };
+
+export const openLocationSettings = async () => {
+  if (!isNativeAndroid()) {
+    return { supported: false, opened: false };
+  }
+
+  return BackgroundBroadcast.openLocationSettings();
+};
+
+export const openAppSettings = async () => {
+  if (!isNativeAndroid()) {
+    return { supported: false, opened: false };
+  }
+
+  return BackgroundBroadcast.openAppSettings();
+};
+
+export const isLocationEnabled = async () => {
+  if (!isNativeAndroid()) {
+    return { supported: false, enabled: true };
+  }
+
+  return BackgroundBroadcast.isLocationEnabled();
+};
+

@@ -20,7 +20,14 @@ import {
   SUPABASE_ANON_KEY
 } from './supabase';
 import { STATIC_LINES } from './data/staticTransit';
-import { isNativeAndroid, isBackgroundBroadcastRunning } from './native/backgroundBroadcast';
+import { 
+  isNativeAndroid, 
+  isBackgroundBroadcastRunning,
+  openLocationSettings,
+  openAppSettings,
+  isLocationEnabled
+} from './native/backgroundBroadcast';
+import GpsActivationModal from './components/GpsActivationModal';
 import { Radio, AlertTriangle, Layers, Navigation, Search } from 'lucide-react';
 import { getStationName, getLineName, getLineShortName, t } from './utils/i18n';
 import { getSavedTheme, applyTheme } from './utils/theme';
@@ -149,13 +156,33 @@ export default function App() {
   const [gpsErrorMsg, setGpsErrorMsg] = useState('');
   const watchIdRef = useRef(null);
 
+  const [showGpsModal, setShowGpsModal] = useState(false);
+
   // Request & Watch Real GPS Location
-  const requestUserGps = () => {
+  const requestUserGps = async (userInitiated = false) => {
     const isLocal = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
     if (!window.isSecureContext && !isLocal && window.location.protocol !== 'https:') {
       setGpsStatus('insecure');
       setGpsErrorMsg(`Sur mobile, le GPS exige HTTPS. Ouvrez https://${window.location.hostname}:3000/`);
       return;
+    }
+
+    // Android Native Check: Verify if location services / GPS provider is switched on in phone settings
+    if (isNativeAndroid()) {
+      try {
+        const locStatus = await isLocationEnabled();
+        if (locStatus && locStatus.enabled === false) {
+          setGpsStatus('denied');
+          setGpsErrorMsg(language === 'ar'
+            ? 'خدمة تحديد الموقع GPS معطلة في هاتفك. يرجى تفعيلها.'
+            : 'La localisation GPS est désactivée sur votre téléphone.');
+          setShowGpsModal(true);
+          if (userInitiated) {
+            await openLocationSettings().catch(() => {});
+          }
+          return;
+        }
+      } catch (e) {}
     }
 
     if (!navigator.geolocation) {
@@ -173,6 +200,7 @@ export default function App() {
       (pos) => {
         setGpsStatus('granted');
         setGpsErrorMsg('');
+        setShowGpsModal(false);
         setUserLocation({
           lat: pos.coords.latitude,
           lon: pos.coords.longitude,
@@ -186,13 +214,29 @@ export default function App() {
         console.warn('GPS error:', err);
         if (err.code === 1) {
           setGpsStatus('denied');
-          setGpsErrorMsg("Permission GPS refusée. Veuillez autoriser la localisation dans les paramètres du navigateur.");
+          setGpsErrorMsg(language === 'ar'
+            ? 'تم رفض إذن الوصول إلى الموقع. يرجى السماح للتطبيق في إعدادات الهاتف.'
+            : 'Permission GPS refusée. Veuillez autoriser la localisation dans les paramètres.');
+          if (userInitiated) {
+            setShowGpsModal(true);
+            if (isNativeAndroid()) {
+              openAppSettings().catch(() => openLocationSettings());
+            }
+          }
         } else if (err.code === 2) {
           setGpsStatus('denied');
-          setGpsErrorMsg("Position GPS introuvable. Vérifiez que la localisation GPS de votre téléphone est activée.");
+          setGpsErrorMsg(language === 'ar'
+            ? 'تعذر تحديد الموقع. تأكد من تفعيل الـ GPS في هاتفك.'
+            : 'Position GPS introuvable. Vérifiez que la localisation GPS de votre téléphone est activée.');
+          if (userInitiated) {
+            setShowGpsModal(true);
+            if (isNativeAndroid()) {
+              openLocationSettings().catch(() => {});
+            }
+          }
         } else {
           setGpsStatus('acquiring');
-          setGpsErrorMsg("Recherche des satellites GPS en cours...");
+          setGpsErrorMsg(language === 'ar' ? 'جاري البحث عن إشارة GPS...' : 'Recherche des satellites GPS en cours...');
         }
       },
       {
@@ -595,6 +639,17 @@ export default function App() {
             isOpen={isReportOpen}
             onClose={() => setIsReportOpen(false)}
             onReportSuccess={() => fetchCrowdReports().then(setCrowdReports)}
+            language={language}
+            theme={theme}
+          />
+        )}
+
+        {/* GPS Activation Prompt Modal */}
+        {showGpsModal && (
+          <GpsActivationModal
+            isOpen={showGpsModal}
+            onClose={() => setShowGpsModal(false)}
+            onRetryGps={requestUserGps}
             language={language}
             theme={theme}
           />
