@@ -74,6 +74,8 @@ export default function PassengerBroadcastModal({
   const standbyCheckTimerRef = useRef(null);
   const directionAnchorRef = useRef(null);
   const directionStreakRef = useRef(0);
+  const lastMovingBearingRef = useRef(0);
+  const lastMovingCoordsRef = useRef(null);
 
   // Synchronize when preselectedLine or broadcastSession changes from outside
   useEffect(() => {
@@ -524,7 +526,7 @@ export default function PassengerBroadcastModal({
 
   // Instant Unload Cleanup: if user closes tab/browser/app, immediately leave broadcast lease
   useEffect(() => {
-    if (!isBroadcasting || !currentVehicleId || isNativeAndroid()) return;
+    if (!isBroadcasting || !currentVehicleId) return;
 
     const cleanupOnExit = () => {
       const sessId = currentVehicleId;
@@ -535,6 +537,9 @@ export default function PassengerBroadcastModal({
 
       if (sessId && bId) {
         broadcastLeave(sessId, bId);
+      }
+      if (isNativeAndroid()) {
+        stopBackgroundBroadcast().catch(() => {});
       }
     };
 
@@ -579,6 +584,11 @@ export default function PassengerBroadcastModal({
 
         try {
           const directionIndex = (selectedLine.directions && selectedLine.directions.indexOf(direction) === 1) ? 1 : 0;
+          const currentSpd = latestPosRef.current.speed || 0;
+          const effectiveBearing = (currentSpd < 2)
+            ? (lastMovingBearingRef.current || latestPosRef.current.heading || 0)
+            : (latestPosRef.current.heading || 0);
+
           const res = await broadcastPing({
             vehicleId: currentVehicleId,
             routeId: selectedLineId,
@@ -588,8 +598,8 @@ export default function PassengerBroadcastModal({
             directionName: direction || '',
             latitude: latestPosRef.current.lat,
             longitude: latestPosRef.current.lon,
-            speed: latestPosRef.current.speed || 0,
-            bearing: latestPosRef.current.heading || 0,
+            speed: currentSpd,
+            bearing: effectiveBearing,
             broadcasterId: broadcasterIdRef.current,
           });
 
@@ -809,10 +819,23 @@ export default function PassengerBroadcastModal({
       targetVehicleId = `veh_${selectedLineId}_d${directionIndex}_${Math.random().toString(36).substring(2, 8)}`;
     }
 
+    // Clean up any stale old vehicle ID if switching lines/vehicles
+    try {
+      const prevVehId = localStorage.getItem('transit_broadcast_id');
+      if (prevVehId && prevVehId !== targetVehicleId && bId) {
+        broadcastLeave(prevVehId, bId).catch(() => {});
+      }
+    } catch (e) {}
+
     setCurrentVehicleId(targetVehicleId);
     try {
       localStorage.setItem('transit_broadcast_id', targetVehicleId);
     } catch (e) {}
+
+    lastMovingCoordsRef.current = { lat: userLocation.lat, lon: userLocation.lon };
+    if (userLocation.heading && userLocation.heading > 0) {
+      lastMovingBearingRef.current = userLocation.heading;
+    }
 
     latestPosRef.current = {
       lat: userLocation.lat,
@@ -871,6 +894,7 @@ export default function PassengerBroadcastModal({
       try {
         const nativeStart = await startBackgroundBroadcast({
           sessionId: targetVehicleId,
+          broadcasterId: bId,
           lineId: selectedLineId,
           direction,
           directionIndex,
@@ -905,11 +929,39 @@ export default function PassengerBroadcastModal({
           }
         }
 
+        // Deadband Threshold (speed < 2 km/h):
+        // Lock coordinates to last confirmed coordinate and freeze heading to last valid moving direction
+        let effectiveHeading = lastMovingBearingRef.current || 0;
+        let effectiveLat = pos.coords.latitude;
+        let effectiveLon = pos.coords.longitude;
+
+        if (speedKmh >= 2) {
+          if (pos.coords.heading !== null && pos.coords.heading !== undefined && !isNaN(pos.coords.heading) && pos.coords.heading > 0) {
+            lastMovingBearingRef.current = pos.coords.heading;
+            effectiveHeading = pos.coords.heading;
+          }
+          lastMovingCoordsRef.current = { lat: pos.coords.latitude, lon: pos.coords.longitude };
+        } else {
+          // Stationary deadband (< 2 km/h):
+          effectiveHeading = lastMovingBearingRef.current || 0;
+          if (lastMovingCoordsRef.current) {
+            const driftM = getDistanceMeters(pos.coords.latitude, pos.coords.longitude, lastMovingCoordsRef.current.lat, lastMovingCoordsRef.current.lon);
+            if (driftM < 8) {
+              effectiveLat = lastMovingCoordsRef.current.lat;
+              effectiveLon = lastMovingCoordsRef.current.lon;
+            } else {
+              lastMovingCoordsRef.current = { lat: pos.coords.latitude, lon: pos.coords.longitude };
+            }
+          } else {
+            lastMovingCoordsRef.current = { lat: pos.coords.latitude, lon: pos.coords.longitude };
+          }
+        }
+
         latestPosRef.current = {
-          lat: pos.coords.latitude,
-          lon: pos.coords.longitude,
+          lat: effectiveLat,
+          lon: effectiveLon,
           speed: speedKmh,
-          heading: pos.coords.heading || 0,
+          heading: effectiveHeading,
           accuracy: pos.coords.accuracy || 10,
           time: pos.timestamp
         };
@@ -969,6 +1021,7 @@ export default function PassengerBroadcastModal({
                   if (isNativeAndroid() && activeVehId) {
                     startBackgroundBroadcast({
                       sessionId: activeVehId,
+                      broadcasterId: broadcasterIdRef.current,
                       lineId: selectedLineId,
                       direction: correctedDirName,
                       directionIndex: inferredDir,
@@ -1096,6 +1149,8 @@ export default function PassengerBroadcastModal({
     setBroadcastSession(null);
     directionAnchorRef.current = null;
     directionStreakRef.current = 0;
+    lastMovingCoordsRef.current = null;
+    lastMovingBearingRef.current = 0;
     setStatusMessage("Partage de position arrêté.");
   };
 

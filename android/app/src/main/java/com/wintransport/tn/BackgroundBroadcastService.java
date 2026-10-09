@@ -15,6 +15,7 @@ import android.location.LocationManager;
 import android.os.Build;
 import android.os.Bundle;
 import android.os.IBinder;
+import android.os.PowerManager;
 import android.util.Log;
 
 import androidx.annotation.NonNull;
@@ -36,6 +37,7 @@ public class BackgroundBroadcastService extends Service {
     public static final String ACTION_STOP = "com.wintransport.tn.action.STOP_BACKGROUND_BROADCAST";
 
     public static final String EXTRA_SESSION_ID = "sessionId";
+    public static final String EXTRA_BROADCASTER_ID = "broadcasterId";
     public static final String EXTRA_LINE_ID = "lineId";
     public static final String EXTRA_DIRECTION = "direction";
     public static final String EXTRA_LINE_SHORT_NAME = "lineShortName";
@@ -48,6 +50,7 @@ public class BackgroundBroadcastService extends Service {
     private static volatile int lastSpeedKmh = 0;
     private static volatile double lastLatitude = 0.0;
     private static volatile double lastLongitude = 0.0;
+    private static volatile double lastMovingBearing = 0.0;
 
     public static boolean isRunning() {
         return running;
@@ -69,8 +72,10 @@ public class BackgroundBroadcastService extends Service {
 
     private LocationManager locationManager;
     private ExecutorService networkExecutor;
+    private PowerManager.WakeLock wakeLock;
 
     private String sessionId;
+    private String broadcasterId;
     private String lineId;
     private String direction;
     private String lineShortName;
@@ -104,6 +109,17 @@ public class BackgroundBroadcastService extends Service {
         locationManager = (LocationManager) getSystemService(Context.LOCATION_SERVICE);
         networkExecutor = Executors.newSingleThreadExecutor();
         createNotificationChannel();
+
+        try {
+            PowerManager pm = (PowerManager) getSystemService(Context.POWER_SERVICE);
+            if (pm != null) {
+                wakeLock = pm.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "wintransport:bg_broadcast");
+                wakeLock.setReferenceCounted(false);
+                wakeLock.acquire(12 * 60 * 60 * 1000L); // 12-hour maximum guard
+            }
+        } catch (Exception e) {
+            Log.w(TAG, "Unable to acquire WakeLock for background broadcast", e);
+        }
     }
 
     @Override
@@ -115,6 +131,10 @@ public class BackgroundBroadcastService extends Service {
 
         if (intent != null) {
             sessionId = intent.getStringExtra(EXTRA_SESSION_ID);
+            broadcasterId = intent.getStringExtra(EXTRA_BROADCASTER_ID);
+            if (broadcasterId == null || broadcasterId.isEmpty()) {
+                broadcasterId = sessionId;
+            }
             lineId = intent.getStringExtra(EXTRA_LINE_ID);
             direction = intent.getStringExtra(EXTRA_DIRECTION);
             lineShortName = intent.getStringExtra(EXTRA_LINE_SHORT_NAME);
@@ -134,25 +154,23 @@ public class BackgroundBroadcastService extends Service {
         return START_STICKY;
     }
 
-    @Override
-    public void onDestroy() {
-        stopLocationUpdates();
-        running = false;
-
+    private void performImmediateLeave() {
         final String sId = sessionId;
+        final String bId = (broadcasterId != null && !broadcasterId.isEmpty()) ? broadcasterId : sId;
         final String sUrl = supabaseUrl;
         final String sKey = supabaseAnonKey;
         if (sId != null && sUrl != null && sKey != null) {
-            new Thread(() -> {
+            Thread t = new Thread(() -> {
+                HttpURLConnection conn = null;
                 try {
                     JSONObject leavePayload = new JSONObject();
                     leavePayload.put("p_vehicle_id", sId);
-                    leavePayload.put("p_broadcaster_id", sId);
+                    leavePayload.put("p_broadcaster_id", bId);
                     URL url = new URL(sUrl + "/rest/v1/rpc/broadcast_leave");
-                    HttpURLConnection conn = (HttpURLConnection) url.openConnection();
+                    conn = (HttpURLConnection) url.openConnection();
                     conn.setRequestMethod("POST");
-                    conn.setConnectTimeout(3000);
-                    conn.setReadTimeout(3000);
+                    conn.setConnectTimeout(2500);
+                    conn.setReadTimeout(2500);
                     conn.setDoOutput(true);
                     conn.setRequestProperty("Content-Type", "application/json");
                     conn.setRequestProperty("apikey", sKey);
@@ -161,9 +179,53 @@ public class BackgroundBroadcastService extends Service {
                     conn.setFixedLengthStreamingMode(b.length);
                     try (OutputStream os = conn.getOutputStream()) { os.write(b); }
                     conn.getResponseCode();
-                    conn.disconnect();
-                } catch (Exception ignored) {}
-            }).start();
+                } catch (Exception ignored) {
+                } finally {
+                    if (conn != null) conn.disconnect();
+                }
+
+                // Also delete from legacy table if present
+                HttpURLConnection legacyConn = null;
+                try {
+                    URL legUrl = new URL(sUrl + "/rest/v1/transit_live_locations?id=eq." + sId);
+                    legacyConn = (HttpURLConnection) legUrl.openConnection();
+                    legacyConn.setRequestMethod("DELETE");
+                    legacyConn.setConnectTimeout(2500);
+                    legacyConn.setReadTimeout(2500);
+                    legacyConn.setRequestProperty("apikey", sKey);
+                    legacyConn.setRequestProperty("Authorization", "Bearer " + sKey);
+                    legacyConn.getResponseCode();
+                } catch (Exception ignored) {
+                } finally {
+                    if (legacyConn != null) legacyConn.disconnect();
+                }
+            });
+            t.start();
+            try {
+                t.join(2500);
+            } catch (InterruptedException ignored) {}
+        }
+    }
+
+    @Override
+    public void onTaskRemoved(Intent rootIntent) {
+        super.onTaskRemoved(rootIntent);
+        Log.i(TAG, "onTaskRemoved: Process terminated by user, clearing broadcast session.");
+        performImmediateLeave();
+        stopSelf();
+    }
+
+    @Override
+    public void onDestroy() {
+        stopLocationUpdates();
+        running = false;
+
+        performImmediateLeave();
+
+        if (wakeLock != null && wakeLock.isHeld()) {
+            try {
+                wakeLock.release();
+            } catch (Exception ignored) {}
         }
 
         if (networkExecutor != null) {

@@ -22,6 +22,7 @@ public class BackgroundBroadcastPlugin extends Plugin {
         String lineId = call.getString("lineId");
         String direction = call.getString("direction");
         String lineShortName = call.getString("lineShortName", "Ligne");
+        String broadcasterId = call.getString("broadcasterId", sessionId);
         String supabaseUrl = call.getString("supabaseUrl");
         String supabaseAnonKey = call.getString("supabaseAnonKey");
 
@@ -40,6 +41,7 @@ public class BackgroundBroadcastPlugin extends Plugin {
         Intent serviceIntent = new Intent(getContext(), BackgroundBroadcastService.class);
         serviceIntent.setAction(BackgroundBroadcastService.ACTION_START);
         serviceIntent.putExtra(BackgroundBroadcastService.EXTRA_SESSION_ID, sessionId);
+        serviceIntent.putExtra(BackgroundBroadcastService.EXTRA_BROADCASTER_ID, broadcasterId);
         serviceIntent.putExtra(BackgroundBroadcastService.EXTRA_LINE_ID, lineId);
         serviceIntent.putExtra(BackgroundBroadcastService.EXTRA_DIRECTION, direction);
         serviceIntent.putExtra(BackgroundBroadcastService.EXTRA_LINE_SHORT_NAME, lineShortName);

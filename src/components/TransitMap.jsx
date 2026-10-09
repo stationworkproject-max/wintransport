@@ -397,22 +397,6 @@ function TransitMap({
       
       // 1. Draw glowing background casing + crisp colored route line directly on road
       if (latlngs && latlngs.length >= 2) {
-        // Draw complementary return/going rail so both rails are clearly visible line by line
-        const otherDir = activeDir === 0 ? 1 : 0;
-        const otherDirShapeKey = `${selectedLine.id}_${otherDir}`;
-        const otherLatlngs = transitShapes[otherDirShapeKey];
-        if (otherLatlngs && otherLatlngs.length >= 2 && otherLatlngs !== latlngs) {
-          const companionPolyline = L.polyline(otherLatlngs, {
-            color: selectedLine.color,
-            weight: 5.5,
-            opacity: 0.75,
-            dashArray: '5, 5',
-            lineJoin: 'round',
-            lineCap: 'round',
-          }).addTo(map);
-
-          lineLayersRef.current[`${selectedLine.id}-companion`] = companionPolyline;
-        }
 
         const casing = L.polyline(latlngs, {
           color: '#ffffff',
@@ -951,20 +935,47 @@ function TransitMap({
         return true;
       });
 
-      let activeVehicles = candidates;
+      // Single Source of Truth / Deduplication:
+      // 1. Map by vehicle ID (keep latest updated_at)
+      const uniqueMap = new Map();
+      candidates.forEach(v => {
+        const existing = uniqueMap.get(v.id);
+        if (!existing || new Date(v.updated_at).getTime() > new Date(existing.updated_at).getTime()) {
+          uniqueMap.set(v.id, v);
+        }
+      });
+      const uniqueCandidates = Array.from(uniqueMap.values());
+
+      // 2. Spatial Deduplication: If two records on the same line and same direction are within 25m, keep the freshest
+      const dedupedCandidates = [];
+      for (const v of uniqueCandidates) {
+        const duplicate = dedupedCandidates.find(other => 
+          other.line_id === v.line_id &&
+          Number(other.direction) === Number(v.direction) &&
+          getDistanceMeters(other.latitude, other.longitude, v.latitude, v.longitude) < 25
+        );
+        if (!duplicate) {
+          dedupedCandidates.push(v);
+        } else if (new Date(v.updated_at).getTime() > new Date(duplicate.updated_at).getTime()) {
+          const idx = dedupedCandidates.indexOf(duplicate);
+          dedupedCandidates[idx] = v;
+        }
+      }
+
+      let activeVehicles = dedupedCandidates;
       if (!selectedLine) {
         // Sort closest to user / center
         if (center && center.lat && center.lon) {
-          candidates.sort((a, b) => {
+          activeVehicles.sort((a, b) => {
             const distA = getDistanceMeters(center.lat, center.lon, a.latitude, a.longitude);
             const distB = getDistanceMeters(center.lat, center.lon, b.latitude, b.longitude);
             return distA - distB;
           });
         }
         // Cap to max 15 closest vehicles for optimal mobile performance
-        const excess = Math.max(0, candidates.length - 15);
+        const excess = Math.max(0, activeVehicles.length - 15);
         setExcessVehiclesCount(excess);
-        activeVehicles = candidates.slice(0, 15);
+        activeVehicles = activeVehicles.slice(0, 15);
       } else {
         setExcessVehiclesCount(0);
       }
@@ -993,6 +1004,9 @@ function TransitMap({
 
         const iconHtml = `
           <div class="relative flex items-center justify-center cursor-pointer group" style="width: 46px; height: 46px;">
+            <div class="vehicle-bearing-rotate absolute inset-0 flex items-center justify-center pointer-events-none transition-transform duration-300" style="transform: rotate(${loc.heading || 0}deg);">
+              <div class="absolute -top-1 w-0 h-0 border-l-[4px] border-l-transparent border-r-[4px] border-r-transparent border-b-[7px] border-b-white drop-shadow-[0_1px_2px_rgba(0,0,0,0.8)]"></div>
+            </div>
             <div class="radar-ring absolute w-11 h-11 rounded-full opacity-60" style="background-color: ${lineColor};"></div>
             <div class="relative flex items-center justify-center w-8 h-8 rounded-full shadow-lg border-2 border-white text-white font-black text-[11px] transition-transform duration-300 group-hover:scale-110" style="background-color: ${lineColor};">
               ${lineShort}
@@ -1038,24 +1052,46 @@ function TransitMap({
           popupAnchor: [0, -23],
         });
 
+        const speedKmh = loc.speed_kmh || 0;
+        const isStationary = speedKmh < 2;
+
         if (vehicleMarkersRef.current[loc.id]) {
-          // Existing marker: update target position and reset Lerp only if vehicle moved
+          // Existing marker: update target position and reset Lerp
           const marker = vehicleMarkersRef.current[loc.id];
           const curPos = marker.getLatLng();
           const prevAnim = vehicleAnimRef.current[loc.id];
-          const prevBearing = prevAnim ? prevAnim.targetBearing : (loc.heading || 0);
+          const prevBearing = prevAnim ? (prevAnim.targetBearing ?? prevAnim.startBearing ?? 0) : (loc.heading || 0);
 
           const distMoved = getDistanceMeters(curPos.lat, curPos.lng, loc.latitude, loc.longitude);
-          const bearingMoved = Math.abs((prevBearing || 0) - (loc.heading || 0));
+          const rawBearing = (loc.heading !== null && loc.heading !== undefined && !isNaN(loc.heading)) ? loc.heading : prevBearing;
 
-          if (distMoved > 0.5 || bearingMoved > 1 || !prevAnim) {
+          // Deadband Threshold check:
+          // If speed < 2 km/h:
+          // 1. Lock coordinates to current position if small drift (< 6m)
+          // 2. Freeze bearing/rotation angle to prevBearing (do not rotate at 0 km/h)
+          let targetLat = loc.latitude;
+          let targetLon = loc.longitude;
+          let targetBearing = rawBearing;
+
+          if (isStationary) {
+            targetBearing = prevBearing; // Freeze heading
+            if (distMoved < 6) {
+              targetLat = curPos.lat;
+              targetLon = curPos.lng;
+            }
+          }
+
+          const bearingMoved = Math.abs((prevBearing || 0) - targetBearing);
+          const effectiveDistMoved = getDistanceMeters(curPos.lat, curPos.lng, targetLat, targetLon);
+
+          if (effectiveDistMoved > 0.5 || bearingMoved > 1 || !prevAnim) {
             vehicleAnimRef.current[loc.id] = {
               startLat: curPos.lat,
               startLon: curPos.lng,
-              targetLat: loc.latitude,
-              targetLon: loc.longitude,
+              targetLat: targetLat,
+              targetLon: targetLon,
               startBearing: prevBearing,
-              targetBearing: loc.heading || 0,
+              targetBearing: targetBearing,
               startTime: now,
               duration: 4000,
               completed: false,
@@ -1067,7 +1103,7 @@ function TransitMap({
           if (el) {
             const speedEl = el.querySelector('.veh-speed-val');
             if (speedEl) {
-              speedEl.textContent = `${loc.speed_kmh || 0} km/h`;
+              speedEl.textContent = `${speedKmh} km/h`;
             }
           }
 
@@ -1080,6 +1116,7 @@ function TransitMap({
           marker.setPopupContent(popupContent);
         } else {
           // New vehicle marker
+          const initialBearing = loc.heading || 0;
           const marker = L.marker([loc.latitude, loc.longitude], {
             icon: vehicleIcon,
             zIndexOffset: 1000,
@@ -1093,8 +1130,8 @@ function TransitMap({
             startLon: loc.longitude,
             targetLat: loc.latitude,
             targetLon: loc.longitude,
-            startBearing: loc.heading || 0,
-            targetBearing: loc.heading || 0,
+            startBearing: initialBearing,
+            targetBearing: initialBearing,
             startTime: now,
             duration: 4000,
             completed: true,

@@ -85,6 +85,19 @@ DECLARE
     v_queue TEXT[];
     v_pos INT := 0;
 BEGIN
+    -- Enforce Single Source of Truth: one broadcaster can only broadcast for ONE vehicle at a time
+    IF p_broadcaster_id IS NOT NULL AND p_broadcaster_id <> '' THEN
+        UPDATE public.live_vehicles
+        SET
+            broadcaster_queue = array_remove(broadcaster_queue, p_broadcaster_id),
+            passenger_count = GREATEST(1, array_length(array_remove(broadcaster_queue, p_broadcaster_id), 1))
+        WHERE vehicle_id <> p_vehicle_id AND p_broadcaster_id = ANY(broadcaster_queue);
+
+        DELETE FROM public.live_vehicles
+        WHERE vehicle_id <> p_vehicle_id
+          AND (broadcaster_queue IS NULL OR array_length(broadcaster_queue, 1) = 0 OR array_length(broadcaster_queue, 1) IS NULL);
+    END IF;
+
     -- Check if vehicle exists
     SELECT * INTO v_record
     FROM public.live_vehicles
@@ -207,27 +220,43 @@ DECLARE
     v_queue TEXT[];
     v_new_leader TEXT := NULL;
 BEGIN
-    SELECT * INTO v_record
-    FROM public.live_vehicles
-    WHERE vehicle_id = p_vehicle_id;
+    -- If p_broadcaster_id is passed, remove them from all vehicles where they are broadcasting
+    IF p_broadcaster_id IS NOT NULL AND p_broadcaster_id <> '' THEN
+        UPDATE public.live_vehicles
+        SET
+            broadcaster_queue = array_remove(broadcaster_queue, p_broadcaster_id),
+            passenger_count = GREATEST(1, array_length(array_remove(broadcaster_queue, p_broadcaster_id), 1))
+        WHERE p_broadcaster_id = ANY(broadcaster_queue);
 
-    IF FOUND THEN
-        -- Remove caller from FIFO queue
-        v_queue := array_remove(COALESCE(v_record.broadcaster_queue, ARRAY[]::TEXT[]), p_broadcaster_id);
+        -- Delete any vehicle that now has 0 broadcasters
+        DELETE FROM public.live_vehicles
+        WHERE (broadcaster_queue IS NULL OR array_length(broadcaster_queue, 1) = 0 OR array_length(broadcaster_queue, 1) IS NULL);
+    END IF;
 
-        IF array_length(v_queue, 1) IS NULL OR array_length(v_queue, 1) = 0 THEN
-            -- No more broadcasters on this vehicle -> Delete immediately! Zero ghost vehicle!
-            DELETE FROM public.live_vehicles WHERE vehicle_id = p_vehicle_id;
-        ELSE
-            -- Promote next passenger in FIFO queue to be the new leader!
-            v_new_leader := v_queue[1];
-            UPDATE public.live_vehicles
-            SET
-                active_broadcaster_id = v_new_leader,
-                broadcaster_queue = v_queue,
-                passenger_count = array_length(v_queue, 1),
-                updated_at = NOW()
-            WHERE vehicle_id = p_vehicle_id;
+    -- If p_vehicle_id is provided specifically:
+    IF p_vehicle_id IS NOT NULL AND p_vehicle_id <> '' THEN
+        SELECT * INTO v_record
+        FROM public.live_vehicles
+        WHERE vehicle_id = p_vehicle_id;
+
+        IF FOUND THEN
+            v_queue := COALESCE(v_record.broadcaster_queue, ARRAY[]::TEXT[]);
+            IF p_broadcaster_id IS NOT NULL AND p_broadcaster_id <> '' THEN
+                v_queue := array_remove(v_queue, p_broadcaster_id);
+            END IF;
+
+            IF array_length(v_queue, 1) IS NULL OR array_length(v_queue, 1) = 0 THEN
+                DELETE FROM public.live_vehicles WHERE vehicle_id = p_vehicle_id;
+            ELSE
+                v_new_leader := v_queue[1];
+                UPDATE public.live_vehicles
+                SET
+                    active_broadcaster_id = v_new_leader,
+                    broadcaster_queue = v_queue,
+                    passenger_count = array_length(v_queue, 1),
+                    updated_at = NOW()
+                WHERE vehicle_id = p_vehicle_id;
+            END IF;
         END IF;
     END IF;
 END;
