@@ -10,14 +10,15 @@ function distSq(lat1, lon1, lat2, lon2) {
   return dLat * dLat + dLon * dLon;
 }
 
+// In-memory cache for fast, zero-latency walking route retrieval
+const walkingRouteCache = new Map();
+
 /**
- * Fetch real street/sidewalk walking path coordinates.
- * Designed specifically for pedestrians:
- * - Pedestrians can walk anywhere (across plazas, pedestrian alleys, crosswalks, open squares).
- * - Never forces car road detours or loops around city blocks when on foot.
- * - For short walks (<= 250m) or when street routing exceeds direct distance by > 1.30x (car-like block loops),
- *   uses direct pedestrian walking connection.
- * - Always anchors directly from exact user start point to station entrance.
+ * Fetch real street/sidewalk walking path coordinates using OpenStreetMap pedestrian routing.
+ * Follows actual street turns, sidewalks, corners, and pedestrian passages like Google Maps walking mode.
+ * - Queries high-accuracy OSM routed-foot engine for real sidewalk/street path.
+ * - Connects smoothly from exact start position to station entrance.
+ * - Falls back cleanly to direct path if offline.
  */
 export async function getWalkingRoute(start, end) {
   if (!start || !end || !start.lat || !start.lon || !end.lat || !end.lon) {
@@ -25,18 +26,19 @@ export async function getWalkingRoute(start, end) {
   }
 
   const straightDist = Math.sqrt(distSq(start.lat, start.lon, end.lat, end.lon));
-  // If points are basically identical (< 10 meters)
-  if (straightDist < 10) {
+  // If points are basically identical (< 8 meters)
+  if (straightDist < 8) {
     return [[start.lat, start.lon], [end.lat, end.lon]];
   }
 
-  // If pedestrian is within 250m of the station, they walk directly across
-  // plazas, crosswalks, sidewalks, and open areas without following car detours
-  if (straightDist <= 250) {
-    return [[start.lat, start.lon], [end.lat, end.lon]];
+  // Check in-memory route cache
+  const cacheKey = `${start.lat.toFixed(5)},${start.lon.toFixed(5)}->${end.lat.toFixed(5)},${end.lon.toFixed(5)}`;
+  if (walkingRouteCache.has(cacheKey)) {
+    return walkingRouteCache.get(cacheKey);
   }
 
-  // For longer walks (> 250m), query OpenStreetMap pedestrian routing
+  // High-precision OpenStreetMap pedestrian routing (routed-foot)
+  // Follows sidewalks, crosswalks, pedestrian zones, and real street turns
   const url = `https://routing.openstreetmap.de/routed-foot/route/v1/foot/${start.lon},${start.lat};${end.lon},${end.lat}?overview=full&geometries=geojson&continue_straight=false`;
 
   try {
@@ -46,22 +48,19 @@ export async function getWalkingRoute(start, end) {
     if (res.ok) {
       const data = await res.json();
       if (data.routes && data.routes[0]?.geometry?.coordinates) {
-        const routeDist = data.routes[0].distance || 0;
-        const detourRatio = straightDist > 0 ? routeDist / straightDist : 1;
-
-        // If the routed distance is > 1.30x straight line, it's looping around
-        // car road networks (one-ways, dual carriageways) that pedestrians cut across!
-        if (detourRatio <= 1.30) {
-          const coords = data.routes[0].geometry.coordinates.map(pt => [pt[1], pt[0]]);
-          if (coords.length >= 2) {
-            // Anchor to exact start and end points
-            return [[start.lat, start.lon], ...coords, [end.lat, end.lon]];
-          }
+        // GeoJSON coordinates are [lon, lat], Leaflet expects [lat, lon]
+        const coords = data.routes[0].geometry.coordinates.map(pt => [pt[1], pt[0]]);
+        if (coords.length >= 2) {
+          // Prepend exact user start point and append exact station destination point
+          // so it connects smoothly from the user's feet to the station door without any gap
+          const fullRoute = [[start.lat, start.lon], ...coords, [end.lat, end.lon]];
+          walkingRouteCache.set(cacheKey, fullRoute);
+          return fullRoute;
         }
       }
     }
   } catch (err) {
-    // Fall back to direct pedestrian path
+    // Network offline or timeout: fall back to direct path
   }
 
   return [[start.lat, start.lon], [end.lat, end.lon]];

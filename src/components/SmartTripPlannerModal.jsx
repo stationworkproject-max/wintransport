@@ -13,7 +13,8 @@ import {
   ChevronRight,
   Sparkles,
   Building,
-  Target
+  Target,
+  Zap
 } from 'lucide-react';
 import { STATIC_LINES as DEFAULT_STATIC_LINES } from '../data/staticTransit';
 import { useTransitData } from '../context/TransitDataContext';
@@ -69,6 +70,7 @@ export default function SmartTripPlannerModal({
   const STATIC_LINES = dynamicLines || DEFAULT_STATIC_LINES;
   const [destinationQuery, setDestinationQuery] = useState('');
   const [targetDestination, setTargetDestination] = useState(null);
+  const [filterMode, setFilterMode] = useState('fastest'); // 'fastest' | 'soonest' | 'least_walk' | 'all'
 
   // Extract all unique stations with their associated lines
   const allStations = useMemo(() => {
@@ -241,25 +243,76 @@ export default function SmartTripPlannerModal({
           const dOriginToDest = getDistanceMeters(originStop.lat, originStop.lon, destLat, destLon);
           if (minDropoffDist >= dOriginToDest) return;
 
-          // Check live vehicles on this line
-          const liveVehicles = (liveLocations || []).filter(loc => loc.line_id === line.id);
+          // 1. Live Vehicles on this line & ETA calculation to originStop
+          const lineVehicles = (liveLocations || []).filter(loc => loc.line_id === line.id);
+          let approachingVehicle = null;
+          let minVehicleEtaMins = Infinity;
+
+          lineVehicles.forEach(v => {
+            if (!v.latitude || !v.longitude) return;
+            // Find which stop on cfg.stops this vehicle is closest to
+            let closestStopIdx = -1;
+            let minVDist = Infinity;
+            stops.forEach((s, idx) => {
+              const dist = getDistanceMeters(v.latitude, v.longitude, s.lat, s.lon);
+              if (dist < minVDist) {
+                minVDist = dist;
+                closestStopIdx = idx;
+              }
+            });
+
+            // If the vehicle is upstream of the boarding stop (or within 150m of it)
+            if (closestStopIdx !== -1 && closestStopIdx <= bestOriginIdx) {
+              const distToOrigin = getDistanceMeters(v.latitude, v.longitude, originStop.lat, originStop.lon);
+              // Average speed in urban traffic ~18 km/h = ~300 m/min
+              const etaMins = Math.max(0, Math.round(distToOrigin / 300));
+              if (etaMins < minVehicleEtaMins) {
+                minVehicleEtaMins = etaMins;
+                approachingVehicle = { ...v, etaMins, distMeters: distToOrigin };
+              }
+            }
+          });
+
+          // Wait time to board (waitMins)
+          let waitMins = 0;
+          let hasLiveApproaching = false;
+          if (approachingVehicle && minVehicleEtaMins <= 45) {
+            waitMins = minVehicleEtaMins;
+            hasLiveApproaching = true;
+          } else {
+            // Standard frequency / expected wait time per mode
+            if (line.type_id === 'subway') waitMins = 5;
+            else if (line.type_id === 'tgm') waitMins = 8;
+            else if (line.type_id === 'train' || line.type_id === 'rfr') waitMins = 12;
+            else waitMins = 8; // Bus
+          }
+
+          // 2. In-vehicle ride duration (commercial speed)
+          let rideMins = 0;
+          if (line.type_id === 'train' || line.type_id === 'rfr') {
+            rideMins = Math.max(3, Math.round(stopsCount * 1.6));
+          } else if (line.type_id === 'subway' || line.type_id === 'tgm') {
+            rideMins = Math.max(3, Math.round(stopsCount * 2.0));
+          } else {
+            rideMins = Math.max(3, Math.round(stopsCount * 2.4));
+          }
 
           const walkToOriginMeters = minOriginDist;
           const walkFromDropoffMeters = minDropoffDist;
           const totalWalkMeters = walkToOriginMeters + walkFromDropoffMeters;
 
           const walkToOriginMins = Math.max(1, Math.round(walkToOriginMeters / 75));
-          const walkFromDropoffMins = Math.max(1, Math.round(walkFromDropoffMeters / 75));
-          const rideMins = Math.max(2, Math.round(stopsCount * 2.2));
-          const estimatedTotalMins = walkToOriginMins + rideMins + walkFromDropoffMins;
+          const walkFromDropoffMins = Math.round(walkFromDropoffMeters / 75);
+
+          // Total door-to-door arrival time
+          const totalArrivalMins = walkToOriginMins + waitMins + rideMins + walkFromDropoffMins;
 
           // SCORING:
-          // Heavy penalty on walking to origin (x3.5) so the app ALWAYS chooses the closest boarding station!
-          // Walking 120m vs 1200m will easily win!
+          // Heavy penalty on walking to origin (x3.0) and wait time so fastest incoming options rank highest
           const isRail = line.type_id === 'subway' || line.type_id === 'train' || line.type_id === 'rfr' || line.type_id === 'tgm';
-          const railBonus = isRail ? 250 : 0;
-          const liveBonus = liveVehicles.length > 0 ? 150 : 0;
-          const score = (walkToOriginMeters * 3.5) + (walkFromDropoffMeters * 1.5) + (stopsCount * 120) - railBonus - liveBonus;
+          const railBonus = isRail ? 150 : 0;
+          const liveBonus = hasLiveApproaching ? 250 : (lineVehicles.length > 0 ? 100 : 0);
+          const score = (walkToOriginMeters * 3.0) + (walkFromDropoffMeters * 1.5) + (waitMins * 80) + (rideMins * 50) - railBonus - liveBonus;
 
           rawSolutions.push({
             line,
@@ -273,10 +326,15 @@ export default function SmartTripPlannerModal({
             walkFromDropoffMeters,
             walkFromDropoffMins,
             totalWalkMeters,
-            estimatedTotalMins,
+            waitMins,
+            rideMins,
+            totalArrivalMins,
+            estimatedTotalMins: totalArrivalMins,
+            hasLiveApproaching,
+            approachingVehicle,
             isDirectStop: walkFromDropoffMeters < 80,
-            liveVehiclesCount: liveVehicles.length,
-            closestVehicle: liveVehicles[0] || null,
+            liveVehiclesCount: lineVehicles.length,
+            closestVehicle: approachingVehicle || lineVehicles[0] || null,
             score
           });
         }
@@ -286,14 +344,47 @@ export default function SmartTripPlannerModal({
     // Deduplicate by line ID: keep the best direction/solution for each line
     const byLine = new Map();
     rawSolutions.forEach(sol => {
-      if (!byLine.has(sol.line.id) || byLine.get(sol.line.id).score > sol.score) {
+      if (!byLine.has(sol.line.id) || byLine.get(sol.line.id).totalArrivalMins > sol.totalArrivalMins) {
         byLine.set(sol.line.id, sol);
       }
     });
 
-    const sorted = Array.from(byLine.values()).sort((a, b) => a.score - b.score);
-    return sorted.slice(0, 6);
-  }, [targetDestination, userLocation, STATIC_LINES, liveLocations]);
+    const solutionsList = Array.from(byLine.values());
+    if (solutionsList.length === 0) return [];
+
+    // Identify minimum metrics across all solutions for pinned badges
+    let minTotal = Infinity;
+    let minWait = Infinity;
+    let minWalk = Infinity;
+
+    solutionsList.forEach(s => {
+      if (s.totalArrivalMins < minTotal) minTotal = s.totalArrivalMins;
+      if (s.waitMins < minWait) minWait = s.waitMins;
+      if (s.totalWalkMeters < minWalk) minWalk = s.totalWalkMeters;
+    });
+
+    // Tag each solution with pinned attributes
+    const taggedSolutions = solutionsList.map(s => ({
+      ...s,
+      isFastestTotal: s.totalArrivalMins === minTotal,
+      isSoonestDeparture: s.waitMins === minWait,
+      isLeastWalk: s.totalWalkMeters === minWalk || s.isDirectStop
+    }));
+
+    // Sort according to active filterMode
+    let sorted = [...taggedSolutions];
+    if (filterMode === 'fastest') {
+      sorted.sort((a, b) => a.totalArrivalMins - b.totalArrivalMins);
+    } else if (filterMode === 'soonest') {
+      sorted.sort((a, b) => a.waitMins - b.waitMins || a.totalArrivalMins - b.totalArrivalMins);
+    } else if (filterMode === 'least_walk') {
+      sorted.sort((a, b) => a.totalWalkMeters - b.totalWalkMeters || a.totalArrivalMins - b.totalArrivalMins);
+    } else {
+      sorted.sort((a, b) => a.score - b.score);
+    }
+
+    return sorted.slice(0, 8);
+  }, [targetDestination, userLocation, STATIC_LINES, liveLocations, filterMode]);
 
   if (!isOpen) return null;
 
@@ -423,27 +514,86 @@ export default function SmartTripPlannerModal({
           {/* Solutions for Target Destination */}
           {targetDestination && (
             <div className="space-y-3">
-              <div className="flex items-center justify-between">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
                 <div>
                   <span className="text-xs font-bold uppercase tracking-wider text-slate-300">
-                    Meilleures lignes pour {targetDestination.name}
+                    {language === 'ar' ? `أفضل مسارات للوصول إلى ${targetDestination.name}` : `Meilleures lignes pour ${targetDestination.name}`}
                   </span>
                   <div className="text-[11px] text-slate-400 mt-0.5">
-                    Classées par proximité et véhicules en direct
+                    {language === 'ar' ? 'مصنفة حسب سرعة الوصول، توقيت المركبة القادمة ومسافة المشي' : 'Classées selon rapidité d\'arrivée, proximité de départ et marche'}
                   </div>
                 </div>
-                <span className="text-xs bg-emerald-500/20 text-emerald-400 px-2.5 py-0.5 rounded-full font-bold border border-emerald-500/30">
-                  {routeSolutions.length} solution(s)
+                <span className="text-xs bg-emerald-500/20 text-emerald-400 px-2.5 py-0.5 rounded-full font-bold border border-emerald-500/30 self-start sm:self-auto">
+                  {routeSolutions.length} {language === 'ar' ? 'حلول متاحة' : 'solution(s)'}
                 </span>
+              </div>
+
+              {/* Quick Filter / Sort Pills for Decision Making */}
+              <div className="flex items-center gap-1.5 overflow-x-auto pb-1 scrollbar-none">
+                <button
+                  type="button"
+                  onClick={() => setFilterMode('fastest')}
+                  className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all whitespace-nowrap flex items-center gap-1.5 shadow-sm active:scale-95 ${
+                    filterMode === 'fastest'
+                      ? 'bg-emerald-600 text-white shadow-emerald-500/25 ring-2 ring-emerald-400/40'
+                      : 'bg-slate-800/80 hover:bg-slate-700/80 text-slate-300 border border-slate-700/70'
+                  }`}
+                >
+                  <Zap className="w-3.5 h-3.5 text-amber-300" />
+                  <span>{language === 'ar' ? 'الأسرع وصولاً' : '⚡ Le plus rapide'}</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setFilterMode('soonest')}
+                  className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all whitespace-nowrap flex items-center gap-1.5 shadow-sm active:scale-95 ${
+                    filterMode === 'soonest'
+                      ? 'bg-amber-600 text-white shadow-amber-500/25 ring-2 ring-amber-400/40'
+                      : 'bg-slate-800/80 hover:bg-slate-700/80 text-slate-300 border border-slate-700/70'
+                  }`}
+                >
+                  <Clock className="w-3.5 h-3.5 text-amber-200" />
+                  <span>{language === 'ar' ? 'أقرب انطلاق' : '⏱️ Départ imminent'}</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setFilterMode('least_walk')}
+                  className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all whitespace-nowrap flex items-center gap-1.5 shadow-sm active:scale-95 ${
+                    filterMode === 'least_walk'
+                      ? 'bg-sky-600 text-white shadow-sky-500/25 ring-2 ring-sky-400/40'
+                      : 'bg-slate-800/80 hover:bg-slate-700/80 text-slate-300 border border-slate-700/70'
+                  }`}
+                >
+                  <Footprints className="w-3.5 h-3.5 text-sky-200" />
+                  <span>{language === 'ar' ? 'أقل مشي' : '🚶 Moins de marche'}</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setFilterMode('all')}
+                  className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all whitespace-nowrap flex items-center gap-1.5 shadow-sm active:scale-95 ${
+                    filterMode === 'all'
+                      ? 'bg-indigo-600 text-white shadow-indigo-500/25 ring-2 ring-indigo-400/40'
+                      : 'bg-slate-800/80 hover:bg-slate-700/80 text-slate-300 border border-slate-700/70'
+                  }`}
+                >
+                  <span>📋</span>
+                  <span>{language === 'ar' ? 'جميع الخيارات' : 'Toutes les options'}</span>
+                </button>
               </div>
 
               {routeSolutions.length === 0 ? (
                 <div className="p-5 bg-slate-800/40 border border-slate-700/60 rounded-2xl text-center space-y-2">
                   <p className="text-xs text-slate-300 font-semibold">
-                    Aucune ligne de transport ne passe à moins de 2.5 km de ce lieu depuis votre position.
+                    {language === 'ar'
+                      ? 'لا توجد خطوط نقل مباشرة تمر قريباً من هذه الوجهة انطلاقاً من موقعك.'
+                      : 'Aucune ligne de transport ne passe à moins de 2.5 km de ce lieu depuis votre position.'}
                   </p>
                   <p className="text-[11px] text-slate-400">
-                    Astuce : Rapprochez-vous d'un grand pôle d'échange comme <strong>Place de Barcelone</strong>, <strong>Tunis Marine</strong> ou <strong>Passage</strong>.
+                    {language === 'ar'
+                      ? 'نصيحة : اقترب من محطة رئيسية مثل ساحة برشلونة، تونس البحرية أو الباساج.'
+                      : 'Astuce : Rapprochez-vous d\'un grand pôle d\'échange comme Place de Barcelone, Tunis Marine ou Passage.'}
                   </p>
                 </div>
               ) : (
@@ -453,7 +603,38 @@ export default function SmartTripPlannerModal({
                       key={`${sol.line.id}-${sol.originStation.name}-${index}`}
                       className="p-4 bg-slate-800/60 hover:bg-slate-800/90 border border-slate-700/70 hover:border-blue-500/80 rounded-2xl transition-all shadow-md group space-y-3"
                     >
-                      {/* Line Badge & Live Signal */}
+                      {/* Pinned Badges for Instant Comparison */}
+                      <div className="flex flex-wrap items-center gap-1.5">
+                        {sol.isFastestTotal && (
+                          <span className="px-2.5 py-1 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 text-white font-black text-[10px] shadow-sm flex items-center gap-1 border border-emerald-400/30">
+                            <span>⚡</span>
+                            <span>{language === 'ar' ? `الأسرع وصولاً (~${sol.totalArrivalMins} دق إجمالاً)` : `LE PLUS RAPIDE (~${sol.totalArrivalMins} min au total)`}</span>
+                          </span>
+                        )}
+
+                        {sol.isSoonestDeparture && (
+                          <span className="px-2.5 py-1 rounded-xl bg-gradient-to-r from-amber-600 to-orange-600 text-white font-black text-[10px] shadow-sm flex items-center gap-1 border border-amber-400/30">
+                            <span>⏱️</span>
+                            <span>{language === 'ar' ? `أقرب انطلاق (~${sol.waitMins} دق)` : `DÉPART IMMINENT (~${sol.waitMins} min d'attente)`}</span>
+                          </span>
+                        )}
+
+                        {sol.isLeastWalk && (
+                          <span className="px-2.5 py-1 rounded-xl bg-gradient-to-r from-sky-600 to-blue-600 text-white font-black text-[10px] shadow-sm flex items-center gap-1 border border-sky-400/30">
+                            <span>🚶</span>
+                            <span>{language === 'ar' ? `أقرب نزول (${sol.walkFromDropoffMeters}م مشي)` : `DÉPOSE AU PLUS PRÈS (${sol.walkFromDropoffMeters}m de marche)`}</span>
+                          </span>
+                        )}
+
+                        {sol.hasLiveApproaching && (
+                          <span className="px-2 py-0.5 rounded-lg bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 text-[10px] font-bold flex items-center gap-1">
+                            <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
+                            <span>{language === 'ar' ? `مباشر GPS: خلال ~${sol.waitMins} دق` : `GPS Live : dans ~${sol.waitMins} min`}</span>
+                          </span>
+                        )}
+                      </div>
+
+                      {/* Line Header */}
                       <div className="flex items-center justify-between">
                         <div className="flex items-center gap-2.5 min-w-0">
                           <span
@@ -472,20 +653,41 @@ export default function SmartTripPlannerModal({
                           </div>
                         </div>
 
-                        {sol.liveVehiclesCount > 0 ? (
-                          <span className="bg-emerald-500/20 text-emerald-400 border border-emerald-500/40 text-[10px] font-bold px-2 py-0.5 rounded-full flex items-center gap-1 flex-shrink-0">
-                            <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
-                            {sol.liveVehiclesCount} {language === 'ar' ? 'مباشرة' : 'en direct'}
-                          </span>
-                        ) : (
-                          <span className="text-[10px] text-slate-400 bg-slate-900/60 px-2 py-0.5 rounded-full flex-shrink-0">
-                            ~{sol.estimatedTotalMins} {language === 'ar' ? 'دقيقة إجمالاً' : 'min au total'}
-                          </span>
-                        )}
+                        <div className="text-right flex-shrink-0">
+                          <div className="text-xs font-black text-emerald-400">
+                            ~{sol.totalArrivalMins} {language === 'ar' ? 'دق' : 'min'}
+                          </div>
+                          <div className="text-[10px] text-slate-400">
+                            {language === 'ar' ? 'الوقت الإجمالي' : 'porte-à-porte'}
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Journey Step-by-Step Breakdown Strip */}
+                      <div className="flex items-center gap-1.5 text-[10.5px] font-semibold text-slate-300 bg-slate-950/70 p-2.5 rounded-xl border border-slate-800/90 overflow-x-auto scrollbar-none">
+                        <span className="flex items-center gap-1 text-sky-400 whitespace-nowrap">
+                          <Footprints className="w-3 h-3" />
+                          <span>{sol.walkToOriginMins}m à pied</span>
+                        </span>
+                        <span className="text-slate-600">→</span>
+                        <span className="flex items-center gap-1 text-amber-400 whitespace-nowrap">
+                          <Clock className="w-3 h-3" />
+                          <span>Attente ~{sol.waitMins}m</span>
+                        </span>
+                        <span className="text-slate-600">→</span>
+                        <span className="flex items-center gap-1 font-bold whitespace-nowrap" style={{ color: sol.line.color }}>
+                          <span>{sol.line.type_id === 'bus' ? '🚌' : '🚇'}</span>
+                          <span>Trajet ~{sol.rideMins}m</span>
+                        </span>
+                        <span className="text-slate-600">→</span>
+                        <span className="flex items-center gap-1 text-emerald-400 whitespace-nowrap">
+                          <Footprints className="w-3 h-3" />
+                          <span>{sol.walkFromDropoffMins}m à pied</span>
+                        </span>
                       </div>
 
                       {/* Step-by-Step Guidance */}
-                      <div className="bg-slate-900/80 rounded-2xl p-3 text-xs space-y-2 border border-slate-800 text-slate-300">
+                      <div className="bg-slate-900/80 rounded-2xl p-3 text-xs space-y-2.5 border border-slate-800 text-slate-300">
                         {/* Step 1: Walk to Boarding */}
                         <div className="flex items-start gap-2.5">
                           <Footprints className="w-4 h-4 text-blue-400 flex-shrink-0 mt-0.5" />
@@ -498,7 +700,28 @@ export default function SmartTripPlannerModal({
                           </div>
                         </div>
 
-                        {/* Step 2: Transit Ride */}
+                        {/* Step 2: Waiting time */}
+                        <div className="flex items-start gap-2.5">
+                          <Clock className="w-4 h-4 text-amber-400 flex-shrink-0 mt-0.5" />
+                          <div>
+                            {sol.hasLiveApproaching ? (
+                              <span className="text-emerald-400 font-bold">
+                                {language === 'ar'
+                                  ? `🟢 مركبة مباشرة قادمة نحو المحطة (تصل خلال ~${sol.waitMins} دق)`
+                                  : `🟢 Véhicule direct en approche (arrive dans ~${sol.waitMins} min)`}
+                              </span>
+                            ) : (
+                              <span className="text-slate-300">
+                                {language === 'ar'
+                                  ? `⏱️ وقت الانتظار التقديري : ~${sol.waitMins} دقيقة`
+                                  : `⏱️ Temps d'attente estimé : ~${sol.waitMins} min`}
+                                <span className="text-slate-500 text-[10px]"> ({sol.line.type_id === 'bus' ? 'Bus' : 'Train/Métro'})</span>
+                              </span>
+                            )}
+                          </div>
+                        </div>
+
+                        {/* Step 3: Transit Ride */}
                         <div className="flex items-start gap-2.5">
                           <div className="w-4 h-4 rounded-full flex items-center justify-center font-bold text-[9px] text-white flex-shrink-0 mt-0.5" style={{ backgroundColor: sol.line.color }}>
                             {sol.line.type_id === 'bus' ? '🚌' : '🚇'}
@@ -506,16 +729,11 @@ export default function SmartTripPlannerModal({
                           <div>
                             <span>{language === 'ar' ? 'السفر عبر الخط ' : 'Voyager sur la ligne '}</span>
                             <strong className="text-white">{getLineShortName(sol.line, language)}</strong>
-                            <span className="text-slate-400"> {language === 'ar' ? `لمدة ${sol.stopsCount} محطات` : `pendant ${sol.stopsCount} arrêt(s)`}</span>
-                            {sol.liveVehiclesCount > 0 && (
-                              <div className="text-[11px] text-emerald-400 font-semibold mt-0.5">
-                                {language === 'ar' ? '🟢 مركبة مباشرة متابعة بالـ GPS على هذا الخط' : '🟢 Véhicule en direct suivi par GPS sur cette ligne'}
-                              </div>
-                            )}
+                            <span className="text-slate-400"> {language === 'ar' ? `لمدة ~${sol.rideMins} دق (${sol.stopsCount} محطات)` : `pendant ~${sol.rideMins} min (${sol.stopsCount} arrêts)`}</span>
                           </div>
                         </div>
 
-                        {/* Step 3: Drop-off */}
+                        {/* Step 4: Drop-off */}
                         <div className="flex items-start gap-2.5">
                           <MapPin className="w-4 h-4 text-amber-400 flex-shrink-0 mt-0.5" />
                           <div>
@@ -524,17 +742,21 @@ export default function SmartTripPlannerModal({
                           </div>
                         </div>
 
-                        {/* Step 4: Final Walk to Target Place */}
+                        {/* Step 5: Final Walk to Target Place */}
                         <div className="flex items-start gap-2.5">
                           <CheckCircle2 className="w-4 h-4 text-emerald-400 flex-shrink-0 mt-0.5" />
                           <div>
                             {sol.isDirectStop ? (
                               <span className="text-emerald-400 font-bold">
-                                🎯 Vous arrivez directement à votre destination !
+                                {language === 'ar' ? '🎯 وصول مباشر أمام وجهتك بالتمام !' : '🎯 Dépose directe devant votre destination !'}
                               </span>
                             ) : (
                               <span>
-                                Marcher <strong className="text-white">{sol.walkFromDropoffMeters} mètres</strong> (~{sol.walkFromDropoffMins} min) jusqu'à <strong className="text-white">{targetDestination.name}</strong>
+                                {language === 'ar'
+                                  ? `المشي ${sol.walkFromDropoffMeters} متراً (~${sol.walkFromDropoffMins} دق) للوصول إلى `
+                                  : `Marcher `}
+                                <strong className="text-white">{sol.walkFromDropoffMeters} mètres</strong> (~{sol.walkFromDropoffMins} min) {language === 'ar' ? '' : 'jusqu\'à '}
+                                <strong className="text-white">{targetDestination.name}</strong>
                               </span>
                             )}
                           </div>
@@ -557,7 +779,7 @@ export default function SmartTripPlannerModal({
                         }}
                         className="w-full py-2.5 px-3 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white rounded-xl text-xs font-bold transition flex items-center justify-center gap-1.5 shadow-md shadow-blue-500/20 active:scale-[0.99]"
                       >
-                        <span>Afficher cet itinéraire sur la carte</span>
+                        <span>{language === 'ar' ? 'عرض هذا المسار على الخريطة' : 'Afficher cet itinéraire sur la carte'}</span>
                         <ArrowRight className="w-3.5 h-3.5" />
                       </button>
                     </div>

@@ -650,29 +650,30 @@ function TransitMap({
       const newLayers = [];
       const allCoords = [];
 
-      // A) Leg 1: Walk to origin station (À pied - Tracé piétonnier exclusif en pointillés espacés)
+      // A) Leg 1: Walk to origin station (À pied - Style officiel Google Maps Walking Dots)
       if (walkLeg1Coords.length >= 2) {
         allCoords.push(...walkLeg1Coords);
 
-        // Dark soft shadow for contrast against roads/satellite
-        const walkShadow1 = L.polyline(walkLeg1Coords, {
-          color: '#0f172a',
-          weight: 6,
-          opacity: 0.25,
-          dashArray: '2, 12',
-          lineCap: 'round'
+        // Google Maps Layer 1: Clean white outline/halo so dots pop crisp on dark & light maps
+        const walkHalo1 = L.polyline(walkLeg1Coords, {
+          color: '#ffffff',
+          weight: 8,
+          opacity: 0.95,
+          lineCap: 'round',
+          lineJoin: 'round'
         }).addTo(currentMap);
 
-        // Pedestrian footsteps: clean, round, sky-blue dots with generous transparent spacing (NOT a solid car road)
+        // Google Maps Layer 2: Signature Google Blue circular walking dots (diameter 5px, spaced 10px)
         const walkDots1 = L.polyline(walkLeg1Coords, {
-          color: '#0284c7',
+          color: '#1a73e8', // Official Google Maps Walking Blue
           weight: 5,
           opacity: 1.0,
-          dashArray: '2, 12',
-          lineCap: 'round'
+          dashArray: '0.1, 10',
+          lineCap: 'round',
+          lineJoin: 'round'
         }).addTo(currentMap);
 
-        newLayers.push(walkShadow1, walkDots1);
+        newLayers.push(walkHalo1, walkDots1);
 
         // Walking distance & time pill badge at midpoint of the walk
         const midIdx1 = Math.floor(walkLeg1Coords.length / 2);
@@ -683,10 +684,10 @@ function TransitMap({
         const walkBadgeIcon1 = L.divIcon({
           html: `
             <div class="pointer-events-none flex items-center justify-center" style="transform: translate(-50%, -50%);">
-              <div class="px-2 py-0.5 rounded-full bg-sky-600/95 text-white text-[10px] font-bold shadow-lg border border-white/80 flex items-center gap-1 backdrop-blur-sm whitespace-nowrap">
+              <div class="px-2 py-0.5 rounded-full bg-blue-600/95 text-white text-[10px] font-bold shadow-lg border border-white/80 flex items-center gap-1 backdrop-blur-sm whitespace-nowrap">
                 <span>🚶</span>
                 <span>${walkMins1} min</span>
-                <span class="text-sky-200 text-[9px]">(${walkMeters1}m)</span>
+                <span class="text-blue-100 text-[9px]">(${walkMeters1}m)</span>
               </div>
             </div>
           `,
@@ -731,29 +732,30 @@ function TransitMap({
         newLayers.push(casing, mainLine, dashOverlay);
       }
 
-      // C) Leg 3: Walk to final destination (À pied vers destination - Tracé piétonnier exclusif)
+      // C) Leg 3: Walk to final destination (À pied vers destination - Style Google Maps Walking Dots)
       if (walkLeg2Coords.length >= 2) {
         allCoords.push(...walkLeg2Coords);
 
-        // Dark soft shadow for contrast
-        const walkShadow2 = L.polyline(walkLeg2Coords, {
-          color: '#0f172a',
-          weight: 6,
-          opacity: 0.25,
-          dashArray: '2, 12',
-          lineCap: 'round'
+        // Google Maps Layer 1: Clean white outline/halo
+        const walkHalo2 = L.polyline(walkLeg2Coords, {
+          color: '#ffffff',
+          weight: 8,
+          opacity: 0.95,
+          lineCap: 'round',
+          lineJoin: 'round'
         }).addTo(currentMap);
 
-        // Pedestrian footsteps: clean, round, emerald dots with generous transparent spacing
+        // Google Maps Layer 2: Signature Google Emerald Green circular walking dots
         const walkDots2 = L.polyline(walkLeg2Coords, {
-          color: '#059669',
+          color: '#0f9d58', // Official Google Maps Green
           weight: 5,
           opacity: 1.0,
-          dashArray: '2, 12',
-          lineCap: 'round'
+          dashArray: '0.1, 10',
+          lineCap: 'round',
+          lineJoin: 'round'
         }).addTo(currentMap);
 
-        newLayers.push(walkShadow2, walkDots2);
+        newLayers.push(walkHalo2, walkDots2);
 
         // Walking distance & time pill badge at midpoint of final walk
         const midIdx2 = Math.floor(walkLeg2Coords.length / 2);
@@ -767,7 +769,7 @@ function TransitMap({
               <div class="px-2 py-0.5 rounded-full bg-emerald-600/95 text-white text-[10px] font-bold shadow-lg border border-white/80 flex items-center gap-1 backdrop-blur-sm whitespace-nowrap">
                 <span>🚶</span>
                 <span>${walkMins2} min</span>
-                <span class="text-emerald-200 text-[9px]">(${walkMeters2}m)</span>
+                <span class="text-emerald-100 text-[9px]">(${walkMeters2}m)</span>
               </div>
             </div>
           `,
