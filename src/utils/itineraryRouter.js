@@ -25,9 +25,9 @@ export async function getWalkingRoute(start, end) {
     return [[start.lat, start.lon], [end.lat, end.lon]];
   }
 
-  // Routing mirrors (Primary + Fallback)
+  // High-precision OpenStreetMap pedestrian routing mirrors (routed-foot)
   const urls = [
-    `https://routing.openstreetmap.de/routed-foot/route/v1/driving/${start.lon},${start.lat};${end.lon},${end.lat}?overview=full&geometries=geojson`,
+    `https://routing.openstreetmap.de/routed-foot/route/v1/foot/${start.lon},${start.lat};${end.lon},${end.lat}?overview=full&geometries=geojson`,
     `https://router.project-osrm.org/route/v1/foot/${start.lon},${start.lat};${end.lon},${end.lat}?overview=full&geometries=geojson`
   ];
 

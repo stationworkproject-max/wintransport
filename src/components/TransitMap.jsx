@@ -468,22 +468,44 @@ function TransitMap({
         marker.on('click', (e) => {
           if (e && e.originalEvent) L.DomEvent.stopPropagation(e);
           onSelectStation(stop, selectedLine);
+          map.flyTo([stop.lat, stop.lon], 16, { animate: true, duration: 0.7 });
         });
 
         marker.addTo(map);
         stationLayersRef.current[`${selectedLine.id}-${stop.id}`] = marker;
       });
 
-      // Fit map bounds smoothly to the isolated line (if not in active itinerary mode)
+      // Fit map bounds smoothly to the isolated line (eye-friendly framing: never zoom out too far)
       if (!activeItinerary && lineLayersRef.current[selectedLine.id]) {
         const bounds = lineLayersRef.current[selectedLine.id].getBounds();
         if (bounds && bounds.isValid()) {
-          map.fitBounds(bounds, { 
-            paddingTopLeft: [40, 130], 
-            paddingBottomRight: [40, 90], 
-            maxZoom: 15,
-            animate: true
-          });
+          const userLoc = userLocationRef.current;
+          let focusedNearUser = false;
+
+          // Eye-friendly: If user has active GPS and is within 4 km of the line, focus near user at zoom 15!
+          if (userLoc && userLoc.lat && userLoc.lon) {
+            const lineStops = selectedLine.stops || [];
+            let closestStopDist = Infinity;
+            let closestStopCoord = null;
+            for (const st of lineStops) {
+              const d = getDistanceMeters(userLoc.lat, userLoc.lon, st.lat, st.lon);
+              if (d < closestStopDist) {
+                closestStopDist = d;
+                closestStopCoord = [st.lat, st.lon];
+              }
+            }
+            if (closestStopDist <= 4000 && closestStopCoord) {
+              map.flyTo(closestStopCoord, 15, { animate: true, duration: 0.8 });
+              focusedNearUser = true;
+            }
+          }
+
+          // Otherwise, fit bounds with a clamped minZoom so it never zooms out too far!
+          if (!focusedNearUser) {
+            const boundsZoom = map.getBoundsZoom(bounds, false, [40, 100]);
+            const eyeFriendlyZoom = Math.max(12, Math.min(15, boundsZoom));
+            map.flyTo(bounds.getCenter(), eyeFriendlyZoom, { animate: true, duration: 0.8 });
+          }
         }
       }
 
@@ -567,6 +589,7 @@ function TransitMap({
         stationMarker.on('click', (e) => {
           if (e && e.originalEvent) L.DomEvent.stopPropagation(e);
           onSelectStation(stop, line);
+          map.flyTo([stop.lat, stop.lon], 16, { animate: true, duration: 0.7 });
         });
 
         stationMarker.addTo(map);
@@ -1134,6 +1157,9 @@ function TransitMap({
             zIndexOffset: 1000,
           }).bindPopup(popupContent, { className: 'custom-popup' });
           marker._lastDirection = loc.direction;
+          marker.on('click', () => {
+            map.flyTo([loc.latitude, loc.longitude], 16, { animate: true, duration: 0.7 });
+          });
           marker.addTo(map);
           vehicleMarkersRef.current[loc.id] = marker;
 

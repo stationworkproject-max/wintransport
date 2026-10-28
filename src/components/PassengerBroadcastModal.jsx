@@ -9,7 +9,8 @@ import {
   Gauge, 
   ShieldCheck,
   Zap,
-  LocateFixed
+  LocateFixed,
+  Search
 } from 'lucide-react';
 import { STATIC_LINES as DEFAULT_STATIC_LINES } from '../data/staticTransit';
 import TRANSIT_SHAPES_DEFAULT from '../data/transitShapes.json';
@@ -205,11 +206,42 @@ export default function PassengerBroadcastModal({
     return Math.min(12, Math.max(10, clampedAcc));
   };
 
+  // ── 🚉 MULTI-TRACK TERMINUS HUBS & SWITCHING YARDS (Place de Barcelone, Tunis Marine, etc.) ──
+  // Trains switch tracks (quais 1 à 10) before departure across ~100m wide platforms.
+  // When a passenger is anywhere on the platform complex waiting for departure, all lines serving
+  // this hub are detected with minD = 0 so passenger can broadcast regardless of track switching!
+  const MAJOR_TERMINUS_HUBS = [
+    { id: 'barcelone', name: 'Gare de Tunis / Barcelone', lat: 36.7952, lon: 10.1805, radius: 130 },
+    { id: 'tunis_marine', name: 'Tunis Marine', lat: 36.8010, lon: 10.1906, radius: 100 },
+    { id: 'passage', name: 'Passage / République', lat: 36.8055, lon: 10.1815, radius: 95 },
+    { id: 'bab_saadoun', name: 'Bab Saadoun', lat: 36.8085, lon: 10.1585, radius: 95 },
+  ];
+
   // Helper: Exact distance from user GPS to a transit line (checks both high-def OSM track shapes & stops)
   const getDistanceToLine = (userLat, userLon, line) => {
     if (!line) return { minD: 999999, closestStop: null };
     let minD = Infinity;
     let closestStop = null;
+
+    // 0. Terminus Hub Multi-Track Yard Check (Barcelone, Tunis Marine, etc.)
+    // If passenger is on the station platform/quai complex and line stops at or departs from this hub,
+    // trains can be on any rail/quai (1 to 10), so distance is 0m!
+    if (userLat && userLon) {
+      for (const hub of MAJOR_TERMINUS_HUBS) {
+        const dToHub = getDistanceMeters(userLat, userLon, hub.lat, hub.lon);
+        if (dToHub <= hub.radius) {
+          const allStops = [
+            ...(line.stops || []),
+            ...(line.stops_aller || []),
+            ...(line.stops_retour || [])
+          ];
+          const hubStop = allStops.find(s => s && s.lat && s.lon && getDistanceMeters(hub.lat, hub.lon, s.lat, s.lon) <= (hub.radius + 70));
+          if (hubStop) {
+            return { minD: 0, closestStop: hubStop, isAtHub: true, hubName: hub.name };
+          }
+        }
+      }
+    }
 
     // 1. High-definition real physical route geometry (checks main shape, directional shapes, and indexed shapes)
     const shapesToCheck = [
@@ -1448,40 +1480,105 @@ export default function PassengerBroadcastModal({
                   </div>
                 )}
 
-                <label className="block text-xs font-bold text-slate-300 uppercase tracking-wider">
-                  {selectedLine ? "Changer ou choisir une autre ligne à proximité :" : "Ligne détectée à votre emplacement :"}
-                </label>
-                <div className="space-y-2 max-h-48 overflow-y-auto pr-1">
-                  {eligibleLines.map(line => (
-                    <button
-                      key={line.id}
-                      type="button"
-                      onClick={() => handleSelectLine(line)}
-                      className={`w-full p-3.5 rounded-2xl text-left flex items-center justify-between transition border ${
-                        selectedLineId === line.id
-                          ? 'bg-blue-600/30 border-blue-500 text-white shadow-lg ring-1 ring-blue-500'
-                          : 'bg-slate-800/40 border-slate-800 text-slate-300 hover:bg-slate-800'
-                      }`}
-                    >
-                      <div className="flex items-center gap-3 min-w-0">
-                        <span
-                          className="px-3 py-1.5 rounded-xl font-extrabold text-sm text-white flex-shrink-0 shadow"
-                          style={{ backgroundColor: line.color }}
+                {/* Line Selection with Search and Category Filters */}
+                <div className="space-y-2.5">
+                  <div className="flex items-center justify-between">
+                    <label className="block text-xs font-bold text-slate-300 uppercase tracking-wider">
+                      {selectedLine ? (language === 'ar' ? 'الخطوط المتاحة بموقعك :' : 'Lignes disponibles à cet endroit :') : (language === 'ar' ? 'الخطوط المكتشفة :' : 'Ligne détectée à votre emplacement :')}
+                    </label>
+                    <span className="text-[11px] text-slate-400 font-mono">
+                      {filteredNearbyLines.length} {filteredNearbyLines.length > 1 ? (language === 'ar' ? 'خطوط' : 'lignes') : (language === 'ar' ? 'خط' : 'ligne')}
+                    </span>
+                  </div>
+
+                  {/* Search input for finding specific lines at busy stations (Place Barcelone, Bab Saadoun, Passage...) */}
+                  <div className="relative">
+                    <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+                    <input
+                      type="text"
+                      value={searchQuery}
+                      onChange={(e) => setSearchQuery(e.target.value)}
+                      placeholder={language === 'ar' ? 'بحث عن خط أو قطار أو حافلة...' : 'Filtrer par nom ou numéro (ex: Train, 1, TGM)...'}
+                      className="w-full bg-slate-800/80 border border-slate-700/80 rounded-xl pl-9 pr-8 py-2 text-xs text-white placeholder-slate-400 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
+                    />
+                    {searchQuery && (
+                      <button
+                        type="button"
+                        onClick={() => setSearchQuery('')}
+                        className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-white p-0.5"
+                      >
+                        <X className="w-3.5 h-3.5" />
+                      </button>
+                    )}
+                  </div>
+
+                  {/* Category Pills (Tous, Train, Métro, Bus) */}
+                  <div className="flex gap-1.5 overflow-x-auto pb-0.5 text-[11px] no-scrollbar">
+                    {[
+                      { id: 'all', label: language === 'ar' ? 'الكل' : 'Tous' },
+                      { id: 'train', label: language === 'ar' ? 'قطار' : 'Train' },
+                      { id: 'subway', label: language === 'ar' ? 'مترو' : 'Métro' },
+                      { id: 'bus', label: language === 'ar' ? 'حافلة' : 'Bus' }
+                    ].map(cat => (
+                      <button
+                        key={cat.id}
+                        type="button"
+                        onClick={() => setSelectedCategory(cat.id)}
+                        className={`px-2.5 py-1 rounded-lg font-medium transition ${
+                          selectedCategory === cat.id
+                            ? 'bg-blue-600 text-white shadow-sm'
+                            : 'bg-slate-800/80 text-slate-400 hover:text-slate-200 border border-slate-700/50'
+                        }`}
+                      >
+                        {cat.label}
+                      </button>
+                    ))}
+                  </div>
+
+                  {/* Filtered Lines List */}
+                  <div className="space-y-2 max-h-48 overflow-y-auto pr-1">
+                    {filteredNearbyLines.length > 0 ? (
+                      filteredNearbyLines.map(line => (
+                        <button
+                          key={line.id}
+                          type="button"
+                          onClick={() => handleSelectLine(line)}
+                          className={`w-full p-3 rounded-2xl text-left flex items-center justify-between transition border ${
+                            selectedLineId === line.id
+                              ? 'bg-blue-600/30 border-blue-500 text-white shadow-lg ring-1 ring-blue-500'
+                              : 'bg-slate-800/40 border-slate-800 text-slate-300 hover:bg-slate-800'
+                          }`}
                         >
-                          {getLineShortName(line, language)}
-                        </span>
-                        <div className="min-w-0">
-                          <div className="font-bold text-xs truncate text-white">{getLineName(line, language)}</div>
-                          <div className="text-[10px] text-slate-400 mt-0.5">
-                            {language === 'ar' ? 'محطة : ' : 'Arrêt : '}<strong className="text-slate-300">{line.closestStopName}</strong>
+                          <div className="flex items-center gap-3 min-w-0">
+                            <span
+                              className="px-3 py-1.5 rounded-xl font-extrabold text-sm text-white flex-shrink-0 shadow"
+                              style={{ backgroundColor: line.color }}
+                            >
+                              {getLineShortName(line, language)}
+                            </span>
+                            <div className="min-w-0">
+                              <div className="font-bold text-xs truncate text-white">{getLineName(line, language)}</div>
+                              <div className="text-[10px] text-slate-400 mt-0.5">
+                                {language === 'ar' ? 'محطة : ' : 'Arrêt : '}<strong className="text-slate-300">{line.closestStopName}</strong>
+                              </div>
+                            </div>
                           </div>
-                        </div>
+                          <span className="text-[10px] bg-emerald-500/20 text-emerald-400 font-bold px-2.5 py-1 rounded-full border border-emerald-500/30 flex-shrink-0 ml-2">
+                            {line.distanceMeters === 0 ? (language === 'ar' ? 'في المحطة' : 'À quai') : `à ${line.distanceMeters}m`}
+                          </span>
+                        </button>
+                      ))
+                    ) : (
+                      <div className="p-3.5 text-center text-xs text-slate-400 bg-slate-800/40 border border-slate-800 rounded-xl space-y-1">
+                        <p>{language === 'ar' ? 'لا توجد خطوط مطابقة للبحث في هذا المكان.' : 'Aucune ligne correspondante à proximité.'}</p>
+                        {distantSearchedLine && (
+                          <p className="text-[11px] text-amber-300">
+                            ⚠️ {language === 'ar' ? `خط ${distantSearchedLine.short_name} يبعد ${distantSearchedLine.distanceDisplay}. يجب أن تكون على متن المركبة للقيام بالبث.` : `La ligne ${distantSearchedLine.short_name} se trouve à ${distantSearchedLine.distanceDisplay}. Vous devez être physiquement à bord pour diffuser.`}
+                          </p>
+                        )}
                       </div>
-                      <span className="text-[10px] bg-emerald-500/20 text-emerald-400 font-bold px-2.5 py-1 rounded-full border border-emerald-500/30 flex-shrink-0 ml-2">
-                        à {line.distanceMeters}m
-                      </span>
-                    </button>
-                  ))}
+                    )}
+                  </div>
                 </div>
               </div>
 

@@ -606,6 +606,7 @@ export default function App() {
             line={stationContextLine}
             onClose={() => setSelectedStation(null)}
             liveLocations={liveLocations}
+            crowdReports={crowdReports}
             onOpenBroadcast={handleOpenBroadcast}
             language={language}
             theme={theme}
@@ -656,6 +657,8 @@ export default function App() {
             isOpen={isReportOpen}
             onClose={() => setIsReportOpen(false)}
             onReportSuccess={() => fetchCrowdReports().then(setCrowdReports)}
+            userLocation={userLocation}
+            preselectedLine={selectedLine}
             language={language}
             theme={theme}
           />

@@ -1,5 +1,5 @@
 import React from 'react';
-import { X, MapPin, Clock, Radio, Navigation, Users, AlertCircle, Compass } from 'lucide-react';
+import { X, MapPin, Clock, Radio, Navigation, Users, AlertCircle, Compass, Eye } from 'lucide-react';
 import { getStationName, getLineName, getLineShortName } from '../utils/i18n';
 
 function getDistanceKm(lat1, lon1, lat2, lon2) {
@@ -20,6 +20,7 @@ export default function StationArrivalModal({
   line,
   onClose,
   liveLocations,
+  crowdReports = [],
   onOpenBroadcast,
   language = 'fr'
 }) {
@@ -34,6 +35,13 @@ export default function StationArrivalModal({
     if (line) return loc.line_id === line.id;
     return true;
   });
+
+  // Recent community sightings / reports for this station or line
+  const relevantReports = (crowdReports || []).filter(r => {
+    if (line && r.line_id === line.id) return true;
+    if (station?.name && r.stop_name && r.stop_name.toLowerCase().includes(station.name.toLowerCase())) return true;
+    return false;
+  }).slice(0, 3);
 
   // Calculate real ETAs based on actual GPS distance and speed
   const realArrivals = vehiclesOnLine
@@ -148,6 +156,29 @@ export default function StationArrivalModal({
                 <p className="text-[11px] text-slate-400 mt-1 leading-relaxed">
                   Le suivi en direct repose sur les passagers à bord. Dès qu'un usager monte et active son GPS, sa position réelle s'affiche ici.
                 </p>
+              </div>
+            </div>
+          )}
+
+          {/* Community Sightings & Recent Reports */}
+          {relevantReports.length > 0 && (
+            <div className="space-y-1.5 pt-2 border-t border-slate-800">
+              <div className="text-[10px] font-bold uppercase tracking-wider text-slate-400 flex items-center justify-between">
+                <span>{language === 'ar' ? 'ملاحظات المسافرين الأخيرة' : 'Observations récentes de la communauté'}</span>
+                <span className="text-cyan-400 font-medium text-[10px]">Temps réel</span>
+              </div>
+              <div className="space-y-1.5">
+                {relevantReports.map((r, idx) => (
+                  <div key={r.id || idx} className="p-2 bg-slate-800/50 border border-slate-700/60 rounded-xl text-xs flex items-start gap-2">
+                    <span className="text-cyan-400 mt-0.5 flex-shrink-0">
+                      {r.report_type === 'sighting' ? '👁️' : (r.report_type === 'broken' ? '⚠️' : '⏱️')}
+                    </span>
+                    <div className="min-w-0 flex-1">
+                      <div className="font-semibold text-slate-200 text-[11px] truncate">{r.stop_name || stationName}</div>
+                      <div className="text-[10px] text-slate-300 leading-tight mt-0.5">{r.message || r.report_type}</div>
+                    </div>
+                  </div>
+                ))}
               </div>
             </div>
           )}
