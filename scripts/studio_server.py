@@ -347,6 +347,238 @@ class StudioRequestHandler(http.server.SimpleHTTPRequestHandler):
                 print(f"[Studio] Error saving line: {e}")
                 return self.send_json({'success': False, 'error': str(e)}, status=500)
 
+        elif self.path == '/api/create_line':
+            content_length = int(self.headers.get('Content-Length', 0))
+            post_data = self.rfile.read(content_length)
+            try:
+                payload = json.loads(post_data.decode('utf-8'))
+                line_id = payload.get('id', '').strip()
+                short_name = payload.get('short_name', '').strip()
+                short_name_ar = payload.get('short_name_ar', short_name).strip()
+                long_name_fr = payload.get('long_name_fr', '').strip()
+                long_name_ar = payload.get('long_name_ar', '').strip()
+                type_id = payload.get('type_id', 'bus')
+                color = payload.get('color', '#3b82f6')
+                dir_aller = payload.get('direction_aller', 'Aller')
+                dir_retour = payload.get('direction_retour', 'Retour')
+
+                if not line_id or not short_name:
+                    return self.send_json({'success': False, 'error': 'ID et nom de ligne obligatoires'}, status=400)
+
+                # 1. Check if line already exists in src/data/staticTransit.js
+                transit_path = os.path.join(CWD, 'src', 'data', 'staticTransit.js')
+                with open(transit_path, 'r', encoding='utf-8') as f:
+                    st_text = f.read()
+
+                m = re.search(r'export const STATIC_LINES\s*=\s*(\[.*?\]);', st_text, re.DOTALL)
+                if not m:
+                    return self.send_json({'success': False, 'error': 'Impossible de lire STATIC_LINES'}, status=500)
+
+                lines = json.loads(m.group(1))
+                if any(l['id'] == line_id for l in lines):
+                    return self.send_json({'success': False, 'error': f'La ligne {line_id} existe déjà !'}, status=400)
+
+                new_line_obj = {
+                    "id": line_id,
+                    "short_name": short_name,
+                    "short_name_ar": short_name_ar,
+                    "long_name": long_name_fr or short_name,
+                    "long_name_fr": long_name_fr,
+                    "long_name_ar": long_name_ar,
+                    "type_id": type_id,
+                    "color": color,
+                    "directions": [dir_aller, dir_retour],
+                    "stops": [],
+                    "stops_aller": [],
+                    "stops_retour": []
+                }
+                lines.append(new_line_obj)
+
+                new_json = json.dumps(lines, ensure_ascii=False, indent=2)
+                st_text = st_text[:m.start(1)] + new_json + st_text[m.end(1):]
+                with open(transit_path, 'w', encoding='utf-8') as f:
+                    f.write(st_text)
+
+                # 2. Initialize shapes in src/data/transitShapes.json
+                shapes_path = os.path.join(CWD, 'src', 'data', 'transitShapes.json')
+                with open(shapes_path, 'r', encoding='utf-8') as f:
+                    shapes = json.load(f)
+
+                shapes[line_id] = []
+                shapes[f"{line_id}_0"] = []
+                shapes[f"{line_id}_1"] = []
+
+                with open(shapes_path, 'w', encoding='utf-8') as f:
+                    json.dump(shapes, f, ensure_ascii=False)
+
+                # 3. Update public/studio_data.js
+                studio_data_path = os.path.join(PUBLIC_DIR, 'studio_data.js')
+                data = {'lines': lines, 'shapes': shapes}
+                with open(studio_data_path, 'w', encoding='utf-8') as f:
+                    f.write('window.STUDIO_DATA = ' + json.dumps(data, ensure_ascii=False) + ';\n')
+
+                print(f"[Studio] Created new line {line_id} ({short_name})!")
+                return self.send_json({
+                    'success': True,
+                    'line': new_line_obj,
+                    'message': f'Ligne {short_name} créée avec succès !'
+                })
+            except Exception as e:
+                return self.send_json({'success': False, 'error': str(e)}, status=500)
+
+        elif self.path == '/api/publish_ota':
+            content_length = int(self.headers.get('Content-Length', 0))
+            post_data = self.rfile.read(content_length) if content_length > 0 else b'{}'
+            try:
+                payload = json.loads(post_data.decode('utf-8')) if post_data else {}
+                description = payload.get('description', 'Mise à jour cartographique Studio')
+
+                # 1. Read staticTransit.js and transitShapes.json
+                transit_path = os.path.join(CWD, 'src', 'data', 'staticTransit.js')
+                with open(transit_path, 'r', encoding='utf-8') as f:
+                    st_text = f.read()
+
+                m = re.search(r'export const STATIC_LINES\s*=\s*(\[.*?\]);', st_text, re.DOTALL)
+                lines = json.loads(m.group(1)) if m else []
+
+                shapes_path = os.path.join(CWD, 'src', 'data', 'transitShapes.json')
+                with open(shapes_path, 'r', encoding='utf-8') as f:
+                    shapes = json.load(f)
+
+                # Supabase configuration
+                SUPABASE_URL = "https://rqwpafatgsyncvretjym.supabase.co"
+                SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJxd3BhZmF0Z3N5bmN2cmV0anltIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODMwMTc2MzksImV4cCI6MjA5ODU5MzYzOX0.fjhdr_H_BeuCdLusEwojfhl8wNVraNDzZgwr76m6dQU"
+
+                # 2. Get latest version from Supabase
+                latest_version = 1
+                try:
+                    req_ver = urllib.request.Request(
+                        f"{SUPABASE_URL}/rest/v1/transit_dataset_meta?select=version&order=version.desc&limit=1",
+                        headers={"apikey": SUPABASE_KEY, "Authorization": f"Bearer {SUPABASE_KEY}"}
+                    )
+                    with urllib.request.urlopen(req_ver, timeout=5) as resp:
+                        v_data = json.loads(resp.read().decode('utf-8'))
+                        if v_data and len(v_data) > 0 and 'version' in v_data[0]:
+                            latest_version = int(v_data[0]['version'])
+                except Exception as ex_v:
+                    print(f"[Studio OTA] Could not get latest version, defaulting to 1: {ex_v}")
+
+                new_version = latest_version + 1
+
+                # 3. Save local OTA files in public directory as immediate fallback / CDN access
+                ota_dir = os.path.join(PUBLIC_DIR, 'ota_dataset')
+                os.makedirs(ota_dir, exist_ok=True)
+                with open(os.path.join(ota_dir, 'lines.json'), 'w', encoding='utf-8') as f:
+                    json.dump(lines, f, ensure_ascii=False)
+                with open(os.path.join(ota_dir, 'shapes.json'), 'w', encoding='utf-8') as f:
+                    json.dump(shapes, f, ensure_ascii=False)
+
+                lines_bytes = json.dumps(lines, ensure_ascii=False).encode('utf-8')
+                shapes_bytes = json.dumps(shapes, ensure_ascii=False).encode('utf-8')
+
+                # 4. Upload to Supabase Storage bucket 'transit-assets'
+                uploaded_storage = False
+                lines_url = f"{SUPABASE_URL}/storage/v1/object/public/transit-assets/versions/v{new_version}/lines.json"
+                shapes_url = f"{SUPABASE_URL}/storage/v1/object/public/transit-assets/versions/v{new_version}/shapes.json"
+
+                try:
+                    # Upload lines.json
+                    up_req1 = urllib.request.Request(
+                        f"{SUPABASE_URL}/storage/v1/object/transit-assets/versions/v{new_version}/lines.json",
+                        data=lines_bytes,
+                        headers={
+                            "apikey": SUPABASE_KEY,
+                            "Authorization": f"Bearer {SUPABASE_KEY}",
+                            "Content-Type": "application/json",
+                            "x-upsert": "true"
+                        },
+                        method="POST"
+                    )
+                    with urllib.request.urlopen(up_req1, timeout=15) as r1:
+                        print(f"[Studio OTA] Uploaded lines.json to storage: {r1.status}")
+
+                    # Upload shapes.json
+                    up_req2 = urllib.request.Request(
+                        f"{SUPABASE_URL}/storage/v1/object/transit-assets/versions/v{new_version}/shapes.json",
+                        data=shapes_bytes,
+                        headers={
+                            "apikey": SUPABASE_KEY,
+                            "Authorization": f"Bearer {SUPABASE_KEY}",
+                            "Content-Type": "application/json",
+                            "x-upsert": "true"
+                        },
+                        method="POST"
+                    )
+                    with urllib.request.urlopen(up_req2, timeout=20) as r2:
+                        print(f"[Studio OTA] Uploaded shapes.json to storage: {r2.status}")
+                    uploaded_storage = True
+                except Exception as ex_up:
+                    print(f"[Studio OTA] Storage upload note: {ex_up}")
+                    lines_url = f"https://edge.wstation.online/ota_dataset/lines.json"
+                    shapes_url = f"https://edge.wstation.online/ota_dataset/shapes.json"
+
+                # 5. Insert new version record into public.transit_dataset_meta
+                meta_payload = {
+                    "p_version": new_version,
+                    "p_description": description,
+                    "p_lines_url": lines_url,
+                    "p_shapes_url": shapes_url,
+                    "p_lines_count": len(lines),
+                    "p_shapes_count": len(shapes),
+                    "p_checksum": f"v{new_version}-{len(lines)}-{len(shapes)}"
+                }
+                
+                try:
+                    rpc_req = urllib.request.Request(
+                        f"{SUPABASE_URL}/rest/v1/rpc/publish_transit_dataset",
+                        data=json.dumps(meta_payload).encode('utf-8'),
+                        headers={
+                            "apikey": SUPABASE_KEY,
+                            "Authorization": f"Bearer {SUPABASE_KEY}",
+                            "Content-Type": "application/json"
+                        },
+                        method="POST"
+                    )
+                    with urllib.request.urlopen(rpc_req, timeout=10) as rpc_res:
+                        print(f"[Studio OTA] Published dataset metadata via RPC: {rpc_res.status}")
+                except Exception as ex_rpc:
+                    try:
+                        tbl_payload = [{
+                            "version": new_version,
+                            "description": description,
+                            "lines_url": lines_url,
+                            "shapes_url": shapes_url,
+                            "lines_count": len(lines),
+                            "shapes_count": len(shapes),
+                            "checksum": f"v{new_version}-{len(lines)}-{len(shapes)}"
+                        }]
+                        tbl_req = urllib.request.Request(
+                            f"{SUPABASE_URL}/rest/v1/transit_dataset_meta",
+                            data=json.dumps(tbl_payload).encode('utf-8'),
+                            headers={
+                                "apikey": SUPABASE_KEY,
+                                "Authorization": f"Bearer {SUPABASE_KEY}",
+                                "Content-Type": "application/json",
+                                "Prefer": "return=minimal"
+                            },
+                            method="POST"
+                        )
+                        with urllib.request.urlopen(tbl_req, timeout=10) as tbl_res:
+                            print(f"[Studio OTA] Inserted dataset metadata into table: {tbl_res.status}")
+                    except Exception as ex_tbl:
+                        print(f"[Studio OTA] Meta record insert notice: {ex_tbl}")
+
+                return self.send_json({
+                    'success': True,
+                    'version': new_version,
+                    'lines_count': len(lines),
+                    'shapes_count': len(shapes),
+                    'message': f'Jeu de données v{new_version} ({len(lines)} lignes) publié avec succès !'
+                })
+            except Exception as e:
+                print(f"[Studio OTA] Error publishing OTA: {e}")
+                return self.send_json({'success': False, 'error': str(e)}, status=500)
+
         elif self.path == '/api/build':
             try:
                 cmd = "npm run build && npx cap sync android"

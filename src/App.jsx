@@ -19,7 +19,7 @@ import {
   SUPABASE_URL,
   SUPABASE_ANON_KEY
 } from './supabase';
-import { STATIC_LINES } from './data/staticTransit';
+import { useTransitData } from './context/TransitDataContext';
 import { 
   isNativeAndroid, 
   isBackgroundBroadcastRunning,
@@ -33,6 +33,7 @@ import { getStationName, getLineName, getLineShortName, t } from './utils/i18n';
 import { getSavedTheme, applyTheme } from './utils/theme';
 
 export default function App() {
+  const { lines: STATIC_LINES, shapes: transitShapes, lastUpdateBanner, dismissUpdateBanner } = useTransitData();
   const [language, setLanguage] = useState(() => localStorage.getItem('app_lang') || 'fr');
   const [theme, setTheme] = useState(getSavedTheme);
 
@@ -396,6 +397,20 @@ export default function App() {
         onToggleTheme={toggleTheme}
       />
 
+      {/* OTA Dataset Update Notification Banner */}
+      {lastUpdateBanner && (
+        <div className="fixed top-16 left-1/2 -translate-x-1/2 z-[3000] bg-emerald-600/95 text-white text-xs font-semibold px-4 py-2 rounded-full shadow-xl flex items-center gap-2 backdrop-blur-md animate-in fade-in slide-in-from-top-2 duration-300">
+          <span>✨ {lastUpdateBanner}</span>
+          <button 
+            onClick={dismissUpdateBanner} 
+            className="text-white/80 hover:text-white font-bold ml-1 text-sm leading-none"
+            aria-label="Fermer"
+          >
+            ✕
+          </button>
+        </div>
+      )}
+
       {/* Main View Area */}
       <main className="flex-1 relative overflow-hidden flex flex-col md:flex-row">
         
@@ -522,6 +537,8 @@ export default function App() {
         <div className="flex-1 relative w-full h-full">
           {activeTab === 'map' ? (
             <TransitMap
+              lines={STATIC_LINES}
+              shapes={transitShapes}
               activeNetwork={activeNetwork}
               liveLocations={liveLocations}
               selectedLine={selectedLine}

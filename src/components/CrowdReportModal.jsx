@@ -1,10 +1,13 @@
 import React, { useState } from 'react';
 import { AlertTriangle, X, CheckCircle, Clock, Users, Wrench, ShieldAlert } from 'lucide-react';
-import { STATIC_LINES } from '../data/staticTransit';
+import { STATIC_LINES as DEFAULT_STATIC_LINES } from '../data/staticTransit';
+import { useTransitData } from '../context/TransitDataContext';
 import { submitCrowdReport } from '../supabase';
 import { getLineName, getLineShortName } from '../utils/i18n';
 
 export default function CrowdReportModal({ isOpen, onClose, onReportSuccess, language = 'fr' }) {
+  const { lines: dynamicLines } = useTransitData();
+  const STATIC_LINES = dynamicLines || DEFAULT_STATIC_LINES;
   const [lineId, setLineId] = useState('m1');
   const [reportType, setReportType] = useState('crowded');
   const [severity, setSeverity] = useState('medium');

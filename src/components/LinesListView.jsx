@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Search, ChevronRight, Clock, MapPin, Radio } from 'lucide-react';
-import { STATIC_LINES } from '../data/staticTransit';
+import { STATIC_LINES as DEFAULT_STATIC_LINES } from '../data/staticTransit';
+import { useTransitData } from '../context/TransitDataContext';
 import { getStationName, getLineName, getLineShortName } from '../utils/i18n';
 
 export default function LinesListView({
@@ -10,6 +11,8 @@ export default function LinesListView({
   language = 'fr',
   theme = 'dark'
 }) {
+  const { lines: dynamicLines } = useTransitData();
+  const STATIC_LINES = dynamicLines || DEFAULT_STATIC_LINES;
   const [searchQuery, setSearchQuery] = useState('');
   const isLight = theme === 'light';
 

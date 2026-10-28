@@ -11,8 +11,9 @@ import {
   Zap,
   LocateFixed
 } from 'lucide-react';
-import { STATIC_LINES } from '../data/staticTransit';
-import TRANSIT_SHAPES from '../data/transitShapes.json';
+import { STATIC_LINES as DEFAULT_STATIC_LINES } from '../data/staticTransit';
+import TRANSIT_SHAPES_DEFAULT from '../data/transitShapes.json';
+import { useTransitData } from '../context/TransitDataContext';
 import { 
   broadcastPing, 
   broadcastLeave, 
@@ -38,6 +39,9 @@ export default function PassengerBroadcastModal({
   language = 'fr',
   theme = 'dark'
 }) {
+  const { lines: dynamicLines, shapes: dynamicShapes } = useTransitData();
+  const STATIC_LINES = dynamicLines || DEFAULT_STATIC_LINES;
+  const TRANSIT_SHAPES = dynamicShapes || TRANSIT_SHAPES_DEFAULT;
   const [selectedCategory, setSelectedCategory] = useState('all');
   const [selectedLineId, setSelectedLineId] = useState(
     broadcastSession?.lineId || preselectedLine?.id || ''

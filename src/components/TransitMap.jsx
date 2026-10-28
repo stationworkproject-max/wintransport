@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useMemo, memo } from 'react';
 import L from 'leaflet';
-import { STATIC_LINES } from '../data/staticTransit';
+import { STATIC_LINES as DEFAULT_STATIC_LINES } from '../data/staticTransit';
 import { Users, Navigation, Clock, ShieldCheck, AlertCircle, X, LocateFixed, Layers, Search, Compass, MapPin, Radio, Footprints, ArrowRight, Target } from 'lucide-react';
 import { getStationName, getLineName, getLineShortName, getDirectionLabel } from '../utils/i18n';
 import { getWalkingRoute, getTransitRideSegment } from '../utils/itineraryRouter';
@@ -82,6 +82,8 @@ export function offsetPolylineRight(points, offsetMeters = 2.5) {
 }
 
 function TransitMap({
+  lines: propLines,
+  shapes: propShapes,
   activeNetwork,
   liveLocations,
   selectedLine,
@@ -103,6 +105,7 @@ function TransitMap({
   language = 'fr',
   theme = 'dark'
 }) {
+  const STATIC_LINES = propLines || DEFAULT_STATIC_LINES;
   const isAr = language === 'ar';
   const mapContainerRef = useRef(null);
   const mapInstanceRef = useRef(null);
@@ -130,9 +133,13 @@ function TransitMap({
   // Excess vehicles count (when > 15 vehicles near user)
   const [excessVehiclesCount, setExcessVehiclesCount] = useState(0);
 
-  // Asynchronously load high-density route geometries to keep main JS bundle tiny and load fast
-  const [transitShapes, setTransitShapes] = useState({});
+  // Load route geometries dynamically (from OTA prop if available, fallback to bundled JSON)
+  const [transitShapes, setTransitShapes] = useState(propShapes || {});
   useEffect(() => {
+    if (propShapes && Object.keys(propShapes).length > 0) {
+      setTransitShapes(propShapes);
+      return;
+    }
     import('../data/transitShapes.json')
       .then((mod) => {
         setTransitShapes(mod.default || mod);
@@ -140,7 +147,7 @@ function TransitMap({
       .catch((err) => {
         console.warn('Transit shapes deferred load warning:', err);
       });
-  }, []);
+  }, [propShapes]);
 
   // Keep latest liveLocations, userLocation and radarRadius in refs for high-frequency render interval
   const liveLocationsRef = useRef(liveLocations);
