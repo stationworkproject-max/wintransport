@@ -11,44 +11,57 @@ function distSq(lat1, lon1, lat2, lon2) {
 }
 
 /**
- * Fetch real street/sidewalk walking path coordinates using resilient routing mirrors.
- * Falls back cleanly to direct line [start, end] if offline or times out.
+ * Fetch real street/sidewalk walking path coordinates.
+ * Designed specifically for pedestrians:
+ * - Pedestrians can walk anywhere (across plazas, pedestrian alleys, crosswalks, open squares).
+ * - Never forces car road detours or loops around city blocks when on foot.
+ * - For short walks (<= 250m) or when street routing exceeds direct distance by > 1.30x (car-like block loops),
+ *   uses direct pedestrian walking connection.
+ * - Always anchors directly from exact user start point to station entrance.
  */
 export async function getWalkingRoute(start, end) {
   if (!start || !end || !start.lat || !start.lon || !end.lat || !end.lon) {
     return [];
   }
 
-  const d = Math.sqrt(distSq(start.lat, start.lon, end.lat, end.lon));
+  const straightDist = Math.sqrt(distSq(start.lat, start.lon, end.lat, end.lon));
   // If points are basically identical (< 10 meters)
-  if (d < 10) {
+  if (straightDist < 10) {
     return [[start.lat, start.lon], [end.lat, end.lon]];
   }
 
-  // High-precision OpenStreetMap pedestrian routing mirrors (routed-foot)
-  const urls = [
-    `https://routing.openstreetmap.de/routed-foot/route/v1/foot/${start.lon},${start.lat};${end.lon},${end.lat}?overview=full&geometries=geojson`,
-    `https://router.project-osrm.org/route/v1/foot/${start.lon},${start.lat};${end.lon},${end.lat}?overview=full&geometries=geojson`
-  ];
+  // If pedestrian is within 250m of the station, they walk directly across
+  // plazas, crosswalks, sidewalks, and open areas without following car detours
+  if (straightDist <= 250) {
+    return [[start.lat, start.lon], [end.lat, end.lon]];
+  }
 
-  for (const url of urls) {
-    try {
-      const res = await fetch(url, {
-        signal: AbortSignal.timeout(3500)
-      });
-      if (res.ok) {
-        const data = await res.json();
-        if (data.routes && data.routes[0]?.geometry?.coordinates) {
-          // GeoJSON coordinates are [lon, lat], Leaflet expects [lat, lon]
+  // For longer walks (> 250m), query OpenStreetMap pedestrian routing
+  const url = `https://routing.openstreetmap.de/routed-foot/route/v1/foot/${start.lon},${start.lat};${end.lon},${end.lat}?overview=full&geometries=geojson&continue_straight=false`;
+
+  try {
+    const res = await fetch(url, {
+      signal: AbortSignal.timeout(3500)
+    });
+    if (res.ok) {
+      const data = await res.json();
+      if (data.routes && data.routes[0]?.geometry?.coordinates) {
+        const routeDist = data.routes[0].distance || 0;
+        const detourRatio = straightDist > 0 ? routeDist / straightDist : 1;
+
+        // If the routed distance is > 1.30x straight line, it's looping around
+        // car road networks (one-ways, dual carriageways) that pedestrians cut across!
+        if (detourRatio <= 1.30) {
           const coords = data.routes[0].geometry.coordinates.map(pt => [pt[1], pt[0]]);
           if (coords.length >= 2) {
-            return coords;
+            // Anchor to exact start and end points
+            return [[start.lat, start.lon], ...coords, [end.lat, end.lon]];
           }
         }
       }
-    } catch (err) {
-      // Try next mirror
     }
+  } catch (err) {
+    // Fall back to direct pedestrian path
   }
 
   return [[start.lat, start.lon], [end.lat, end.lon]];

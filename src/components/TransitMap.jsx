@@ -650,27 +650,51 @@ function TransitMap({
       const newLayers = [];
       const allCoords = [];
 
-      // A) Leg 1: Walk to origin station (À pied)
+      // A) Leg 1: Walk to origin station (À pied - Tracé piétonnier exclusif en pointillés espacés)
       if (walkLeg1Coords.length >= 2) {
         allCoords.push(...walkLeg1Coords);
-        const glow = L.polyline(walkLeg1Coords, {
+
+        // Dark soft shadow for contrast against roads/satellite
+        const walkShadow1 = L.polyline(walkLeg1Coords, {
+          color: '#0f172a',
+          weight: 6,
+          opacity: 0.25,
+          dashArray: '2, 12',
+          lineCap: 'round'
+        }).addTo(currentMap);
+
+        // Pedestrian footsteps: clean, round, sky-blue dots with generous transparent spacing (NOT a solid car road)
+        const walkDots1 = L.polyline(walkLeg1Coords, {
           color: '#0284c7',
-          weight: 9,
-          opacity: 0.35,
-          lineCap: 'round',
-          lineJoin: 'round'
+          weight: 5,
+          opacity: 1.0,
+          dashArray: '2, 12',
+          lineCap: 'round'
         }).addTo(currentMap);
 
-        const lineDash = L.polyline(walkLeg1Coords, {
-          color: '#38bdf8',
-          weight: 4.5,
-          dashArray: '6, 8',
-          opacity: 0.95,
-          lineCap: 'round',
-          lineJoin: 'round'
-        }).addTo(currentMap);
+        newLayers.push(walkShadow1, walkDots1);
 
-        newLayers.push(glow, lineDash);
+        // Walking distance & time pill badge at midpoint of the walk
+        const midIdx1 = Math.floor(walkLeg1Coords.length / 2);
+        const midPt1 = walkLeg1Coords[midIdx1] || [startPt.lat, startPt.lon];
+        const walkMins1 = activeItinerary.walkToOriginMins || Math.max(1, Math.round((activeItinerary.walkToOriginMeters || 100) / 75));
+        const walkMeters1 = activeItinerary.walkToOriginMeters || Math.round(getDistanceMeters(startPt.lat, startPt.lon, originStation.lat, originStation.lon));
+
+        const walkBadgeIcon1 = L.divIcon({
+          html: `
+            <div class="pointer-events-none flex items-center justify-center" style="transform: translate(-50%, -50%);">
+              <div class="px-2 py-0.5 rounded-full bg-sky-600/95 text-white text-[10px] font-bold shadow-lg border border-white/80 flex items-center gap-1 backdrop-blur-sm whitespace-nowrap">
+                <span>🚶</span>
+                <span>${walkMins1} min</span>
+                <span class="text-sky-200 text-[9px]">(${walkMeters1}m)</span>
+              </div>
+            </div>
+          `,
+          className: 'itinerary-walk-badge',
+          iconSize: [0, 0]
+        });
+        const walkBadge1 = L.marker(midPt1, { icon: walkBadgeIcon1, zIndexOffset: 2400 }).addTo(currentMap);
+        newLayers.push(walkBadge1);
       }
 
       // B) Leg 2: Transit Ride along line (from originStation to dropoffStation)
@@ -707,27 +731,51 @@ function TransitMap({
         newLayers.push(casing, mainLine, dashOverlay);
       }
 
-      // C) Leg 3: Walk to final destination (À pied vers destination)
+      // C) Leg 3: Walk to final destination (À pied vers destination - Tracé piétonnier exclusif)
       if (walkLeg2Coords.length >= 2) {
         allCoords.push(...walkLeg2Coords);
-        const glow = L.polyline(walkLeg2Coords, {
+
+        // Dark soft shadow for contrast
+        const walkShadow2 = L.polyline(walkLeg2Coords, {
+          color: '#0f172a',
+          weight: 6,
+          opacity: 0.25,
+          dashArray: '2, 12',
+          lineCap: 'round'
+        }).addTo(currentMap);
+
+        // Pedestrian footsteps: clean, round, emerald dots with generous transparent spacing
+        const walkDots2 = L.polyline(walkLeg2Coords, {
           color: '#059669',
-          weight: 9,
-          opacity: 0.35,
-          lineCap: 'round',
-          lineJoin: 'round'
+          weight: 5,
+          opacity: 1.0,
+          dashArray: '2, 12',
+          lineCap: 'round'
         }).addTo(currentMap);
 
-        const lineDash = L.polyline(walkLeg2Coords, {
-          color: '#10b981',
-          weight: 4.5,
-          dashArray: '6, 8',
-          opacity: 0.95,
-          lineCap: 'round',
-          lineJoin: 'round'
-        }).addTo(currentMap);
+        newLayers.push(walkShadow2, walkDots2);
 
-        newLayers.push(glow, lineDash);
+        // Walking distance & time pill badge at midpoint of final walk
+        const midIdx2 = Math.floor(walkLeg2Coords.length / 2);
+        const midPt2 = walkLeg2Coords[midIdx2] || [dropoffStation.lat, dropoffStation.lon];
+        const walkMins2 = activeItinerary.walkFromDropoffMins || Math.max(1, Math.round((activeItinerary.walkFromDropoffMeters || 100) / 75));
+        const walkMeters2 = activeItinerary.walkFromDropoffMeters || Math.round(getDistanceMeters(dropoffStation.lat, dropoffStation.lon, targetDestination.lat, targetDestination.lon));
+
+        const walkBadgeIcon2 = L.divIcon({
+          html: `
+            <div class="pointer-events-none flex items-center justify-center" style="transform: translate(-50%, -50%);">
+              <div class="px-2 py-0.5 rounded-full bg-emerald-600/95 text-white text-[10px] font-bold shadow-lg border border-white/80 flex items-center gap-1 backdrop-blur-sm whitespace-nowrap">
+                <span>🚶</span>
+                <span>${walkMins2} min</span>
+                <span class="text-emerald-200 text-[9px]">(${walkMeters2}m)</span>
+              </div>
+            </div>
+          `,
+          className: 'itinerary-dest-walk-badge',
+          iconSize: [0, 0]
+        });
+        const walkBadge2 = L.marker(midPt2, { icon: walkBadgeIcon2, zIndexOffset: 2400 }).addTo(currentMap);
+        newLayers.push(walkBadge2);
       }
 
       // D) Markers for Itinerary Points:
