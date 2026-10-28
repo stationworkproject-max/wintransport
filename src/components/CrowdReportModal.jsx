@@ -10,12 +10,23 @@ import {
   Eye, 
   Search, 
   MapPin, 
-  Navigation 
+  Navigation,
+  LocateFixed,
+  ShieldCheck
 } from 'lucide-react';
 import { STATIC_LINES as DEFAULT_STATIC_LINES } from '../data/staticTransit';
+import TRANSIT_SHAPES_DEFAULT from '../data/transitShapes.json';
 import { useTransitData } from '../context/TransitDataContext';
 import { submitCrowdReport } from '../supabase';
 import { getLineName, getLineShortName, getStationName } from '../utils/i18n';
+
+// Major Terminus Hubs (Place de Barcelone, Tunis Marine, etc.)
+const MAJOR_TERMINUS_HUBS = [
+  { id: 'barcelone', name: 'Gare de Tunis / Barcelone', lat: 36.7952, lon: 10.1805, radius: 130 },
+  { id: 'tunis_marine', name: 'Tunis Marine', lat: 36.8010, lon: 10.1906, radius: 100 },
+  { id: 'passage', name: 'Passage / République', lat: 36.8055, lon: 10.1815, radius: 95 },
+  { id: 'bab_saadoun', name: 'Bab Saadoun', lat: 36.8085, lon: 10.1585, radius: 95 },
+];
 
 function getDistanceMeters(lat1, lon1, lat2, lon2) {
   if (!lat1 || !lon1 || !lat2 || !lon2) return 999999;
@@ -30,117 +41,176 @@ function getDistanceMeters(lat1, lon1, lat2, lon2) {
   return Math.round(R * c);
 }
 
+function getDistanceToSegment(pLat, pLon, aLat, aLon, bLat, bLon) {
+  const cosLat = Math.cos((aLat * Math.PI) / 180);
+  const mPerDegLat = 111132;
+  const mPerDegLon = 111132 * cosLat;
+  const dx = (bLon - aLon) * mPerDegLon;
+  const dy = (bLat - aLat) * mPerDegLat;
+  const lenSq = dx * dx + dy * dy;
+  if (lenSq === 0) return getDistanceMeters(pLat, pLon, aLat, aLon);
+  const px = (pLon - aLon) * mPerDegLon;
+  const py = (pLat - aLat) * mPerDegLat;
+  let t = (px * dx + py * dy) / lenSq;
+  t = Math.max(0, Math.min(1, t));
+  const distX = px - (t * dx);
+  const distY = py - (t * dy);
+  return Math.round(Math.sqrt(distX * distX + distY * distY));
+}
+
 export default function CrowdReportModal({ 
   isOpen, 
   onClose, 
   onReportSuccess, 
   userLocation = null,
+  onRequestGps = null,
   preselectedLine = null,
   language = 'fr' 
 }) {
-  const { lines: dynamicLines } = useTransitData();
+  const { lines: dynamicLines, shapes: dynamicShapes } = useTransitData();
   const STATIC_LINES = dynamicLines || DEFAULT_STATIC_LINES;
+  const TRANSIT_SHAPES = dynamicShapes || TRANSIT_SHAPES_DEFAULT;
 
   const [lineId, setLineId] = useState('');
   const [reportType, setReportType] = useState('broken');
-  const [severity, setSeverity] = useState('medium');
   const [stopName, setStopName] = useState('');
   const [message, setMessage] = useState('');
   const [direction, setDirection] = useState('');
   const [elapsedMinutes, setElapsedMinutes] = useState(0);
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState(false);
-  const [showAllLines, setShowAllLines] = useState(false);
-  const [searchFilter, setSearchFilter] = useState('');
 
-  // Calculate distance to all lines based on closest stop
-  const linesWithDistance = useMemo(() => {
-    return STATIC_LINES.map(line => {
-      let minD = Infinity;
-      let nearestStop = null;
-      const allStops = [
-        ...(line.stops || []),
-        ...(line.stops_aller || []),
-        ...(line.stops_retour || [])
-      ];
+  // Strict proximity threshold: User must be physically near the line (max 200m - 250m)
+  // You cannot see or know if a bus/train is broken down or late from 2.5 km away!
+  const maxAllowedDistance = useMemo(() => {
+    const acc = Math.round(userLocation?.accuracy || 15);
+    // Base 200m, capped at 250m for slightly degraded GPS
+    return Math.min(250, Math.max(180, acc * 4));
+  }, [userLocation?.accuracy]);
 
-      if (userLocation?.lat && userLocation?.lon) {
-        for (const st of allStops) {
-          if (st && st.lat && st.lon) {
-            const d = getDistanceMeters(userLocation.lat, userLocation.lon, st.lat, st.lon);
-            if (d < minD) {
-              minD = d;
-              nearestStop = st;
-            }
-          }
+  // Precise distance from user GPS to a transit line (checks hub, physical track shapes, and stops)
+  const calculateDistanceToLine = (line) => {
+    if (!line || !userLocation?.lat || !userLocation?.lon) {
+      return { minD: 999999, closestStop: null };
+    }
+    const uLat = userLocation.lat;
+    const uLon = userLocation.lon;
+    let minD = Infinity;
+    let closestStop = null;
+
+    // 1. Hub check (Barcelone, Tunis Marine, etc.)
+    for (const hub of MAJOR_TERMINUS_HUBS) {
+      const dToHub = getDistanceMeters(uLat, uLon, hub.lat, hub.lon);
+      if (dToHub <= hub.radius) {
+        const allStops = [
+          ...(line.stops || []),
+          ...(line.stops_aller || []),
+          ...(line.stops_retour || [])
+        ];
+        const hubStop = allStops.find(s => s && s.lat && s.lon && getDistanceMeters(hub.lat, hub.lon, s.lat, s.lon) <= (hub.radius + 70));
+        if (hubStop) {
+          return { minD: 0, closestStop: hubStop };
         }
       }
+    }
 
+    // 2. High-definition physical route polylines
+    const shapesToCheck = [
+      TRANSIT_SHAPES[line.id],
+      TRANSIT_SHAPES[line.id + '_aller'],
+      TRANSIT_SHAPES[line.id + '_retour'],
+      TRANSIT_SHAPES[line.id + '_0'],
+      TRANSIT_SHAPES[line.id + '_1']
+    ].filter(s => Array.isArray(s) && s.length > 1);
+
+    for (const shape of shapesToCheck) {
+      for (let i = 0; i < shape.length - 1; i++) {
+        const ptA = shape[i];
+        const ptB = shape[i + 1];
+        const dSeg = getDistanceToSegment(uLat, uLon, ptA[0], ptA[1], ptB[0], ptB[1]);
+        if (dSeg < minD) {
+          minD = dSeg;
+        }
+      }
+    }
+
+    // 3. Stops
+    const allStops = [
+      ...(line.stops || []),
+      ...(line.stops_aller || []),
+      ...(line.stops_retour || [])
+    ];
+
+    for (let i = 0; i < allStops.length; i++) {
+      const s = allStops[i];
+      if (s && s.lat && s.lon) {
+        const d = getDistanceMeters(uLat, uLon, s.lat, s.lon);
+        if (d < minD) {
+          minD = d;
+          closestStop = s;
+        }
+      }
+    }
+
+    return { minD: Math.round(minD), closestStop };
+  };
+
+  // Compute exact physical distance to all lines
+  const allLinesWithDistance = useMemo(() => {
+    if (!userLocation?.lat || !userLocation?.lon) return [];
+    return STATIC_LINES.map(line => {
+      const { minD, closestStop } = calculateDistanceToLine(line);
       return {
         ...line,
-        distanceMeters: minD === Infinity ? 999999 : minD,
-        nearestStop
+        distanceMeters: minD,
+        closestStop
       };
     }).sort((a, b) => a.distanceMeters - b.distanceMeters);
-  }, [STATIC_LINES, userLocation]);
+  }, [STATIC_LINES, userLocation, TRANSIT_SHAPES]);
 
-  // Nearest lines (within 3 km or top 8 closest)
+  const nearestLine = allLinesWithDistance[0] || null;
+
+  // STRICT FILTER: ONLY lines where user is physically NEAR (<= maxAllowedDistance, 200m - 250m)
   const nearbyLines = useMemo(() => {
-    if (!userLocation?.lat || !userLocation?.lon) {
-      return linesWithDistance.slice(0, 15);
-    }
-    const filtered = linesWithDistance.filter(l => l.distanceMeters <= 3000);
-    return filtered.length >= 4 ? filtered : linesWithDistance.slice(0, 8);
-  }, [linesWithDistance, userLocation]);
+    return allLinesWithDistance.filter(line => line.distanceMeters <= maxAllowedDistance);
+  }, [allLinesWithDistance, maxAllowedDistance]);
 
-  // Effective lines displayed
-  const displayedLines = useMemo(() => {
-    let baseList = showAllLines ? linesWithDistance : nearbyLines;
-    if (searchFilter.trim()) {
-      const q = searchFilter.toLowerCase().trim();
-      baseList = linesWithDistance.filter(l => 
-        l.short_name.toLowerCase().includes(q) || 
-        l.long_name.toLowerCase().includes(q)
-      );
-    }
-    return baseList;
-  }, [showAllLines, nearbyLines, linesWithDistance, searchFilter]);
+  const isUserNearAnyLine = nearbyLines.length > 0;
 
-  // Selected line object
-  const currentSelectedLine = useMemo(() => {
-    return STATIC_LINES.find(l => l.id === lineId) || displayedLines[0] || STATIC_LINES[0];
-  }, [STATIC_LINES, lineId, displayedLines]);
+  // Currently selected line
+  const selectedLine = useMemo(() => {
+    return nearbyLines.find(l => l.id === lineId) || nearbyLines[0] || null;
+  }, [nearbyLines, lineId]);
 
-  // Initialize selected line and stop
+  // Pre-select nearest line and stop
   useEffect(() => {
-    if (preselectedLine?.id) {
+    if (preselectedLine?.id && nearbyLines.some(l => l.id === preselectedLine.id)) {
       setLineId(preselectedLine.id);
       if (preselectedLine.directions && preselectedLine.directions[0]) {
         setDirection(preselectedLine.directions[0]);
       }
-    } else if (nearbyLines.length > 0 && !lineId) {
+    } else if (nearbyLines.length > 0) {
       setLineId(nearbyLines[0].id);
-      if (nearbyLines[0].nearestStop?.name) {
-        setStopName(nearbyLines[0].nearestStop.name);
+      if (nearbyLines[0].closestStop?.name) {
+        setStopName(nearbyLines[0].closestStop.name);
       }
       if (nearbyLines[0].directions && nearbyLines[0].directions[0]) {
         setDirection(nearbyLines[0].directions[0]);
       }
     }
-  }, [preselectedLine?.id, nearbyLines]);
+  }, [nearbyLines, preselectedLine?.id]);
 
-  // Update stops list when lineId changes
+  // Update stop and direction when selected line changes
   useEffect(() => {
-    if (currentSelectedLine) {
-      const matchInDistance = linesWithDistance.find(l => l.id === currentSelectedLine.id);
-      if (matchInDistance?.nearestStop?.name && !stopName) {
-        setStopName(matchInDistance.nearestStop.name);
+    if (selectedLine) {
+      if (selectedLine.closestStop?.name && !stopName) {
+        setStopName(selectedLine.closestStop.name);
       }
-      if (currentSelectedLine.directions && currentSelectedLine.directions[0] && !direction) {
-        setDirection(currentSelectedLine.directions[0]);
+      if (selectedLine.directions && selectedLine.directions[0] && !direction) {
+        setDirection(selectedLine.directions[0]);
       }
     }
-  }, [currentSelectedLine?.id]);
+  }, [selectedLine?.id]);
 
   if (!isOpen) return null;
 
@@ -185,6 +255,8 @@ export default function CrowdReportModal({
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    if (!selectedLine) return;
+
     setLoading(true);
 
     try {
@@ -199,7 +271,7 @@ export default function CrowdReportModal({
       }
 
       await submitCrowdReport({
-        line_id: lineId || currentSelectedLine?.id,
+        line_id: selectedLine.id,
         stop_name: stopName || null,
         report_type: reportType,
         severity: (reportType === 'broken' || reportType === 'accident') ? 'high' : (reportType === 'delay' ? 'medium' : 'low'),
@@ -242,7 +314,7 @@ export default function CrowdReportModal({
                 {language === 'ar' ? 'إبلاغ أو إشارة مرور' : 'Signaler un état de trafic'}
               </h2>
               <p className="text-xs text-slate-400">
-                {language === 'ar' ? 'شارك المعلومة في الوقت الفعلي مع بقية المسافرين' : "Partagez l'info en temps réel avec la communauté"}
+                {language === 'ar' ? 'مخصص للمسافرين المتواجدين بالقرب من الخط' : "Signalement réservé aux voyageurs sur place"}
               </p>
             </div>
           </div>
@@ -266,49 +338,155 @@ export default function CrowdReportModal({
               {language === 'ar' ? 'شكراً لمساهمتك في مساعدة المسافرين على هذا الخط.' : "Merci, vous venez d'aider les autres voyageurs sur la ligne."}
             </p>
           </div>
+        ) : !userLocation ? (
+          /* PROXIMITY GATEKEEPER 1: GPS Required */
+          <div className="p-6 text-center space-y-4 my-auto">
+            <div className="w-14 h-14 rounded-3xl bg-amber-500/20 text-amber-400 mx-auto flex items-center justify-center border border-amber-500/30">
+              <LocateFixed className="w-7 h-7 animate-pulse" />
+            </div>
+            <div>
+              <h3 className="font-extrabold text-base text-white">
+                {language === 'ar' ? 'التحقق من الموقع GPS مطلوب' : 'Position GPS requise'}
+              </h3>
+              <p className="text-xs text-slate-400 mt-1 max-w-sm mx-auto leading-relaxed">
+                {language === 'ar' 
+                  ? 'للإبلاغ عن عطب أو تأخير، يجب تفعيل الـ GPS للتأكد من تواجدك الفعلي بالقرب من الخط لمنع البلاغات الوهمية.'
+                  : "Pour garantir des signalements authentiques (panne, retard, passage), vous devez autoriser votre GPS afin de certifier votre présence à proximité de la ligne."}
+              </p>
+            </div>
+            {onRequestGps && (
+              <button
+                type="button"
+                onClick={onRequestGps}
+                className="py-3 px-6 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white font-bold text-sm rounded-2xl shadow-xl shadow-blue-500/30 transition active:scale-95 flex items-center gap-2 mx-auto"
+              >
+                <Navigation className="w-4 h-4" />
+                <span>{language === 'ar' ? 'تفعيل وتحديث الـ GPS' : 'Activer mon GPS'}</span>
+              </button>
+            )}
+          </div>
+        ) : !isUserNearAnyLine ? (
+          /* PROXIMITY GATEKEEPER 2: User is too far from any line (> 200-250m) */
+          <div className="p-6 text-center space-y-4 my-auto">
+            <div className="w-14 h-14 rounded-3xl bg-rose-500/10 text-rose-400 mx-auto flex items-center justify-center border border-rose-500/30">
+              <MapPin className="w-7 h-7 animate-bounce" />
+            </div>
+            <div>
+              <h3 className="font-extrabold text-base text-white">
+                {language === 'ar' ? 'أنت بعيد عن خطوط النقل' : 'Aucun transport à proximité immédiate'}
+              </h3>
+              <p className="text-xs text-slate-300 mt-1.5 max-w-sm mx-auto leading-relaxed">
+                {language === 'ar' 
+                  ? `أنت على بعد أكثر من ${maxAllowedDistance} متر عن أي خط نقل. لا يمكن معرفة حالة حركة النقل أو الأعطال عن بعد.`
+                  : `Vous vous trouvez à plus de ${maxAllowedDistance} mètres de tout tracé ou arrêt de transport.`}
+              </p>
+            </div>
+
+            {nearestLine && (
+              <div className="p-3 bg-slate-800/80 rounded-2xl border border-slate-700 max-w-sm mx-auto text-left space-y-2">
+                <div className="text-[11px] uppercase tracking-wider font-bold text-slate-400 flex items-center justify-between">
+                  <span>{language === 'ar' ? 'أقرب خط إليك' : 'Ligne la plus proche'}</span>
+                  <span className="text-amber-400 font-extrabold">
+                    {nearestLine.distanceMeters >= 1000 
+                      ? `${(nearestLine.distanceMeters / 1000).toFixed(1)} km` 
+                      : `${nearestLine.distanceMeters} m`}
+                  </span>
+                </div>
+                <div className="flex items-center gap-2.5">
+                  <span
+                    className="px-2.5 py-1 rounded-xl text-white font-extrabold text-xs shadow flex-shrink-0"
+                    style={{ backgroundColor: nearestLine.color }}
+                  >
+                    {nearestLine.short_name}
+                  </span>
+                  <div className="min-w-0 flex-1">
+                    <div className="font-bold text-xs text-white truncate">{nearestLine.long_name}</div>
+                    <div className="text-[10px] text-slate-400 truncate">
+                      {nearestLine.closestStop ? `Arrêt : ${nearestLine.closestStop.name}` : ''}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            <div className="p-3 bg-red-950/40 rounded-2xl border border-red-500/40 text-xs text-red-200 max-w-sm mx-auto text-left flex items-start gap-2.5">
+              <ShieldCheck className="w-5 h-5 text-red-400 flex-shrink-0 mt-0.5" />
+              <p className="leading-relaxed">
+                {language === 'ar'
+                  ? `حماية ضد البلاغات الخاطئة : للإبلاغ عن عطب أو تأخير أو مرور، يجب أن تكون متواجداً في عين المكان على بعد أقل من ${maxAllowedDistance} متر.`
+                  : `Fiabilité communautaire : Pour empêcher les faux signalements à distance, vous devez être physiquement à l'arrêt ou sur la voie (distance ≤ ${maxAllowedDistance}m).`}
+              </p>
+            </div>
+
+            {onRequestGps && (
+              <button
+                type="button"
+                onClick={onRequestGps}
+                className="py-2.5 px-4 bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-bold rounded-xl border border-slate-700 transition flex items-center gap-2 mx-auto"
+              >
+                <Navigation className="w-3.5 h-3.5 text-blue-400" />
+                <span>{language === 'ar' ? 'تحديث الموقع GPS' : 'Actualiser ma position GPS'}</span>
+              </button>
+            )}
+          </div>
         ) : (
+          /* User is physically NEAR the line (<= 200m - 250m) */
           <form onSubmit={handleSubmit} className="p-4 sm:p-5 space-y-4 overflow-y-auto flex-1">
             
-            {/* Proximity Lines Selector */}
+            {/* Verified Proximity Badge */}
+            <div className="p-3 bg-emerald-500/10 border border-emerald-500/30 rounded-2xl flex items-center justify-between text-xs">
+              <div className="flex items-center gap-2 text-emerald-300 font-bold">
+                <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-ping"></span>
+                <span>
+                  {language === 'ar' 
+                    ? `موقع معتمد بالقرب من الخط (${selectedLine?.distanceMeters || 0}م)` 
+                    : `Position vérifiée à proximité immédiate (${selectedLine?.distanceMeters || 0}m)`}
+                </span>
+              </div>
+              <span className="text-[10px] bg-emerald-950/80 px-2 py-0.5 rounded-full text-emerald-300 border border-emerald-500/40 font-mono">
+                GPS ±{Math.round(userLocation?.accuracy || 15)}m
+              </span>
+            </div>
+
+            {/* Line Selection (strictly limited to lines within near proximity) */}
             <div className="space-y-1.5">
-              <div className="flex items-center justify-between">
-                <label className="block text-xs font-bold text-slate-300 uppercase tracking-wider">
-                  {language === 'ar' ? 'الخط المعني (الأقرب لموقعك)' : 'Lignes à proximité (les plus proches)'}
-                </label>
-                <button
-                  type="button"
-                  onClick={() => setShowAllLines(!showAllLines)}
-                  className="text-[11px] text-blue-400 hover:text-blue-300 font-semibold"
-                >
-                  {showAllLines 
-                    ? (language === 'ar' ? 'إظهار الأقرب فقط' : 'Afficher seulement les proches') 
-                    : (language === 'ar' ? 'كافة الخطوط' : 'Toutes les lignes')}
-                </button>
-              </div>
+              <label className="block text-xs font-bold text-slate-300 uppercase tracking-wider">
+                {language === 'ar' ? 'الخط القريب منك' : 'Ligne à votre portée'}
+              </label>
 
-              {/* Quick Search Bar */}
-              <div className="relative">
-                <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
-                <input
-                  type="text"
-                  value={searchFilter}
-                  onChange={(e) => setSearchFilter(e.target.value)}
-                  placeholder={language === 'ar' ? 'ابحث عن خط أو حافلة...' : 'Rechercher une ligne (ex: Train, 1, 28, TGM)...'}
-                  className="w-full bg-slate-800/80 border border-slate-700 rounded-xl pl-8 pr-3 py-1.5 text-xs text-white placeholder-slate-400 focus:outline-none focus:ring-1 focus:ring-blue-500"
-                />
-              </div>
-
-              <select
-                value={lineId || currentSelectedLine?.id}
-                onChange={(e) => setLineId(e.target.value)}
-                className="w-full bg-slate-800/80 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-              >
-                {displayedLines.map((l) => (
-                  <option key={l.id} value={l.id}>
-                    {getLineShortName(l, language)} - {getLineName(l, language)} {l.distanceMeters < 50000 ? `(~${l.distanceMeters > 1000 ? (l.distanceMeters / 1000).toFixed(1) + 'km' : l.distanceMeters + 'm'})` : ''}
-                  </option>
-                ))}
-              </select>
+              {nearbyLines.length > 1 ? (
+                <div className="space-y-1.5">
+                  <select
+                    value={selectedLine?.id}
+                    onChange={(e) => setLineId(e.target.value)}
+                    className="w-full bg-slate-800/90 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  >
+                    {nearbyLines.map((l) => (
+                      <option key={l.id} value={l.id}>
+                        {getLineShortName(l, language)} - {getLineName(l, language)} ({l.distanceMeters === 0 ? (language === 'ar' ? 'في المحطة' : 'À quai') : `à ${l.distanceMeters}m`})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              ) : (
+                <div className="p-3 bg-slate-800/60 border border-slate-700/80 rounded-2xl flex items-center gap-3">
+                  <span
+                    className="px-3 py-1.5 rounded-xl font-extrabold text-sm text-white flex-shrink-0 shadow"
+                    style={{ backgroundColor: selectedLine?.color }}
+                  >
+                    {getLineShortName(selectedLine, language)}
+                  </span>
+                  <div className="min-w-0 flex-1">
+                    <div className="font-bold text-xs truncate text-white">{getLineName(selectedLine, language)}</div>
+                    <div className="text-[10px] text-slate-400 mt-0.5">
+                      {selectedLine?.closestStop ? `${language === 'ar' ? 'محطة : ' : 'Arrêt : '}${selectedLine.closestStop.name}` : ''}
+                    </div>
+                  </div>
+                  <span className="text-[10px] bg-emerald-500/20 text-emerald-400 font-bold px-2.5 py-1 rounded-full border border-emerald-500/30 flex-shrink-0">
+                    {selectedLine?.distanceMeters === 0 ? (language === 'ar' ? 'في المحطة' : 'À quai') : `à ${selectedLine?.distanceMeters}m`}
+                  </span>
+                </div>
+              )}
             </div>
 
             {/* Report Type Grid */}
@@ -358,7 +536,7 @@ export default function CrowdReportModal({
                     className="w-full bg-slate-800/90 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:ring-1 focus:ring-cyan-500"
                   >
                     <option value="">{language === 'ar' ? '-- اختر المحطة --' : '-- Choisir la station --'}</option>
-                    {(currentSelectedLine?.stops || []).map((st) => (
+                    {(selectedLine?.stops || []).map((st) => (
                       <option key={st.id || st.name} value={st.name}>
                         {getStationName(st, language)}
                       </option>
@@ -367,13 +545,13 @@ export default function CrowdReportModal({
                 </div>
 
                 {/* Direction */}
-                {currentSelectedLine?.directions && currentSelectedLine.directions.length > 0 && (
+                {selectedLine?.directions && selectedLine.directions.length > 0 && (
                   <div>
                     <label className="block text-[11px] font-bold text-slate-300 uppercase tracking-wider mb-1">
                       {language === 'ar' ? 'في أي اتجاه ؟' : 'Direction observée'}
                     </label>
                     <div className="grid grid-cols-2 gap-1.5">
-                      {currentSelectedLine.directions.map(dir => (
+                      {selectedLine.directions.map(dir => (
                         <button
                           key={dir}
                           type="button"
@@ -427,7 +605,7 @@ export default function CrowdReportModal({
             {reportType !== 'sighting' && (
               <div>
                 <label className="block text-xs font-bold text-slate-300 uppercase tracking-wider mb-1.5">
-                  {language === 'ar' ? 'المحطة أو الموقع (اختياري)' : 'Station la plus proche (optionnel)'}
+                  {language === 'ar' ? 'المحطة أو الموقع القريب (اختياري)' : 'Station la plus proche (optionnel)'}
                 </label>
                 <input
                   type="text"

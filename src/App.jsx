@@ -658,6 +658,7 @@ export default function App() {
             onClose={() => setIsReportOpen(false)}
             onReportSuccess={() => fetchCrowdReports().then(setCrowdReports)}
             userLocation={userLocation}
+            onRequestGps={requestUserGps}
             preselectedLine={selectedLine}
             language={language}
             theme={theme}
