@@ -34,22 +34,25 @@ function getDistanceMeters(lat1, lon1, lat2, lon2) {
 
 // Popular destinations, key districts, and landmarks across Greater Tunis
 export const POPULAR_LANDMARKS = [
-  { name: "Avenue Habib Bourguiba", detail: "Centre-Ville Tunis", category: "Centre-Ville", lat: 36.7997, lon: 10.1800, icon: "🏙️" },
-  { name: "Place de Barcelone", detail: "Gare Centrale & Métros", category: "Gares", lat: 36.7950, lon: 10.1800, icon: "🚉" },
-  { name: "Tunis Marine", detail: "Terminus TGM & Bus Banlieue", category: "Gares", lat: 36.8010, lon: 10.1920, icon: "🚆" },
-  { name: "Les Berges du Lac 1", detail: "Zone d'Affaires", category: "Affaires", lat: 36.8320, lon: 10.2350, icon: "🌊" },
-  { name: "Les Berges du Lac 2", detail: "Ambassades & Bureaux", category: "Affaires", lat: 36.8450, lon: 10.2750, icon: "🏢" },
-  { name: "Aéroport Tunis-Carthage", detail: "Terminal Principal", category: "Transport", lat: 36.8510, lon: 10.2272, icon: "✈️" },
-  { name: "La Marsa Plage", detail: "Corniche & Plage", category: "Banlieue Nord", lat: 36.8785, lon: 10.3235, icon: "🏖️" },
-  { name: "Sidi Bou Saïd", detail: "Village & Café des Délices", category: "Banlieue Nord", lat: 36.8710, lon: 10.3415, icon: "🏛️" },
-  { name: "Carthage Amphi & Musée", detail: "Site Archéologique", category: "Banlieue Nord", lat: 36.8540, lon: 10.3290, icon: "🏛️" },
-  { name: "Le Bardo & Musée National", detail: "Musée & Parlement", category: "Culture", lat: 36.8090, lon: 10.1340, icon: "🏛️" },
-  { name: "Campus Univ. El Manar", detail: "Facultés des Sciences & Médecine", category: "Universités", lat: 36.8335, lon: 10.1470, icon: "🎓" },
-  { name: "Campus Univ. La Manouba", detail: "Lettres, FLAHM & ISCAE", category: "Universités", lat: 36.8120, lon: 10.0880, icon: "🎓" },
-  { name: "Ariana Centre", detail: "Centre-Ville Ariana", category: "Banlieue", lat: 36.8620, lon: 10.1950, icon: "📍" },
-  { name: "Ben Arous Centre", detail: "Centre Gouvernorat", category: "Banlieue Sud", lat: 36.7530, lon: 10.2220, icon: "📍" },
-  { name: "Radès Ville & Stade", detail: "Cité Sportive", category: "Banlieue Sud", lat: 36.7680, lon: 10.2800, icon: "🏟️" },
-  { name: "Hammam-Lif", detail: "Banlieue Sud & Plage", category: "Banlieue Sud", lat: 36.7290, lon: 10.3390, icon: "📍" },
+  { name: "Faculté 9 Avril", short: "9 Avril", detail: "Campus Universitaire 9 Avril & Hôpitaux", category: "Universités", lat: 36.7938, lon: 10.1624, icon: "🎓" },
+  { name: "Station Le Bardo", short: "Le Bardo", detail: "Gare RFR D, Métro 4 & Bus", category: "Gares", lat: 36.8074, lon: 10.1345, icon: "🚉" },
+  { name: "Bab Saadoun", short: "Bab Saadoun", detail: "Pôle d'Échange Métros 3, 4, 5 & Hôpitaux", category: "Gares", lat: 36.8099, lon: 10.1621, icon: "🚉" },
+  { name: "Place de Barcelone", short: "Barcelone", detail: "Gare Centrale & Métros", category: "Gares", lat: 36.7950, lon: 10.1800, icon: "🚉" },
+  { name: "Passage / République", short: "Passage", detail: "Pôle Central Métros 2, 3, 4, 5 & Bus", category: "Gares", lat: 36.8065, lon: 10.1808, icon: "🚉" },
+  { name: "Avenue Habib Bourguiba", short: "Centre-Ville", detail: "Centre-Ville Tunis", category: "Centre-Ville", lat: 36.7997, lon: 10.1800, icon: "🏙️" },
+  { name: "Tunis Marine", short: "Tunis Marine", detail: "Terminus TGM & Bus Banlieue", category: "Gares", lat: 36.8010, lon: 10.1920, icon: "🚆" },
+  { name: "Les Berges du Lac 1", short: "Lac 1", detail: "Zone d'Affaires", category: "Affaires", lat: 36.8320, lon: 10.2350, icon: "🌊" },
+  { name: "Les Berges du Lac 2", short: "Lac 2", detail: "Ambassades & Bureaux", category: "Affaires", lat: 36.8450, lon: 10.2750, icon: "🏢" },
+  { name: "Aéroport Tunis-Carthage", short: "Aéroport", detail: "Terminal Principal", category: "Transport", lat: 36.8510, lon: 10.2272, icon: "✈️" },
+  { name: "La Marsa Plage", short: "La Marsa", detail: "Corniche & Plage", category: "Banlieue Nord", lat: 36.8785, lon: 10.3235, icon: "🏖️" },
+  { name: "Sidi Bou Saïd", short: "Sidi Bou Saïd", detail: "Village & Café des Délices", category: "Banlieue Nord", lat: 36.8710, lon: 10.3415, icon: "🏛️" },
+  { name: "Carthage Amphi & Musée", short: "Carthage", detail: "Site Archéologique", category: "Banlieue Nord", lat: 36.8540, lon: 10.3290, icon: "🏛️" },
+  { name: "Campus Univ. El Manar", short: "El Manar", detail: "Facultés des Sciences & Médecine", category: "Universités", lat: 36.8335, lon: 10.1470, icon: "🎓" },
+  { name: "Campus Univ. La Manouba", short: "Manouba Univ", detail: "Lettres, FLAHM & ISCAE", category: "Universités", lat: 36.8120, lon: 10.0880, icon: "🎓" },
+  { name: "Ariana Centre", short: "Ariana", detail: "Centre-Ville Ariana", category: "Banlieue", lat: 36.8620, lon: 10.1950, icon: "📍" },
+  { name: "Ben Arous Centre", short: "Ben Arous", detail: "Centre Gouvernorat", category: "Banlieue Sud", lat: 36.7530, lon: 10.2220, icon: "📍" },
+  { name: "Radès Ville & Stade", short: "Radès", detail: "Cité Sportive", category: "Banlieue Sud", lat: 36.7680, lon: 10.2800, icon: "🏟️" },
+  { name: "Hammam-Lif", short: "Hammam-Lif", detail: "Banlieue Sud & Plage", category: "Banlieue Sud", lat: 36.7290, lon: 10.3390, icon: "📍" },
 ];
 
 export default function SmartTripPlannerModal({
@@ -144,122 +147,153 @@ export default function SmartTripPlannerModal({
     return [...matchingLandmarks, ...matchingStations].slice(0, 10);
   }, [destinationQuery, allStations]);
 
-  // SMART ROUTING ENGINE:
-  // Evaluates which lines bring the user CLOSEST to the target destination
+  // SMART ROUTING ENGINE (Direct Network Scan & Strict Nearest-Station Guarantee):
+  // Evaluates which lines bring the user CLOSEST to the target destination.
+  // STRICT RULE: For any candidate line, the boarding station MUST be the closest possible stop to the user's location.
+  // Never directs a user to walk past a station or trek to a distant stop when a close stop exists!
   const routeSolutions = useMemo(() => {
     if (!targetDestination) return [];
 
-    const solutions = [];
     const destLat = targetDestination.lat;
     const destLon = targetDestination.lon;
 
-    // Determine candidate boarding stations near the user
-    // If user has GPS: take stations within 1500m (or top 10 closest)
-    // If no GPS: take major transit hub stations
-    const candidateOrigins = userLocation
-      ? allStations
-          .map(st => ({
-            ...st,
-            walkToOriginMeters: getDistanceMeters(userLocation.lat, userLocation.lon, st.lat, st.lon)
-          }))
-          .filter(st => st.walkToOriginMeters <= 1800)
-          .sort((a, b) => a.walkToOriginMeters - b.walkToOriginMeters)
-          .slice(0, 10)
-      : allStations
-          .filter(st => ["Place de Barcelone", "Tunis Marine", "Passage", "Bab Saadoun", "Bab Alioua", "Ariana"].includes(st.name))
-          .map(st => ({ ...st, walkToOriginMeters: 0 }));
+    // User start point: either user's GPS position, or fallback to central hub (Place de Barcelone)
+    const startLoc = (userLocation && userLocation.lat && userLocation.lon)
+      ? { lat: userLocation.lat, lon: userLocation.lon }
+      : { lat: 36.7950, lon: 10.1800, isFallback: true };
 
-    // Fallback if no stations within 1800m of user: take top 6 closest anyway
-    const activeOrigins = candidateOrigins.length > 0 
-      ? candidateOrigins 
-      : allStations
-          .map(st => ({
-            ...st,
-            walkToOriginMeters: userLocation ? getDistanceMeters(userLocation.lat, userLocation.lon, st.lat, st.lon) : 0
-          }))
-          .sort((a, b) => a.walkToOriginMeters - b.walkToOriginMeters)
-          .slice(0, 6);
+    const rawSolutions = [];
 
-    const evaluatedLineMap = new Map();
+    // Evaluate each line across both directions with its exact directional stops
+    STATIC_LINES.forEach(line => {
+      const dirConfigs = [];
 
-    activeOrigins.forEach(originSt => {
-      originSt.lines.forEach(originLineInfo => {
-        const lineObj = STATIC_LINES.find(l => l.id === originLineInfo.id);
-        if (!lineObj) return;
+      // Direction 0 (Aller)
+      const dir0Stops = (line.stops_aller && line.stops_aller.length > 0) ? line.stops_aller : line.stops;
+      if (dir0Stops && dir0Stops.length > 1) {
+        dirConfigs.push({
+          dirIndex: 0,
+          dirName: line.directions?.[0] || line.long_name,
+          stops: dir0Stops
+        });
+      }
 
-        const originIndex = originLineInfo.stopIndex;
+      // Direction 1 (Retour)
+      let dir1Stops = null;
+      if (line.stops_retour && line.stops_retour.length > 1) {
+        dir1Stops = line.stops_retour;
+      } else if (line.stops_aller && line.stops_aller.length > 1) {
+        dir1Stops = [...line.stops_aller].reverse();
+      } else if (line.stops && line.stops.length > 1) {
+        dir1Stops = [...line.stops].reverse();
+      }
 
-        // Scan all other stops on this line to find the one that gets CLOSEST to the target destination
-        let bestDropoffStop = null;
+      if (dir1Stops) {
+        dirConfigs.push({
+          dirIndex: 1,
+          dirName: line.directions?.[1] || line.directions?.[0] || line.long_name,
+          stops: dir1Stops
+        });
+      }
+
+      dirConfigs.forEach(cfg => {
+        const stops = cfg.stops;
+
+        // 1. Find the stop on this line sequence strictly NEAREST to the user's start point
+        let bestOriginIdx = -1;
+        let minOriginDist = Infinity;
+
+        // 2. Find the stop on this line sequence strictly NEAREST to the destination
+        let bestDropoffIdx = -1;
         let minDropoffDist = Infinity;
-        let bestDropoffIndex = -1;
 
-        lineObj.stops.forEach((stop, sIndex) => {
-          if (sIndex === originIndex) return; // Must actually ride the vehicle
-          const dToTarget = getDistanceMeters(stop.lat, stop.lon, destLat, destLon);
-          if (dToTarget < minDropoffDist) {
-            minDropoffDist = dToTarget;
-            bestDropoffStop = stop;
-            bestDropoffIndex = sIndex;
+        stops.forEach((s, idx) => {
+          if (!s || !s.lat || !s.lon) return;
+          const dO = getDistanceMeters(startLoc.lat, startLoc.lon, s.lat, s.lon);
+          if (dO < minOriginDist) {
+            minOriginDist = dO;
+            bestOriginIdx = idx;
+          }
+
+          const dD = getDistanceMeters(destLat, destLon, s.lat, s.lon);
+          if (dD < minDropoffDist) {
+            minDropoffDist = dD;
+            bestDropoffIdx = idx;
           }
         });
 
-        // Maximum allowed walk from drop-off to destination: 2500m (2.5 km)
-        if (bestDropoffStop && minDropoffDist <= 2500) {
-          const stopsDiff = bestDropoffIndex - originIndex;
-          const stopsCount = Math.abs(stopsDiff);
+        // 3. Forward progression check:
+        // - Boarding stop must strictly precede dropoff stop in travel sequence!
+        // - User must be within reasonable walk of boarding stop (max 1800m)
+        // - Dropoff within reasonable distance of target (max 2000m)
+        if (
+          bestOriginIdx !== -1 &&
+          bestDropoffIdx !== -1 &&
+          bestOriginIdx < bestDropoffIdx &&
+          minOriginDist <= 1800 &&
+          minDropoffDist <= 2000
+        ) {
+          const originStop = stops[bestOriginIdx];
+          const dropoffStop = stops[bestDropoffIdx];
+          const stopsCount = bestDropoffIdx - bestOriginIdx;
 
-          // Determine direction
-          const isForward = stopsDiff > 0;
-          const directionName = isForward 
-            ? lineObj.directions[0] || lineObj.long_name 
-            : lineObj.directions[1] || lineObj.directions[0] || lineObj.long_name;
+          // Check physical progress: dropoff must bring user significantly closer to destination than where they boarded!
+          const dOriginToDest = getDistanceMeters(originStop.lat, originStop.lon, destLat, destLon);
+          if (minDropoffDist >= dOriginToDest) return;
 
           // Check live vehicles on this line
-          const liveVehicles = (liveLocations || []).filter(loc => loc.line_id === lineObj.id);
+          const liveVehicles = (liveLocations || []).filter(loc => loc.line_id === line.id);
 
-          const walkToOriginMeters = originSt.walkToOriginMeters;
+          const walkToOriginMeters = minOriginDist;
           const walkFromDropoffMeters = minDropoffDist;
           const totalWalkMeters = walkToOriginMeters + walkFromDropoffMeters;
 
-          // Estimated time: ~80m/min walk, ~2 min per transit stop
-          const walkToOriginMins = Math.max(1, Math.round(walkToOriginMeters / 80));
-          const rideMins = Math.max(2, stopsCount * 2);
-          const walkFromDropoffMins = Math.max(1, Math.round(walkFromDropoffMeters / 80));
+          const walkToOriginMins = Math.max(1, Math.round(walkToOriginMeters / 75));
+          const walkFromDropoffMins = Math.max(1, Math.round(walkFromDropoffMeters / 75));
+          const rideMins = Math.max(2, Math.round(stopsCount * 2.2));
           const estimatedTotalMins = walkToOriginMins + rideMins + walkFromDropoffMins;
 
-          // Score: live vehicles get high priority (deduct 15 min equivalent wait)
-          const liveBonus = liveVehicles.length > 0 ? 15 : 0;
-          const score = estimatedTotalMins - liveBonus;
+          // SCORING:
+          // Heavy penalty on walking to origin (x3.5) so the app ALWAYS chooses the closest boarding station!
+          // Walking 120m vs 1200m will easily win!
+          const isRail = line.type_id === 'subway' || line.type_id === 'train' || line.type_id === 'rfr' || line.type_id === 'tgm';
+          const railBonus = isRail ? 250 : 0;
+          const liveBonus = liveVehicles.length > 0 ? 150 : 0;
+          const score = (walkToOriginMeters * 3.5) + (walkFromDropoffMeters * 1.5) + (stopsCount * 120) - railBonus - liveBonus;
 
-          const key = lineObj.id;
-          if (!evaluatedLineMap.has(key) || evaluatedLineMap.get(key).score > score) {
-            evaluatedLineMap.set(key, {
-              line: lineObj,
-              originStation: originSt,
-              dropoffStation: bestDropoffStop,
-              walkToOriginMeters,
-              walkToOriginMins,
-              stopsCount,
-              direction: directionName,
-              directionIndex: isForward ? 0 : 1,
-              walkFromDropoffMeters,
-              walkFromDropoffMins,
-              totalWalkMeters,
-              estimatedTotalMins,
-              isDirectStop: walkFromDropoffMeters < 80,
-              liveVehiclesCount: liveVehicles.length,
-              closestVehicle: liveVehicles[0] || null,
-              score
-            });
-          }
+          rawSolutions.push({
+            line,
+            originStation: originStop,
+            dropoffStation: dropoffStop,
+            walkToOriginMeters,
+            walkToOriginMins,
+            stopsCount,
+            direction: cfg.dirName,
+            directionIndex: cfg.dirIndex,
+            walkFromDropoffMeters,
+            walkFromDropoffMins,
+            totalWalkMeters,
+            estimatedTotalMins,
+            isDirectStop: walkFromDropoffMeters < 80,
+            liveVehiclesCount: liveVehicles.length,
+            closestVehicle: liveVehicles[0] || null,
+            score
+          });
         }
       });
     });
 
-    const sorted = Array.from(evaluatedLineMap.values()).sort((a, b) => a.score - b.score);
+    // Deduplicate by line ID: keep the best direction/solution for each line
+    const byLine = new Map();
+    rawSolutions.forEach(sol => {
+      if (!byLine.has(sol.line.id) || byLine.get(sol.line.id).score > sol.score) {
+        byLine.set(sol.line.id, sol);
+      }
+    });
+
+    const sorted = Array.from(byLine.values()).sort((a, b) => a.score - b.score);
     return sorted.slice(0, 6);
-  }, [targetDestination, userLocation, allStations, liveLocations]);
+  }, [targetDestination, userLocation, STATIC_LINES, liveLocations]);
 
   if (!isOpen) return null;
 
@@ -337,17 +371,17 @@ export default function SmartTripPlannerModal({
                   <span>Destinations populaires :</span>
                 </div>
                 <div className="flex items-center gap-1.5 overflow-x-auto pb-1 scrollbar-none">
-                  {POPULAR_LANDMARKS.slice(0, 8).map(place => (
+                  {POPULAR_LANDMARKS.slice(0, 10).map(place => (
                     <button
                       key={place.name}
                       onClick={() => {
                         setTargetDestination(place);
                         setDestinationQuery(place.name);
                       }}
-                      className="px-2.5 py-1 bg-slate-800/60 hover:bg-slate-700/80 border border-slate-700 rounded-xl text-[11px] text-slate-300 hover:text-white whitespace-nowrap transition flex items-center gap-1"
+                      className="px-2.5 py-1 bg-slate-800/60 hover:bg-slate-700/80 border border-slate-700 rounded-xl text-[11px] text-slate-300 hover:text-white whitespace-nowrap transition flex items-center gap-1 shadow-sm"
                     >
                       <span>{place.icon}</span>
-                      <span>{place.short}</span>
+                      <span>{place.short || place.name}</span>
                     </button>
                   ))}
                 </div>
