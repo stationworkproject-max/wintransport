@@ -212,10 +212,10 @@ export default function Header({
             </button>
           )}
 
-          {/* Report Button */}
+          {/* Report Button (Visible on desktop; mobile accesses it via BottomNav to avoid duplicate buttons) */}
           <button
             onClick={onOpenReport}
-            className={`px-3 py-1.5 rounded-xl border text-xs font-semibold text-amber-500 flex items-center gap-1.5 transition-all ${
+            className={`hidden md:flex px-3 py-1.5 rounded-xl border text-xs font-semibold text-amber-500 items-center gap-1.5 transition-all ${
               theme === 'light'
                 ? 'bg-slate-100 hover:bg-slate-200 border-slate-300'
                 : 'bg-slate-800/80 hover:bg-slate-700/80 border-slate-700'

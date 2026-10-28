@@ -197,14 +197,12 @@ export default function PassengerBroadcastModal({
   // ── 🛡️ SMART TRANSIT CORRIDOR & DIRECTION ALIGNMENT ENGINE ──
 
   // Dynamic Corridor Tolerance based on transit mode and physical GPS precision
-  // Trains/RFR/Metro run on wide railway rights-of-way with overhead catenary that degrades GPS
-  // Buses run on multi-lane streets with sidewalks and bus stops
-  const getCorridorThreshold = (line, accuracy = 15) => {
-    if (!line) return 45;
-    const isRail = line.type_id && ['rfr', 'train', 'metro', 'tgm'].includes(line.type_id);
-    const baseCorridor = isRail ? 55 : 35;
-    const clampedAcc = Math.max(8, Math.min(Math.round(accuracy || 15), 65));
-    return Math.max(baseCorridor, clampedAcc + 15);
+  // Strict on-board proximity: Must be within 10 meters of the physical transit track/line (based on GPS accuracy)
+  const getCorridorThreshold = (line, accuracy = 10) => {
+    if (!line) return 10;
+    const clampedAcc = Math.max(5, Math.min(Math.round(accuracy || 10), 15));
+    // Base threshold is strictly 10m; allows up to 12m only if GPS accuracy is slightly degraded
+    return Math.min(12, Math.max(10, clampedAcc));
   };
 
   // Helper: Exact distance from user GPS to a transit line (checks both high-def OSM track shapes & stops)
@@ -1061,11 +1059,11 @@ export default function PassengerBroadcastModal({
         const currentAcc = pos.coords.accuracy || 15;
         const tolerance = getCorridorThreshold(selectedLine, currentAcc);
 
-        // Hysteresis: pause threshold at 1.8x tolerance (min 70m); resume threshold at 1.0x tolerance
-        const pauseThreshold = Math.max(70, Math.round(tolerance * 1.8));
+        // Hysteresis: pause threshold at 1.5x tolerance (max 20m); resume threshold at 1.0x tolerance
+        const pauseThreshold = Math.max(16, Math.round(tolerance * 1.5));
         const resumeThreshold = tolerance;
 
-        if (currentLineDist > pauseThreshold || currentAcc > 90) {
+        if (currentLineDist > pauseThreshold || currentAcc > 35) {
           // Off-track or degraded GPS
           if (!offTrackDurationRef.current) {
             offTrackDurationRef.current = Date.now();
